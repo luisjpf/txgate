@@ -528,6 +528,20 @@ pub enum ConfigError {
         /// The name of the missing field.
         field: String,
     },
+
+    /// File system I/O error.
+    #[error("I/O error: {context}")]
+    Io {
+        /// Context about the I/O operation that failed.
+        context: String,
+        /// The underlying I/O error.
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// Home directory could not be determined.
+    #[error("could not determine home directory")]
+    NoHomeDirectory,
 }
 
 impl ConfigError {
@@ -560,6 +574,21 @@ impl ConfigError {
         Self::MissingField {
             field: field.into(),
         }
+    }
+
+    /// Create an `Io` error.
+    #[must_use]
+    pub fn io(context: impl Into<String>, source: std::io::Error) -> Self {
+        Self::Io {
+            context: context.into(),
+            source,
+        }
+    }
+
+    /// Create a `NoHomeDirectory` error.
+    #[must_use]
+    pub const fn no_home_directory() -> Self {
+        Self::NoHomeDirectory
     }
 }
 
@@ -1016,6 +1045,36 @@ mod tests {
 
         let err = ConfigError::missing_field("test_field");
         assert!(matches!(err, ConfigError::MissingField { field } if field == "test_field"));
+
+        let io_err = std::io::Error::other("test io error");
+        let err = ConfigError::io("reading config", io_err);
+        assert!(matches!(err, ConfigError::Io { context, .. } if context == "reading config"));
+
+        let err = ConfigError::no_home_directory();
+        assert!(matches!(err, ConfigError::NoHomeDirectory));
+    }
+
+    #[test]
+    fn test_config_error_io_display() {
+        let io_err = std::io::Error::other("underlying error");
+        let err = ConfigError::io("reading config file", io_err);
+        assert_eq!(err.to_string(), "I/O error: reading config file");
+    }
+
+    #[test]
+    fn test_config_error_no_home_directory_display() {
+        let err = ConfigError::no_home_directory();
+        assert_eq!(err.to_string(), "could not determine home directory");
+    }
+
+    #[test]
+    fn test_config_error_io_source() {
+        let io_err = std::io::Error::other("test error");
+        let config_err = ConfigError::io("test context", io_err);
+
+        // Verify the source chain works
+        use std::error::Error;
+        assert!(config_err.source().is_some());
     }
 
     // ------------------------------------------------------------------------

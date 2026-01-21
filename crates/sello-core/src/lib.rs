@@ -75,6 +75,8 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
+pub mod config;
+pub mod config_loader;
 pub mod error;
 pub mod types;
 
@@ -82,6 +84,12 @@ pub mod types;
 pub use error::{
     ConfigError, ParseError, PolicyError, Result, RpcErrorCode, SelloError, SignError, StoreError,
 };
+
+// Re-export config types at crate root for convenience
+pub use config::{Config, ConfigBuilder, KeysConfig, PolicyConfig, ServerConfig};
+
+// Re-export config loader types at crate root for convenience
+pub use config_loader::{expand_path, load_config, ConfigLoader};
 
 // Re-export core types at crate root for convenience
 pub use types::{ParsedTx, PolicyResult, TxType};

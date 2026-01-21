@@ -4,13 +4,17 @@
 //!
 //! This crate provides the policy evaluation and rule management system:
 //!
+//! ## Modules
+//!
+//! - [`config`] - Policy configuration types
+//! - [`history`] - Transaction history tracking with `SQLite`
+//!
 //! ## Modules (planned)
 //!
 //! - `engine` - Policy evaluation engine
 //! - `rules` - Rule definitions and parsing
 //! - `conditions` - Condition types (amount limits, address allowlists, etc.)
 //! - `actions` - Policy actions (approve, deny, `require_approval`)
-//! - `config` - Policy configuration loading and validation
 //!
 //! ## Policy Features (planned)
 //!
@@ -45,9 +49,15 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
+pub mod config;
+pub mod engine;
+pub mod history;
+
+pub use config::PolicyConfig;
+pub use engine::{DefaultPolicyEngine, PolicyCheckResult, PolicyEngine};
+pub use history::{TransactionHistory, TransactionRecord};
+
 // Placeholder for future modules
-// pub mod engine;
 // pub mod rules;
 // pub mod conditions;
 // pub mod actions;
-// pub mod config;

@@ -17,9 +17,16 @@ workspace = true
 sello-core = { path = "../sello-core" }
 sello-chain = { path = "../sello-chain" }
 rusqlite = { workspace = true }
+r2d2 = { workspace = true }
+r2d2_sqlite = { workspace = true }
 lru = { workspace = true }
+serde = { workspace = true }
+alloy-primitives = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
+toml = { workspace = true }
+serde_json = { workspace = true }
 tempfile = { workspace = true }
 mockall = { workspace = true }
 proptest = { workspace = true }
