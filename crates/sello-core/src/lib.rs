@@ -78,6 +78,7 @@
 pub mod config;
 pub mod config_loader;
 pub mod error;
+pub mod signing;
 pub mod types;
 
 // Re-export commonly used error types at crate root for convenience
@@ -93,6 +94,12 @@ pub use config_loader::{expand_path, load_config, ConfigLoader};
 
 // Re-export core types at crate root for convenience
 pub use types::{ParsedTx, PolicyResult, TxType};
+
+// Re-export signing types at crate root for convenience
+pub use signing::{
+    ChainParser, PolicyCheckResult, PolicyEngineExt, SignatureBytes, SignerExt, SigningError,
+    SigningResult, SigningService,
+};
 
 // Re-export U256 from alloy_primitives for working with amounts
 pub use alloy_primitives::U256;

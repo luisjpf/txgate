@@ -27,11 +27,17 @@ axum = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
+thiserror = { workspace = true }
+dirs = { workspace = true }
+rpassword = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
+alloy-primitives = { workspace = true }
 tempfile = { workspace = true }
 mockall = { workspace = true }
 proptest = { workspace = true }

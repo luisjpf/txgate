@@ -2,22 +2,42 @@
 //!
 //! Command-line interface for Sello.
 //!
-//! ## Submodules (planned)
+//! ## Module Structure
 //!
-//! - `commands` - CLI command implementations
-//! - `args` - Argument parsing and validation
-//! - `output` - Output formatting (JSON, table, etc.)
+//! - [`args`] - Argument parsing and CLI structure definitions
+//! - [`commands`] - Command handler implementations
 //!
-//! ## Commands (planned)
+//! ## Usage
 //!
-//! - `sello sign` - Sign a transaction
-//! - `sello verify` - Verify a signature
-//! - `sello server` - Start the signing server
-//! - `sello keys` - Key management commands
-//! - `sello policy` - Policy management commands
-//! - `sello config` - Configuration management
+//! ```no_run
+//! use clap::Parser;
+//! use sello::cli::{Cli, Commands};
+//!
+//! let cli = Cli::parse();
+//!
+//! match cli.command {
+//!     Commands::Init { force } => {
+//!         // Handle init command
+//!     }
+//!     Commands::Status => {
+//!         // Handle status command
+//!     }
+//!     // ... other commands
+//!     _ => {}
+//! }
+//! ```
+//!
+//! ## Commands
+//!
+//! - `sello init [--force]` - Initialize Sello configuration
+//! - `sello status` - Display current status
+//! - `sello config [edit|path]` - View or edit configuration
+//! - `sello serve [--foreground]` - Start the signing server
+//! - `sello ethereum address` - Display Ethereum address
+//! - `sello ethereum sign <TX_HEX> [--format hex|json]` - Sign a transaction
 
-// Placeholder for future submodules
-// pub mod commands;
-// pub mod args;
-// pub mod output;
+pub mod args;
+pub mod commands;
+
+// Re-export main types for convenience
+pub use args::{Cli, Commands, ConfigAction, EthereumCommands, OutputFormat};
