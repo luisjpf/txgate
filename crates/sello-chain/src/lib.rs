@@ -2,7 +2,39 @@
 //!
 //! Multi-chain transaction parsing and construction for the Sello signing service.
 //!
-//! This crate provides blockchain-specific transaction handling:
+//! This crate provides blockchain-specific transaction handling through the
+//! [`Chain`] trait and chain-specific parser implementations.
+//!
+//! ## Core Trait
+//!
+//! The [`Chain`] trait is the foundation for all blockchain parsers:
+//!
+//! ```rust
+//! use sello_chain::Chain;
+//! use sello_core::{ParsedTx, TxType, error::ParseError};
+//! use sello_crypto::CurveType;
+//!
+//! struct MyChainParser;
+//!
+//! impl Chain for MyChainParser {
+//!     fn id(&self) -> &'static str {
+//!         "my-chain"
+//!     }
+//!
+//!     fn parse(&self, raw: &[u8]) -> Result<ParsedTx, ParseError> {
+//!         // Parse chain-specific transaction format
+//!         Ok(ParsedTx {
+//!             chain: "my-chain".to_string(),
+//!             tx_type: TxType::Transfer,
+//!             ..Default::default()
+//!         })
+//!     }
+//!
+//!     fn curve(&self) -> CurveType {
+//!         CurveType::Secp256k1
+//!     }
+//! }
+//! ```
 //!
 //! ## Modules (planned)
 //!
@@ -26,11 +58,64 @@
 //! - Polygon, Arbitrum, Optimism, Base
 //! - Solana Mainnet and Devnet
 //! - Bitcoin Mainnet and Testnet
+//!
+//! ## Crate Features
+//!
+//! - `mock` - Enable [`MockChain`] for use in other crates' tests
+//!
+//! ## Chain Registry
+//!
+//! The [`ChainRegistry`] provides runtime lookup of chain parsers:
+//!
+//! ```rust
+//! use sello_chain::ChainRegistry;
+//!
+//! let registry = ChainRegistry::new();
+//!
+//! // List all supported chains
+//! for chain_id in registry.supported_chains() {
+//!     println!("Supported: {chain_id}");
+//! }
+//!
+//! // Look up a specific chain
+//! if let Some(parser) = registry.get("ethereum") {
+//!     println!("Found parser for: {}", parser.id());
+//! }
+//! ```
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
+
+pub mod chain;
+pub mod erc20;
+pub mod ethereum;
+pub mod registry;
+pub mod rlp;
+pub mod tokens;
+
+// Re-export the Chain trait at crate root for convenience
+pub use chain::Chain;
+
+// Re-export EthereumParser at crate root for convenience
+pub use ethereum::EthereumParser;
+
+// Re-export ChainRegistry at crate root for convenience
+pub use registry::ChainRegistry;
+
+// Re-export token registry types for convenience
+pub use tokens::{RiskLevel, TokenInfo, TokenRegistry};
+
+// Re-export ERC-20 parsing types for convenience
+pub use erc20::{parse_erc20_call, Erc20Call};
+
+// Re-export MockChain and MockParseError when the mock feature is enabled or in tests
+#[cfg(any(test, feature = "mock"))]
+pub use chain::{MockChain, MockParseError};
+
+// Re-export CurveType from sello-crypto for convenience
+pub use sello_crypto::CurveType;
 
 // Placeholder for future modules
 // pub mod evm;

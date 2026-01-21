@@ -15,9 +15,16 @@ workspace = true
 
 [dependencies]
 sello-core = { path = "../sello-core" }
+sello-crypto = { path = "../sello-crypto" }
 alloy-consensus = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+default = []
+mock = []  # Enable MockChain for use in other crates' tests
 
 [dev-dependencies]
 tempfile = { workspace = true }
