@@ -1,0 +1,19 @@
+# Sello Rust Formatting Configuration
+# See: https://rust-lang.github.io/rustfmt/
+
+# Maximum line width
+max_width = 100
+
+# Number of spaces per tab
+tab_spaces = 4
+
+# Rust edition for parsing
+edition = "2021"
+
+# Use default heuristics for formatting decisions
+use_small_heuristics = "Default"
+
+# Note: The following options are unstable and require nightly rustfmt:
+# imports_granularity = "Module"
+# group_imports = "StdExternalCrate"
+# When the project moves to nightly rustfmt, uncomment these for better import organization.

@@ -1,0 +1,24 @@
+[package]
+name = "sello-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core types, traits, and error definitions for Sello"
+keywords = ["sello", "core", "types"]
+categories = ["cryptography"]
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

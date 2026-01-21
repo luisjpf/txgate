@@ -1,0 +1,25 @@
+{
+  "description": "ERC-20 token transfer transaction - USDC transfer using EIP-1559 gas pricing",
+  "raw_tx": "0x02f8b00101847735940084773594008301388094a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4880b844a9059cbb000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000003b9aca00c080a0abcd1234ef5678901234567890abcdef1234567890abcdef1234567890abcdef0a01234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef0",
+  "expected": {
+    "tx_type": "TokenTransfer",
+    "contract_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "amount": "1000000000",
+    "token": "USDC",
+    "decimals": 6,
+    "chain_id": 1,
+    "nonce": 1,
+    "gas_limit": 80000,
+    "max_fee_per_gas": "2000000000",
+    "max_priority_fee_per_gas": "2000000000"
+  },
+  "metadata": {
+    "description": "Transfers 1000 USDC (6 decimals) to vitalik.eth address on Ethereum mainnet",
+    "value_usdc": "1000.0",
+    "function_selector": "0xa9059cbb",
+    "function_name": "transfer(address,uint256)",
+    "token_contract": "USDC (Circle USD)",
+    "source": "Generated for Sello testing - ERC-20 transfer call"
+  }
+}

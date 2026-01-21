@@ -1,0 +1,25 @@
+[package]
+name = "sello-policy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Policy engine for transaction approval rules in Sello"
+keywords = ["sello", "policy", "rules", "authorization"]
+categories = ["cryptography", "config"]
+
+[lints]
+workspace = true
+
+[dependencies]
+sello-core = { path = "../sello-core" }
+sello-chain = { path = "../sello-chain" }
+rusqlite = { workspace = true }
+lru = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

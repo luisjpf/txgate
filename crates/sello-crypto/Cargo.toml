@@ -1,0 +1,28 @@
+[package]
+name = "sello-crypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Cryptographic operations for Sello - key management, signing, and verification"
+keywords = ["sello", "crypto", "signing", "keys"]
+categories = ["cryptography"]
+
+[lints]
+workspace = true
+
+[dependencies]
+sello-core = { path = "../sello-core" }
+k256 = { workspace = true }
+ed25519-dalek = { workspace = true }
+chacha20poly1305 = { workspace = true }
+argon2 = { workspace = true }
+zeroize = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

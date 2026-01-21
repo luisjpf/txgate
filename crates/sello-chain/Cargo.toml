@@ -1,0 +1,25 @@
+[package]
+name = "sello-chain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Multi-chain transaction parsing and construction for Sello"
+keywords = ["sello", "blockchain", "transaction", "parser"]
+categories = ["cryptography", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+sello-core = { path = "../sello-core" }
+alloy-consensus = { workspace = true }
+alloy-primitives = { workspace = true }
+alloy-rlp = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

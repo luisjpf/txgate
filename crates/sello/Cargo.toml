@@ -1,0 +1,38 @@
+[package]
+name = "sello"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Multi-chain transaction signing service with policy engine"
+keywords = ["sello", "signing", "blockchain", "cli", "server"]
+categories = ["command-line-utilities", "cryptography"]
+
+[[bin]]
+name = "sello"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+sello-core = { path = "../sello-core" }
+sello-crypto = { path = "../sello-crypto" }
+sello-chain = { path = "../sello-chain" }
+sello-policy = { path = "../sello-policy" }
+tokio = { workspace = true }
+axum = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }
+thiserror = { workspace = true }

@@ -887,7 +887,7 @@ Contributions are welcome. Please read the contribution guidelines and ensure al
 cargo test
 
 # Run with coverage
-cargo tarpaulin --out Html
+cargo llvm-cov --html
 
 # Lint
 cargo clippy -- -D warnings

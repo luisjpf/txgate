@@ -1,0 +1,22 @@
+# Sello Cargo Configuration
+
+[alias]
+# Coverage shortcuts
+cov = "llvm-cov"
+cov-html = "llvm-cov --html"
+cov-lcov = "llvm-cov --lcov --output-path lcov.info"
+
+# Test shortcuts
+t = "test"
+ta = "test --all-features"
+
+# Clippy shortcut
+lint = "clippy --all-targets --all-features -- -D warnings"
+
+# [build]
+# Use all available cores for faster compilation (uncomment if needed)
+# jobs = 8
+
+[term]
+# Show warnings in color
+color = "auto"
