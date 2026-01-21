@@ -94,9 +94,48 @@ rpassword = "7.3"
 tempfile = "3.14"
 mockall = "0.13"
 proptest = "1.5"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 # Internal crates (for integration tests)
 sello-core = { path = "crates/sello-core" }
 sello-crypto = { path = "crates/sello-crypto" }
 sello-chain = { path = "crates/sello-chain" }
 sello-policy = { path = "crates/sello-policy" }
+
+# ============================================================================
+# Workspace package for benchmarks
+# ============================================================================
+# This is a virtual manifest with a package section to support benchmarks
+# in the workspace root.
+
+[package]
+name = "sello-bench"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dev-dependencies]
+criterion = { workspace = true }
+sello-crypto = { workspace = true }
+sello-chain = { workspace = true, features = ["mock"] }
+sello-policy = { workspace = true }
+sello-core = { workspace = true }
+alloy-primitives = { workspace = true }
+alloy-consensus = { workspace = true }
+hex = { workspace = true }
+
+# ============================================================================
+# Benchmarks
+# ============================================================================
+
+[[bench]]
+name = "crypto_bench"
+harness = false
+
+[[bench]]
+name = "parsing_bench"
+harness = false
+
+[[bench]]
+name = "policy_bench"
+harness = false
