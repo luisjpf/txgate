@@ -276,9 +276,9 @@ impl SigningResult {
 ///
 /// # Type Parameters
 ///
-/// * `C` - Chain parser implementing the [`Chain`](sello_chain::Chain) trait
-/// * `P` - Policy engine implementing the [`PolicyEngine`](sello_policy::PolicyEngine) trait
-/// * `S` - Signer implementing the [`Signer`](sello_crypto::Signer) trait
+/// * `C` - Chain parser implementing the [`ChainParser`] trait
+/// * `P` - Policy engine implementing the [`PolicyEngineExt`] trait
+/// * `S` - Signer implementing the [`SignerExt`] trait
 ///
 /// # Thread Safety
 ///

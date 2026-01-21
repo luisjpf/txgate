@@ -69,6 +69,86 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate workspace coverage report
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+      - name: Generate per-crate coverage and check thresholds
+        run: |
+          # Define coverage thresholds per crate
+          declare -A THRESHOLDS
+          THRESHOLDS["sello-crypto"]=100
+          THRESHOLDS["sello-chain"]=100
+          THRESHOLDS["sello-policy"]=100
+          THRESHOLDS["sello-core"]=90
+          THRESHOLDS["sello"]=80
+
+          FAILED=0
+
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Crate | Coverage | Threshold | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|----------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          for CRATE in sello-crypto sello-chain sello-policy sello-core sello; do
+            # Generate JSON coverage for each crate
+            OUTPUT=$(cargo llvm-cov --all-features --package "$CRATE" --json 2>/dev/null || echo '{"data":[{"totals":{"lines":{"percent":0}}}]}')
+
+            # Extract line coverage percentage
+            COVERAGE=$(echo "$OUTPUT" | jq -r '.data[0].totals.lines.percent // 0' | cut -d. -f1)
+
+            # Handle case where coverage is null or empty
+            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "null" ]; then
+              COVERAGE=0
+            fi
+
+            THRESHOLD=${THRESHOLDS[$CRATE]}
+
+            if [ "$COVERAGE" -ge "$THRESHOLD" ]; then
+              STATUS="pass"
+              ICON="✅"
+            else
+              STATUS="fail"
+              ICON="❌"
+              FAILED=1
+            fi
+
+            echo "| $CRATE | ${COVERAGE}% | ${THRESHOLD}% | $ICON |" >> $GITHUB_STEP_SUMMARY
+            echo "Crate: $CRATE - Coverage: ${COVERAGE}% - Threshold: ${THRESHOLD}% - Status: $STATUS"
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::One or more crates failed to meet their coverage threshold"
+            exit 1
+          fi
+
+          echo "All crates meet their coverage thresholds!"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   # Placeholder for future jobs:
   # security:
   #   name: Security Audit
@@ -78,16 +158,3 @@ jobs:
   #     - uses: rustsec/audit-check@v1
   #       with:
   #         token: ${{ secrets.GITHUB_TOKEN }}
-
-  # coverage:
-  #   name: Code Coverage
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@stable
-  #     - name: Install cargo-llvm-cov
-  #       run: cargo install cargo-llvm-cov
-  #     - name: Generate coverage report
-  #       run: cargo llvm-cov --all-features --lcov --output-path lcov.info
-  #     - name: Upload to codecov.io
-  #       uses: codecov/codecov-action@v3

@@ -61,7 +61,7 @@
 //!
 //! ## Crate Features
 //!
-//! - `mock` - Enable [`MockChain`] for use in other crates' tests
+//! - `mock` - Enable `MockChain` for use in other crates' tests
 //!
 //! ## Chain Registry
 //!

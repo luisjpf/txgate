@@ -1,5 +1,8 @@
 # Sello
 
+[![CI](https://github.com/luisjpf/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/luisjpf/sello/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/luisjpf/sello/graph/badge.svg)](https://codecov.io/gh/luisjpf/sello)
+
 Multi-chain transaction signing service with policy engine.
 
 ## Overview
@@ -27,16 +30,61 @@ sello/
 └── fuzz/                # Fuzz testing targets
 ```
 
-## Getting Started
+## Installation
 
-### Prerequisites
+### From GitHub Releases (Recommended)
+
+Download the latest pre-built binary for your platform from the [Releases](https://github.com/sello-project/sello/releases) page.
+
+**Linux (x86_64)**
+```bash
+curl -LO https://github.com/sello-project/sello/releases/latest/download/sello-linux-x86_64.tar.gz
+tar -xzf sello-linux-x86_64.tar.gz
+sudo mv sello /usr/local/bin/
+```
+
+**macOS (Apple Silicon)**
+```bash
+curl -LO https://github.com/sello-project/sello/releases/latest/download/sello-macos-aarch64.tar.gz
+tar -xzf sello-macos-aarch64.tar.gz
+sudo mv sello /usr/local/bin/
+```
+
+**macOS (Intel)**
+```bash
+curl -LO https://github.com/sello-project/sello/releases/latest/download/sello-macos-x86_64.tar.gz
+tar -xzf sello-macos-x86_64.tar.gz
+sudo mv sello /usr/local/bin/
+```
+
+### Verify Installation
+
+After installation, verify the binary works:
+```bash
+sello --version
+sello --help
+```
+
+### From crates.io
+
+```bash
+cargo install sello
+```
+
+### From Source
+
+#### Prerequisites
 
 - Rust 1.75 or later
 - Cargo
 
-### Building
+#### Building
 
 ```bash
+# Clone the repository
+git clone https://github.com/sello-project/sello.git
+cd sello
+
 # Build all crates
 cargo build
 
