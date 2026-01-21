@@ -35,6 +35,12 @@ thiserror = { workspace = true }
 dirs = { workspace = true }
 rpassword = { workspace = true }
 hex = { workspace = true }
+# Audit logging dependencies
+hmac = "0.12"
+sha2 = "0.10"
+flate2 = "1.0"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+alloy-primitives = { workspace = true }
 
 [dev-dependencies]
 alloy-primitives = { workspace = true }

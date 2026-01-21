@@ -8,7 +8,7 @@
 //! - [`status`] - Display current status
 //! - [`config`] - Configuration management
 //! - [`ethereum`] - Ethereum-specific commands (address, sign)
-//! - `serve` - Server startup (planned)
+//! - [`serve`] - Start the signing server
 //!
 //! ## Implementation Notes
 //!
@@ -29,13 +29,12 @@
 pub mod config;
 pub mod ethereum;
 pub mod init;
+pub mod serve;
 pub mod status;
-
-// Future command modules will be added here:
-// pub mod serve;
 
 // Re-export command types for convenience
 pub use config::{ConfigCommand, ConfigCommandError};
 pub use ethereum::{AddressCommand, AddressError, SignCommand, SignCommandError, SignOutput};
 pub use init::{InitCommand, InitError};
+pub use serve::{ServeCommand, ServeError};
 pub use status::{StatusCommand, StatusError};

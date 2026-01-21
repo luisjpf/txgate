@@ -25,8 +25,10 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
+pub mod audit;
 pub mod cli;
 pub mod logging;
+pub mod server;
 
 // Re-export key logging types for convenience
 pub use logging::{

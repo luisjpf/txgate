@@ -6,6 +6,9 @@
 //! ## Test Organization
 //!
 //! - `common/` - Shared test utilities and helpers
+//! - `e2e/` - End-to-end integration tests
+//!   - `sign_flow_test` - Full init -> sign flow tests
+//!   - `policy_test` - Policy enforcement tests
 //!
 //! ## Running Tests
 //!
@@ -16,6 +19,10 @@
 //! # Run only integration tests
 //! cargo test --test integration
 //!
+//! # Run specific integration test modules
+//! cargo test --test integration sign_flow
+//! cargo test --test integration policy_test
+//!
 //! # Run with coverage
 //! cargo llvm-cov --html
 //! ```
@@ -24,6 +31,7 @@
 #![allow(clippy::expect_used)]
 
 mod common;
+mod e2e;
 
 #[cfg(test)]
 mod tests {

@@ -94,3 +94,9 @@ rpassword = "7.3"
 tempfile = "3.14"
 mockall = "0.13"
 proptest = "1.5"
+
+# Internal crates (for integration tests)
+sello-core = { path = "crates/sello-core" }
+sello-crypto = { path = "crates/sello-crypto" }
+sello-chain = { path = "crates/sello-chain" }
+sello-policy = { path = "crates/sello-policy" }
