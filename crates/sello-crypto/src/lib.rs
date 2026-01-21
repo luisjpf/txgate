@@ -30,9 +30,29 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
+pub mod encryption;
+pub mod keypair;
+pub mod keys;
+pub mod signer;
+pub mod store;
+
 // Placeholder for future modules
-// pub mod keys;
-// pub mod signing;
 // pub mod verify;
 // pub mod kms;
 // pub mod algorithms;
+
+// Re-export commonly used types
+pub use encryption::{
+    decrypt_key, encrypt_key, EncryptedKey, ENCRYPTED_KEY_LEN, ENCRYPTION_VERSION, NONCE_LEN,
+    PLAINTEXT_LEN, SALT_LEN, TAG_LEN,
+};
+pub use keys::{SecretKey, SecretKeyError, SECRET_KEY_LEN};
+
+// Re-export key pair types
+pub use keypair::{KeyPair, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
+
+// Re-export signer types
+pub use signer::{Chain, CurveType, Secp256k1Signer, Signer};
+
+// Re-export key store types
+pub use store::{FileKeyStore, KeyStore};

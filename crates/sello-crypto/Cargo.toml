@@ -21,6 +21,10 @@ chacha20poly1305 = { workspace = true }
 argon2 = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
+subtle = { workspace = true }
+sha3 = { workspace = true }
+hex = { workspace = true }
+dirs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
