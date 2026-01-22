@@ -1669,5 +1669,231 @@ mod tests {
                 assert!(reason.contains("ETH"));
             }
         }
+
+        // =====================================================================
+        // Phase 2: PolicyCheckResult Denial Reason Messages
+        // =====================================================================
+
+        #[test]
+        fn should_generate_blacklisted_denial_reason_with_address() {
+            // Arrange: Create blacklisted denial result
+            let result = PolicyCheckResult::DeniedBlacklisted {
+                address: "0xBADDEADBEEF123456789".to_string(),
+            };
+
+            // Act: Get the reason message
+            let reason = result.reason();
+
+            // Assert: Reason contains the address and clear explanation
+            assert!(reason.is_some());
+            let reason_str = reason.unwrap();
+            assert!(
+                reason_str.contains("0xBADDEADBEEF123456789"),
+                "Reason should include the blacklisted address"
+            );
+            assert!(
+                reason_str.contains("blacklisted"),
+                "Reason should mention blacklisting"
+            );
+            assert!(
+                reason_str.contains("recipient"),
+                "Reason should mention recipient"
+            );
+        }
+
+        #[test]
+        fn should_generate_not_whitelisted_denial_reason_with_address() {
+            // Arrange: Create not-whitelisted denial result
+            let result = PolicyCheckResult::DeniedNotWhitelisted {
+                address: "0x1234567890ABCDEF".to_string(),
+            };
+
+            // Act: Get the reason message
+            let reason = result.reason();
+
+            // Assert: Reason contains the address and clear explanation
+            assert!(reason.is_some());
+            let reason_str = reason.unwrap();
+            assert!(
+                reason_str.contains("0x1234567890ABCDEF"),
+                "Reason should include the non-whitelisted address"
+            );
+            assert!(
+                reason_str.contains("not in whitelist"),
+                "Reason should mention whitelist rejection"
+            );
+        }
+
+        #[test]
+        fn should_generate_transaction_limit_denial_reason_with_amounts() {
+            // Arrange: Create transaction limit denial with specific amounts
+            let result = PolicyCheckResult::DeniedExceedsTransactionLimit {
+                token: "USDC".to_string(),
+                amount: U256::from(5_000_000u64),
+                limit: U256::from(1_000_000u64),
+            };
+
+            // Act: Get the reason message
+            let reason = result.reason();
+
+            // Assert: Reason contains all relevant amounts and token
+            assert!(reason.is_some());
+            let reason_str = reason.unwrap();
+            assert!(
+                reason_str.contains("5000000"),
+                "Reason should include the attempted amount"
+            );
+            assert!(
+                reason_str.contains("1000000"),
+                "Reason should include the limit"
+            );
+            assert!(reason_str.contains("USDC"), "Reason should include token");
+            assert!(
+                reason_str.contains("exceeds transaction limit"),
+                "Reason should explain the violation"
+            );
+        }
+
+        #[test]
+        fn should_generate_daily_limit_denial_reason_with_all_values() {
+            // Arrange: Create daily limit denial with all values
+            let result = PolicyCheckResult::DeniedExceedsDailyLimit {
+                token: "ETH".to_string(),
+                amount: U256::from(3_000_000_000_000_000_000u64), // 3 ETH
+                daily_total: U256::from(8_000_000_000_000_000_000u64), // 8 ETH
+                limit: U256::from(10_000_000_000_000_000_000u64), // 10 ETH limit
+            };
+
+            // Act: Get the reason message
+            let reason = result.reason();
+
+            // Assert: Reason contains amount, daily_total, limit, and token
+            assert!(reason.is_some());
+            let reason_str = reason.unwrap();
+            assert!(
+                reason_str.contains("3000000000000000000"),
+                "Reason should include the requested amount"
+            );
+            assert!(
+                reason_str.contains("8000000000000000000"),
+                "Reason should include the daily total"
+            );
+            assert!(
+                reason_str.contains("10000000000000000000"),
+                "Reason should include the limit"
+            );
+            assert!(reason_str.contains("ETH"), "Reason should include token");
+            assert!(
+                reason_str.contains("exceeds daily limit"),
+                "Reason should explain the violation"
+            );
+        }
+
+        // =====================================================================
+        // Phase 2: None Recipient Handling in Policy Checks
+        // =====================================================================
+
+        #[test]
+        fn should_allow_transaction_with_none_recipient_when_no_whitelist() {
+            // Arrange: Policy with no whitelist (allow all)
+            let config = PolicyConfig::new();
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Check transaction with None recipient (contract creation)
+            let tx = create_test_tx(None, Some(U256::from(1000u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed (no recipient to check)
+            assert!(
+                result.is_allowed(),
+                "Transaction with None recipient should be allowed when no whitelist"
+            );
+        }
+
+        #[test]
+        fn should_allow_none_recipient_when_whitelist_enabled() {
+            // Arrange: Policy with whitelist enabled
+            // Note: Whitelist/blacklist checks only apply when there IS a recipient
+            let config = PolicyConfig::new().with_whitelist(vec!["0xALLOWED".to_string()]);
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Check transaction with None recipient (e.g., contract creation)
+            let tx = create_test_tx(None, Some(U256::from(1000u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed - whitelist check is skipped for None recipient
+            // This is correct behavior: you can't whitelist/blacklist a non-existent address
+            assert!(
+                result.is_allowed(),
+                "None recipient should pass whitelist check (check is skipped)"
+            );
+        }
+
+        #[test]
+        fn should_allow_none_recipient_when_not_blacklisted() {
+            // Arrange: Policy with only blacklist (None can't be blacklisted)
+            let config = PolicyConfig::new().with_blacklist(vec!["0xBAD".to_string()]);
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Check transaction with None recipient
+            let tx = create_test_tx(None, Some(U256::from(1000u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed (None recipient can't be blacklisted)
+            assert!(
+                result.is_allowed(),
+                "None recipient should pass blacklist check"
+            );
+        }
+
+        #[test]
+        fn should_enforce_amount_limits_on_none_recipient_transactions() {
+            // Arrange: Policy with transaction limit but no address filters
+            let config = PolicyConfig::new().with_transaction_limit("ETH", U256::from(500u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Check transaction with None recipient but exceeds limit
+            let tx = create_test_tx(None, Some(U256::from(1000u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be denied (amount limit applies regardless of recipient)
+            assert!(
+                result.is_denied(),
+                "Amount limits should apply to None recipient transactions"
+            );
+            if let PolicyResult::Denied { rule, .. } = result {
+                assert_eq!(rule, "tx_limit");
+            }
+        }
+
+        #[test]
+        fn should_enforce_daily_limits_on_none_recipient_transactions() {
+            // Arrange: Policy with daily limit
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record a prior transaction
+            engine
+                .record(&create_test_tx(Some("0xSOME"), Some(U256::from(800u64))))
+                .unwrap();
+
+            // Act: Check transaction with None recipient that would exceed daily limit
+            let tx = create_test_tx(None, Some(U256::from(300u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be denied (daily limit applies regardless of recipient)
+            assert!(
+                result.is_denied(),
+                "Daily limits should apply to None recipient transactions"
+            );
+            if let PolicyResult::Denied { rule, .. } = result {
+                assert_eq!(rule, "daily_limit");
+            }
+        }
     }
 }

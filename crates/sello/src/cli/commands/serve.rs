@@ -498,6 +498,107 @@ mod tests {
             let result = load_config(base_dir);
             assert!(result.is_ok());
         }
+
+        // =====================================================================
+        // Phase 2: Configuration Error Handling
+        // =====================================================================
+
+        #[test]
+        fn should_return_error_when_config_file_cannot_be_read() {
+            // Arrange: Create a directory without read permission (Unix only)
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+
+                let temp_dir = TempDir::new().expect("failed to create temp dir");
+                let base_dir = temp_dir.path();
+
+                // Create config file
+                let config_path = base_dir.join("config.toml");
+                fs::write(&config_path, "[policy]\n").expect("failed to write config");
+
+                // Remove read permission
+                let mut perms = fs::metadata(&config_path)
+                    .expect("failed to get metadata")
+                    .permissions();
+                perms.set_mode(0o000); // No permissions
+                fs::set_permissions(&config_path, perms).expect("failed to set permissions");
+
+                // Act: Try to load config
+                let result = load_config(base_dir);
+
+                // Assert: Should fail with config error
+                assert!(result.is_err());
+                if let Err(ServeError::ConfigError(msg)) = result {
+                    assert!(msg.contains("failed to read config file"));
+                }
+
+                // Cleanup: Restore permissions so temp_dir can be deleted
+                let mut perms = fs::metadata(&config_path)
+                    .expect("failed to get metadata")
+                    .permissions();
+                perms.set_mode(0o644);
+                fs::set_permissions(&config_path, perms).expect("failed to restore permissions");
+            }
+
+            // On non-Unix systems, just verify the function works
+            #[cfg(not(unix))]
+            {
+                let temp_dir = TempDir::new().expect("failed to create temp dir");
+                let base_dir = temp_dir.path();
+                let result = load_config(base_dir);
+                assert!(result.is_ok());
+            }
+        }
+
+        #[test]
+        fn should_handle_empty_config_file() {
+            // Arrange: Create empty config file
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            let config_path = base_dir.join("config.toml");
+            fs::write(&config_path, "").expect("failed to write config");
+
+            // Act: Load config
+            let result = load_config(base_dir);
+
+            // Assert: Should succeed with default config
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn should_handle_config_file_with_whitespace_only() {
+            // Arrange: Config file with only whitespace
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            let config_path = base_dir.join("config.toml");
+            fs::write(&config_path, "   \n\t\n  ").expect("failed to write config");
+
+            // Act: Load config
+            let result = load_config(base_dir);
+
+            // Assert: Should succeed (content is read but not parsed yet)
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn should_handle_config_file_with_comments_only() {
+            // Arrange: Config file with only TOML comments
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            let config_path = base_dir.join("config.toml");
+            fs::write(&config_path, "# This is a comment\n# Another comment\n")
+                .expect("failed to write config");
+
+            // Act: Load config
+            let result = load_config(base_dir);
+
+            // Assert: Should succeed
+            assert!(result.is_ok());
+        }
     }
 
     // =========================================================================
