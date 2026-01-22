@@ -740,4 +740,188 @@ mod tests {
             assert_eq!(cmd.foreground, cloned.foreground);
         }
     }
+
+    // =========================================================================
+    // Additional Coverage Tests - Phase 3
+    // =========================================================================
+
+    mod display_startup_tests {
+        use super::*;
+
+        #[test]
+        fn test_display_startup_message_with_audit() {
+            let socket = PathBuf::from("/tmp/test.sock");
+            let audit_log = PathBuf::from("/tmp/audit.jsonl");
+
+            // Just verify it doesn't panic
+            display_startup_message("0x1234567890abcdef", &socket, &audit_log, true);
+        }
+
+        #[test]
+        fn test_display_startup_message_without_audit() {
+            let socket = PathBuf::from("/tmp/test.sock");
+            let audit_log = PathBuf::from("/tmp/audit.jsonl");
+
+            // Just verify it doesn't panic
+            display_startup_message("0x1234567890abcdef", &socket, &audit_log, false);
+        }
+    }
+
+    mod server_config_tests {
+        use super::*;
+
+        #[test]
+        fn test_server_config_default() {
+            let config = ServerConfig::default();
+            // Just verify it has default policy
+            assert!(!config.policy.whitelist_enabled);
+        }
+
+        #[test]
+        fn test_server_config_debug() {
+            let config = ServerConfig::default();
+            let debug = format!("{:?}", config);
+            assert!(debug.contains("ServerConfig"));
+        }
+    }
+
+    mod error_handling_tests {
+        use super::*;
+
+        #[test]
+        fn test_serve_error_is_send_sync() {
+            fn assert_send_sync<T: Send + Sync>() {}
+            assert_send_sync::<ServeError>();
+        }
+
+        #[test]
+        fn test_serve_command_is_send_sync() {
+            fn assert_send_sync<T: Send + Sync>() {}
+            assert_send_sync::<ServeCommand>();
+        }
+
+        #[test]
+        fn test_all_serve_error_variants_display() {
+            let errors: Vec<ServeError> = vec![
+                ServeError::NotInitialized,
+                ServeError::ConfigError("config".to_string()),
+                ServeError::KeyError("key".to_string()),
+                ServeError::InvalidPassphrase,
+                ServeError::ServerError("server".to_string()),
+                ServeError::Cancelled,
+                ServeError::NoHomeDirectory,
+                ServeError::PolicyError("policy".to_string()),
+                ServeError::AuditError("audit".to_string()),
+            ];
+
+            for err in errors {
+                let display = err.to_string();
+                assert!(!display.is_empty());
+            }
+        }
+    }
+
+    mod transaction_history_error_tests {
+        use super::*;
+
+        #[test]
+        fn test_create_transaction_history_readonly() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+
+                let temp_dir = TempDir::new().expect("failed to create temp dir");
+                let base_dir = temp_dir.path();
+
+                // Create db file with no write permission
+                let db_path = base_dir.join("history.db");
+                fs::write(&db_path, b"").expect("failed to create db");
+
+                let mut perms = fs::metadata(&db_path)
+                    .expect("failed to get metadata")
+                    .permissions();
+                perms.set_mode(0o000);
+                fs::set_permissions(&db_path, perms).expect("failed to set permissions");
+
+                // Should fail with permission error
+                let result = create_transaction_history(base_dir);
+
+                // Restore permissions for cleanup
+                let mut perms = fs::metadata(&db_path)
+                    .expect("failed to get metadata")
+                    .permissions();
+                perms.set_mode(0o644);
+                fs::set_permissions(&db_path, perms).expect("failed to restore permissions");
+
+                // Result may fail or succeed depending on SQLite behavior
+                // Just ensure no panic
+                let _ = result;
+            }
+        }
+    }
+
+    mod policy_engine_error_tests {
+        use super::*;
+
+        #[test]
+        fn test_create_policy_engine_with_custom_config() {
+            use sello_core::U256;
+
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            let history = create_transaction_history(base_dir).expect("failed to create history");
+
+            let config = PolicyConfig::new()
+                .with_whitelist(vec!["0xAAA".to_string()])
+                .with_daily_limit("ETH", U256::from(1000_u64));
+
+            let result = create_policy_engine(config, history);
+            assert!(result.is_ok());
+        }
+    }
+
+    mod audit_logger_error_tests {
+        use super::*;
+
+        #[test]
+        fn test_create_audit_logger_invalid_key() {
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            // Create an invalid audit key (wrong size)
+            let key_path = base_dir.join("audit.key");
+            fs::write(&key_path, b"too short").expect("failed to write key");
+
+            let result = create_audit_logger(base_dir);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_create_audit_logger_with_valid_32_byte_key() {
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            // Create a valid 32-byte audit key
+            let key = [0xAB_u8; 32];
+            let key_path = base_dir.join("audit.key");
+            fs::write(&key_path, key).expect("failed to write key");
+
+            let result = create_audit_logger(base_dir);
+            assert!(result.is_ok());
+        }
+    }
+
+    mod serve_command_foreground_tests {
+        use super::*;
+
+        #[test]
+        fn test_serve_command_foreground_false() {
+            let cmd = ServeCommand { foreground: false };
+            assert!(!cmd.foreground);
+
+            let cloned = cmd.clone();
+            assert!(!cloned.foreground);
+        }
+    }
 }
