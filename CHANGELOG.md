@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Comprehensive server integration tests for concurrent requests and stress testing
+- Persistence tests verifying daily limits survive server restarts
+- Security policy documentation (`SECURITY.md`)
+- Security audit checklist (`docs/SECURITY_AUDIT.md`)
+- Release preparation script (`scripts/release.sh`)
+
+### Changed
+
+- Replaced Codecov with native PR coverage comments in CI
+- Coverage thresholds enforced per-crate with PR comment reports
+- Enabled security audit job (`cargo audit`) in CI
+
 ## [0.1.0] - 2025-01-21
 
 ### Added
