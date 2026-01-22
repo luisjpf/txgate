@@ -1734,4 +1734,169 @@ mod tests {
         assert_eq!(parsed.tx_type, TxType::TokenApproval);
         assert_eq!(parsed.amount, Some(U256::ZERO));
     }
+
+    // ------------------------------------------------------------------------
+    // Missing Field Error Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_legacy_tx_truncated_data() {
+        // Arrange: Create a truncated legacy transaction by encoding normally then truncating
+        let parser = EthereumParser::new();
+
+        // First create a valid legacy transaction
+        let valid_raw = encode_legacy_tx(
+            9,
+            20_000_000_000,
+            21000,
+            Some(Address::from([0x35; 20])),
+            U256::from(1_000_000_000_000_000_000u64),
+            Bytes::new(),
+            Some(1),
+        );
+
+        // Truncate it to simulate missing fields
+        let truncated = &valid_raw[..valid_raw.len() / 2];
+
+        // Act
+        let result = parser.parse(truncated);
+
+        // Assert: Should fail with InvalidRlp or MalformedTransaction
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+        ));
+    }
+
+    #[test]
+    fn test_eip1559_tx_truncated_data() {
+        // Arrange: Create a truncated EIP-1559 transaction
+        let parser = EthereumParser::new();
+
+        // First create a valid EIP-1559 transaction
+        let valid_raw = encode_eip1559_tx(
+            1,                               // chain_id
+            0,                               // nonce
+            1_000_000_000,                   // max_priority_fee_per_gas
+            2_000_000_000,                   // max_fee_per_gas
+            21000,                           // gas_limit
+            Some(Address::from([0x35; 20])), // to
+            U256::ZERO,                      // value
+            Bytes::new(),                    // data
+        );
+
+        // Truncate it to simulate missing fields
+        let truncated = &valid_raw[..valid_raw.len() / 2];
+
+        // Act
+        let result = parser.parse(truncated);
+
+        // Assert: Should fail with InvalidRlp or MalformedTransaction
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+        ));
+    }
+
+    #[test]
+    fn test_eip2930_tx_truncated_data() {
+        // Arrange: Create a truncated EIP-2930 transaction
+        let parser = EthereumParser::new();
+
+        // First create a valid EIP-2930 transaction
+        let valid_raw = encode_eip2930_tx(
+            1,                               // chain_id
+            0,                               // nonce
+            1_000_000_000,                   // gas_price
+            21000,                           // gas_limit
+            Some(Address::from([0x35; 20])), // to
+            U256::ZERO,                      // value
+            Bytes::new(),                    // data
+        );
+
+        // Truncate it to simulate missing fields
+        let truncated = &valid_raw[..valid_raw.len() / 2];
+
+        // Act
+        let result = parser.parse(truncated);
+
+        // Assert: Should fail with InvalidRlp or MalformedTransaction
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+        ));
+    }
+
+    #[test]
+    fn test_legacy_tx_invalid_rlp_structure() {
+        // Arrange: Create invalid RLP data that doesn't represent a valid transaction
+        let parser = EthereumParser::new();
+
+        // Invalid RLP: claim to be a long list but provide insufficient data
+        let invalid_rlp = vec![0xf8, 0xff, 0x01, 0x02, 0x03];
+
+        // Act
+        let result = parser.parse(&invalid_rlp);
+
+        // Assert: Should fail with InvalidRlp or MalformedTransaction
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+        ));
+    }
+
+    #[test]
+    fn test_eip1559_tx_invalid_rlp_structure() {
+        // Arrange: Create invalid EIP-1559 transaction with malformed RLP
+        let parser = EthereumParser::new();
+
+        // Type 2 transaction with invalid RLP payload
+        let invalid = vec![0x02, 0xf8, 0xff, 0x01, 0x02, 0x03];
+
+        // Act
+        let result = parser.parse(&invalid);
+
+        // Assert: Should fail with InvalidRlp or MalformedTransaction
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+        ));
+    }
+
+    #[test]
+    fn test_analyze_erc20_returns_none_for_non_erc20() {
+        // This test exercises the None return path in analyze_erc20
+        // by providing invalid ERC-20 calldata
+        let parser = EthereumParser::new();
+
+        let contract = Address::from([0xaa; 20]);
+        // Calldata with unknown selector (not ERC-20)
+        let invalid_calldata = Bytes::from(vec![0x12, 0x34, 0x56, 0x78]);
+
+        let raw = encode_eip1559_tx(
+            1,                // chain_id
+            0,                // nonce
+            1_000_000_000,    // max_priority_fee_per_gas
+            2_000_000_000,    // max_fee_per_gas
+            100_000,          // gas_limit
+            Some(contract),   // to
+            U256::ZERO,       // value
+            invalid_calldata, // data (invalid ERC-20)
+        );
+
+        let result = parser.parse(&raw);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+
+        // Should be ContractCall, not TokenTransfer/TokenApproval
+        assert_eq!(parsed.tx_type, TxType::ContractCall);
+        // Token address should NOT be set
+        assert!(parsed.token_address.is_none());
+    }
 }

@@ -1442,5 +1442,232 @@ mod tests {
             let policy_result: PolicyResult = allowed.into();
             assert!(policy_result.is_allowed());
         }
+
+        // =========================================================================
+        // Daily Limit Boundary Tests
+        // =========================================================================
+
+        #[test]
+        fn test_daily_limit_amount_exactly_equal_to_limit() {
+            // Arrange: Configure daily limit
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Try to send exactly the limit amount
+            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1000u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed (not exceeding)
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_boundary_total_plus_amount_equals_limit() {
+            // Arrange: Configure daily limit and record some transactions
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record transactions totaling 600
+            let tx1 = create_test_tx(Some("0xREC"), Some(U256::from(300u64)));
+            engine.record(&tx1).unwrap();
+            let tx2 = create_test_tx(Some("0xREC"), Some(U256::from(300u64)));
+            engine.record(&tx2).unwrap();
+
+            // Act: Try to send exactly the remaining amount (400)
+            let tx3 = create_test_tx(Some("0xREC"), Some(U256::from(400u64)));
+            let result = engine.check(&tx3).unwrap();
+
+            // Assert: Should be allowed (total = 1000, exactly at limit)
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_boundary_one_over_limit() {
+            // Arrange: Configure daily limit
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Try to send one unit over the limit
+            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1001u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be denied
+            assert!(result.is_denied());
+            if let PolicyResult::Denied { rule, .. } = result {
+                assert_eq!(rule, "daily_limit");
+            }
+        }
+
+        #[test]
+        fn test_daily_limit_u256_max_amount() {
+            // Arrange: Configure daily limit to U256::MAX
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+
+            // Act: Try to send U256::MAX
+            let tx = create_test_tx(Some("0xREC"), Some(U256::MAX));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_overflow_protection_with_saturating_add() {
+            // Arrange: Configure daily limit to U256::MAX
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record a very large transaction
+            let large_tx = create_test_tx(Some("0xREC"), Some(U256::MAX - U256::from(10u64)));
+            engine.record(&large_tx).unwrap();
+
+            // Act: Try to add more (this would overflow without saturating_add)
+            let tx = create_test_tx(Some("0xREC"), Some(U256::from(100u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: The saturating_add in check_daily_limit should prevent overflow
+            // new_total = (U256::MAX - 10) + 100 = saturates to U256::MAX
+            // U256::MAX > U256::MAX is false, so it should be allowed
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_with_u256_max_minus_one() {
+            // Arrange: Configure limit to U256::MAX and record MAX - 1
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record U256::MAX - 1
+            let tx1 = create_test_tx(Some("0xREC"), Some(U256::MAX - U256::from(1u64)));
+            engine.record(&tx1).unwrap();
+
+            // Act: Try to send 1 more (total would be exactly MAX)
+            let tx2 = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
+            let result = engine.check(&tx2).unwrap();
+
+            // Assert: Should be allowed (total = MAX, not > MAX)
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_accumulation_near_limit() {
+            // Arrange: Configure daily limit
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record transactions approaching the limit
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(250u64))))
+                .unwrap();
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(250u64))))
+                .unwrap();
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(250u64))))
+                .unwrap();
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(249u64))))
+                .unwrap();
+
+            // Total is now 999
+
+            // Act: Try to send 1 more (total = 1000)
+            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed
+            assert!(result.is_allowed());
+
+            // Act: Try to send 2 more (total = 1001)
+            let tx2 = create_test_tx(Some("0xREC"), Some(U256::from(2u64)));
+            let result2 = engine.check(&tx2).unwrap();
+
+            // Assert: Should be denied
+            assert!(result2.is_denied());
+        }
+
+        #[test]
+        fn test_daily_limit_zero_amount_with_existing_total() {
+            // Arrange: Configure daily limit and record some transactions
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record transactions at the limit
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(1000u64))))
+                .unwrap();
+
+            // Act: Try to send zero amount
+            let tx = create_test_tx(Some("0xREC"), Some(U256::ZERO));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be allowed (not exceeding)
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_multiple_tokens_independent() {
+            // Arrange: Configure limits for multiple tokens
+            let config = PolicyConfig::new()
+                .with_daily_limit("ETH", U256::from(1000u64))
+                .with_daily_limit(
+                    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                    U256::from(5000u64),
+                );
+
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Act: Record ETH at limit
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(1000u64))))
+                .unwrap();
+
+            // Token should still have full limit available
+            let token_tx = create_token_tx(
+                Some("0xREC"),
+                Some(U256::from(5000u64)),
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            );
+            let result = engine.check(&token_tx).unwrap();
+
+            // Assert: Token transaction should be allowed
+            assert!(result.is_allowed());
+        }
+
+        #[test]
+        fn test_daily_limit_reason_message_includes_values() {
+            // Arrange: Configure daily limit and approach it
+            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
+            let history = Arc::new(TransactionHistory::in_memory().unwrap());
+            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+
+            // Record transaction
+            engine
+                .record(&create_test_tx(Some("0xREC"), Some(U256::from(900u64))))
+                .unwrap();
+
+            // Act: Try to exceed limit
+            let tx = create_test_tx(Some("0xREC"), Some(U256::from(200u64)));
+            let result = engine.check(&tx).unwrap();
+
+            // Assert: Should be denied with descriptive reason
+            assert!(result.is_denied());
+            if let PolicyResult::Denied { reason, .. } = result {
+                assert!(reason.contains("200")); // amount
+                assert!(reason.contains("900")); // daily_total
+                assert!(reason.contains("1000")); // limit
+                assert!(reason.contains("ETH"));
+            }
+        }
     }
 }
