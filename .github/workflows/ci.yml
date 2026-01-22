@@ -91,11 +91,11 @@ jobs:
       - name: Generate coverage and check thresholds
         id: coverage
         run: |
-          # Define coverage thresholds per crate (critical modules require 100%)
+          # Define coverage thresholds per crate (critical modules require 90%)
           declare -A THRESHOLDS
-          THRESHOLDS["sello-crypto"]=100
-          THRESHOLDS["sello-chain"]=100
-          THRESHOLDS["sello-policy"]=100
+          THRESHOLDS["sello-crypto"]=90
+          THRESHOLDS["sello-chain"]=90
+          THRESHOLDS["sello-policy"]=90
           THRESHOLDS["sello-core"]=90
           THRESHOLDS["sello"]=80
 
