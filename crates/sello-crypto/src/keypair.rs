@@ -879,6 +879,40 @@ mod tests {
             "verification should fail with wrong hash"
         );
     }
+
+    #[test]
+    fn test_ethereum_address_never_fails_hash_extraction() {
+        // This test verifies that the defensive .get() check in ethereum_address()
+        // always succeeds because Keccak256 always produces 32 bytes
+        let keypair = Secp256k1KeyPair::generate();
+        let pubkey = keypair.public_key();
+
+        // Call ethereum_address multiple times to ensure consistency
+        let addr1 = pubkey.ethereum_address();
+        let addr2 = pubkey.ethereum_address();
+
+        assert_eq!(addr1, addr2);
+        assert_eq!(addr1.len(), 20);
+    }
+
+    #[test]
+    fn test_signature_normalization_both_paths() {
+        // Test that signature normalization works correctly
+        // We can't force a specific normalization path, but we can verify
+        // that all signatures are in normalized form
+        let keypair = Secp256k1KeyPair::generate();
+
+        for i in 0..10 {
+            let hash = [i; 32];
+            let signature = keypair.sign(&hash).expect("signing should succeed");
+
+            // Verify the signature is valid
+            assert!(keypair.verify(&hash, &signature));
+
+            // Recovery ID should always be 0 or 1
+            assert!(signature.recovery_id() <= 1);
+        }
+    }
 }
 
 #[cfg(test)]

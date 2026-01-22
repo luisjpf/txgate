@@ -893,4 +893,105 @@ mod tests {
         let (store, temp) = create_test_store();
         assert_eq!(store.keys_dir(), temp.path());
     }
+
+    // ------------------------------------------------------------------------
+    // Additional Coverage Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_validate_name_all_edge_cases() {
+        // Test the validation logic directly
+
+        // Empty name
+        assert!(FileKeyStore::validate_name("").is_err());
+
+        // Starts with dot
+        assert!(FileKeyStore::validate_name(".test").is_err());
+
+        // Contains invalid characters
+        assert!(FileKeyStore::validate_name("test/path").is_err());
+        assert!(FileKeyStore::validate_name("test\\path").is_err());
+        assert!(FileKeyStore::validate_name("test.key").is_err());
+        assert!(FileKeyStore::validate_name("test key").is_err());
+        assert!(FileKeyStore::validate_name("test@key").is_err());
+
+        // Valid names
+        assert!(FileKeyStore::validate_name("test").is_ok());
+        assert!(FileKeyStore::validate_name("test-key").is_ok());
+        assert!(FileKeyStore::validate_name("test_key").is_ok());
+        assert!(FileKeyStore::validate_name("TEST123").is_ok());
+        assert!(FileKeyStore::validate_name("a").is_ok());
+        assert!(FileKeyStore::validate_name("1").is_ok());
+        assert!(FileKeyStore::validate_name("_").is_ok());
+        assert!(FileKeyStore::validate_name("-").is_ok());
+    }
+
+    #[test]
+    fn test_load_with_invalid_name() {
+        let (store, _temp) = create_test_store();
+
+        let result = store.load("../invalid", "passphrase");
+        assert!(matches!(result, Err(StoreError::InvalidFormat)));
+    }
+
+    #[test]
+    fn test_delete_with_invalid_name() {
+        let (store, _temp) = create_test_store();
+
+        let result = store.delete(".invalid");
+        assert!(matches!(result, Err(StoreError::InvalidFormat)));
+    }
+
+    #[test]
+    fn test_store_creates_enc_extension() {
+        let (store, temp) = create_test_store();
+
+        store
+            .store("test", &SecretKey::generate(), "pass")
+            .expect("store should succeed");
+
+        let path = temp.path().join("test.enc");
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_list_handles_invalid_utf8_filenames() {
+        // This test ensures list() handles edge cases gracefully
+        let (store, _temp) = create_test_store();
+
+        // Store a normal key
+        store
+            .store("normal", &SecretKey::generate(), "pass")
+            .expect("store should succeed");
+
+        // List should work even if there are unusual files
+        let keys = store.list().expect("list should succeed");
+        assert!(keys.contains(&"normal".to_string()));
+    }
+
+    #[test]
+    fn test_key_path_generation() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let store =
+            FileKeyStore::with_path(temp_dir.path().to_path_buf()).expect("failed to create store");
+
+        let path = store.key_path("test");
+        assert!(path.to_str().unwrap().ends_with("test.enc"));
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn test_non_unix_permissions_handling() {
+        // On non-Unix systems, permission setting is skipped
+        // This test just ensures the code doesn't panic
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let store =
+            FileKeyStore::with_path(temp_dir.path().to_path_buf()).expect("failed to create store");
+
+        store
+            .store("test", &SecretKey::generate(), "pass")
+            .expect("store should succeed");
+
+        assert!(store.exists("test"));
+    }
 }

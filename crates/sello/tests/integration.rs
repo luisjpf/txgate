@@ -32,6 +32,7 @@
 
 mod common;
 mod e2e;
+mod unit;
 
 #[cfg(test)]
 mod tests {

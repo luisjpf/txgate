@@ -95,6 +95,10 @@ pub mod registry;
 pub mod rlp;
 pub mod tokens;
 
+// Additional comprehensive tests for 100% coverage
+#[cfg(test)]
+mod additional_tests;
+
 // Re-export the Chain trait at crate root for convenience
 pub use chain::Chain;
 

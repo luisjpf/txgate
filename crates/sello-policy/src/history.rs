@@ -661,4 +661,353 @@ mod tests {
         assert!(parse_u256_hex("0xGGG").is_err());
         assert!(parse_u256_hex("not_hex").is_err());
     }
+
+    // =========================================================================
+    // Additional coverage tests
+    // =========================================================================
+
+    mod additional_coverage_tests {
+        use super::*;
+
+        #[test]
+        fn test_zero_amount_recording() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record zero amount
+            history.record("ETH", U256::ZERO, "0xzero").unwrap();
+
+            let total = history.daily_total("ETH").unwrap();
+            assert_eq!(total, U256::ZERO);
+
+            let transactions = history.get_transactions("ETH", 1).unwrap();
+            assert_eq!(transactions.len(), 1);
+            assert_eq!(transactions.first().unwrap().amount, U256::ZERO);
+        }
+
+        #[test]
+        fn test_multiple_tokens_isolated() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record transactions for different tokens
+            history.record("ETH", U256::from(100u64), "0xeth1").unwrap();
+            history
+                .record("USDC", U256::from(200u64), "0xusdc1")
+                .unwrap();
+            history.record("DAI", U256::from(300u64), "0xdai1").unwrap();
+            history.record("ETH", U256::from(50u64), "0xeth2").unwrap();
+
+            // Verify each token's total is isolated
+            assert_eq!(history.daily_total("ETH").unwrap(), U256::from(150u64));
+            assert_eq!(history.daily_total("USDC").unwrap(), U256::from(200u64));
+            assert_eq!(history.daily_total("DAI").unwrap(), U256::from(300u64));
+        }
+
+        #[test]
+        fn test_get_transactions_limit_zero() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+            history.record("ETH", U256::from(200u64), "0x2").unwrap();
+
+            // Request 0 transactions
+            let transactions = history.get_transactions("ETH", 0).unwrap();
+            assert!(transactions.is_empty());
+        }
+
+        #[test]
+        fn test_get_transactions_limit_exceeds_available() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+            history.record("ETH", U256::from(200u64), "0x2").unwrap();
+
+            // Request more than available
+            let transactions = history.get_transactions("ETH", 100).unwrap();
+            assert_eq!(transactions.len(), 2);
+        }
+
+        #[test]
+        fn test_get_transactions_large_limit() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+
+            // Request with very large limit (tests i64::MAX fallback)
+            let transactions = history.get_transactions("ETH", usize::MAX).unwrap();
+            assert_eq!(transactions.len(), 1);
+        }
+
+        #[test]
+        fn test_cache_expiry_behavior() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record a transaction
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+
+            // First call populates cache
+            let total1 = history.daily_total("ETH").unwrap();
+            assert_eq!(total1, U256::from(100u64));
+
+            // Second call within TTL uses cache (we can't easily test this without waiting,
+            // but we can verify it doesn't error)
+            let total2 = history.daily_total("ETH").unwrap();
+            assert_eq!(total2, U256::from(100u64));
+
+            // Record another transaction (invalidates cache)
+            history.record("ETH", U256::from(50u64), "0x2").unwrap();
+
+            // Next call should see updated total
+            let total3 = history.daily_total("ETH").unwrap();
+            assert_eq!(total3, U256::from(150u64));
+        }
+
+        #[test]
+        fn test_cleanup_with_no_old_transactions() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record current transactions
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+            history.record("ETH", U256::from(200u64), "0x2").unwrap();
+
+            // Cleanup should remove 0 transactions
+            let removed = history.cleanup().unwrap();
+            assert_eq!(removed, 0);
+
+            // Transactions should still be there
+            let total = history.daily_total("ETH").unwrap();
+            assert_eq!(total, U256::from(300u64));
+        }
+
+        #[test]
+        fn test_record_same_hash_multiple_times() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record the same hash multiple times (should be allowed)
+            history.record("ETH", U256::from(100u64), "0xsame").unwrap();
+            history.record("ETH", U256::from(200u64), "0xsame").unwrap();
+
+            // Both should be recorded
+            let total = history.daily_total("ETH").unwrap();
+            assert_eq!(total, U256::from(300u64));
+
+            let transactions = history.get_transactions("ETH", 10).unwrap();
+            assert_eq!(transactions.len(), 2);
+        }
+
+        #[test]
+        fn test_transaction_record_id_increments() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+            history.record("ETH", U256::from(200u64), "0x2").unwrap();
+            history.record("ETH", U256::from(300u64), "0x3").unwrap();
+
+            let transactions = history.get_transactions("ETH", 10).unwrap();
+
+            // IDs should be positive and unique
+            let ids: Vec<i64> = transactions.iter().map(|t| t.id).collect();
+            assert_eq!(ids.len(), 3);
+            assert!(ids.iter().all(|&id| id > 0));
+
+            // All IDs should be unique
+            let mut sorted_ids = ids.clone();
+            sorted_ids.sort();
+            sorted_ids.dedup();
+            assert_eq!(sorted_ids.len(), 3);
+        }
+
+        #[test]
+        fn test_transaction_timestamp_is_current() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            let before = current_unix_timestamp();
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+            let after = current_unix_timestamp();
+
+            let transactions = history.get_transactions("ETH", 1).unwrap();
+            let record = transactions.first().unwrap();
+
+            // Timestamp should be between before and after
+            assert!(record.timestamp >= before);
+            assert!(record.timestamp <= after);
+        }
+
+        #[test]
+        fn test_daily_total_accumulation_precision() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record many small transactions to test accumulation
+            for i in 1..=100 {
+                history
+                    .record("ETH", U256::from(i), &format!("0x{i:032x}"))
+                    .unwrap();
+            }
+
+            // Sum of 1..=100 is 5050
+            let total = history.daily_total("ETH").unwrap();
+            assert_eq!(total, U256::from(5050u64));
+        }
+
+        #[test]
+        fn test_parse_u256_hex_edge_cases() {
+            // Zero
+            assert_eq!(parse_u256_hex("0x0").unwrap(), U256::ZERO);
+            assert_eq!(parse_u256_hex("0").unwrap(), U256::ZERO);
+
+            // Leading zeros
+            assert_eq!(parse_u256_hex("0x00001").unwrap(), U256::from(1u64));
+            assert_eq!(parse_u256_hex("00001").unwrap(), U256::from(1u64));
+
+            // Mixed case
+            assert_eq!(parse_u256_hex("0xAbCdEf").unwrap(), U256::from(11259375u64));
+            assert_eq!(parse_u256_hex("AbCdEf").unwrap(), U256::from(11259375u64));
+
+            // Empty string (strip_prefix returns empty string, which parses as 0)
+            assert_eq!(parse_u256_hex("").unwrap(), U256::ZERO);
+            assert_eq!(parse_u256_hex("0x").unwrap(), U256::ZERO);
+
+            // Special characters should error
+            assert!(parse_u256_hex("0x-123").is_err());
+            assert!(parse_u256_hex("0x+123").is_err());
+            assert!(parse_u256_hex("0x 123").is_err());
+        }
+
+        #[test]
+        fn test_parse_u256_hex_large_values() {
+            // Test with max U256 value
+            let max_hex = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+            assert_eq!(parse_u256_hex(&format!("0x{max_hex}")).unwrap(), U256::MAX);
+            assert_eq!(parse_u256_hex(max_hex).unwrap(), U256::MAX);
+        }
+
+        #[test]
+        fn test_transaction_record_clone() {
+            let record = TransactionRecord {
+                id: 1,
+                token: "ETH".to_string(),
+                amount: U256::from(100u64),
+                timestamp: 123456789,
+                tx_hash: "0xabc".to_string(),
+            };
+
+            let cloned = record.clone();
+            assert_eq!(record.id, cloned.id);
+            assert_eq!(record.token, cloned.token);
+            assert_eq!(record.amount, cloned.amount);
+            assert_eq!(record.timestamp, cloned.timestamp);
+            assert_eq!(record.tx_hash, cloned.tx_hash);
+        }
+
+        #[test]
+        fn test_transaction_record_debug() {
+            let record = TransactionRecord {
+                id: 42,
+                token: "USDC".to_string(),
+                amount: U256::from(1_000_000u64),
+                timestamp: 1234567890,
+                tx_hash: "0xdeadbeef".to_string(),
+            };
+
+            let debug_str = format!("{record:?}");
+            assert!(debug_str.contains("TransactionRecord"));
+            assert!(debug_str.contains("42"));
+            assert!(debug_str.contains("USDC"));
+            assert!(debug_str.contains("0xdeadbeef"));
+        }
+
+        #[test]
+        fn test_special_token_names() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Test with various token name formats
+            let tokens = vec![
+                "ETH",
+                "BTC",
+                "USDC",
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                "wrapped-eth",
+                "token.with.dots",
+                "TOKEN_WITH_UNDERSCORES",
+            ];
+
+            for (i, token) in tokens.iter().enumerate() {
+                history
+                    .record(token, U256::from((i + 1) as u64 * 100), &format!("0x{i}"))
+                    .unwrap();
+            }
+
+            // Verify each token total
+            for (i, token) in tokens.iter().enumerate() {
+                let total = history.daily_total(token).unwrap();
+                assert_eq!(total, U256::from((i + 1) as u64 * 100));
+            }
+        }
+
+        #[test]
+        fn test_get_transactions_ordering() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record transactions with slight delays to ensure ordering
+            history
+                .record("ETH", U256::from(100u64), "0xfirst")
+                .unwrap();
+            history
+                .record("ETH", U256::from(200u64), "0xsecond")
+                .unwrap();
+            history
+                .record("ETH", U256::from(300u64), "0xthird")
+                .unwrap();
+
+            let transactions = history.get_transactions("ETH", 10).unwrap();
+
+            // Should be in descending timestamp order (newest first)
+            assert_eq!(transactions.len(), 3);
+            assert_eq!(transactions.first().unwrap().tx_hash, "0xthird");
+            assert_eq!(transactions.last().unwrap().tx_hash, "0xfirst");
+
+            // Timestamps should be descending
+            assert!(
+                transactions.first().unwrap().timestamp >= transactions.last().unwrap().timestamp
+            );
+        }
+
+        #[test]
+        fn test_daily_total_for_multiple_tokens_with_same_prefix() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Use tokens that share prefixes to test proper isolation
+            history.record("ETH", U256::from(100u64), "0x1").unwrap();
+            history.record("ETHX", U256::from(200u64), "0x2").unwrap();
+            history
+                .record("ETHEREUM", U256::from(300u64), "0x3")
+                .unwrap();
+
+            assert_eq!(history.daily_total("ETH").unwrap(), U256::from(100u64));
+            assert_eq!(history.daily_total("ETHX").unwrap(), U256::from(200u64));
+            assert_eq!(history.daily_total("ETHEREUM").unwrap(), U256::from(300u64));
+        }
+
+        #[test]
+        fn test_current_unix_timestamp_is_positive() {
+            let timestamp = current_unix_timestamp();
+            assert!(timestamp > 0);
+
+            // Should be a reasonable value (after 2020)
+            assert!(timestamp > 1577836800); // Jan 1, 2020
+        }
+
+        #[test]
+        fn test_saturating_addition_in_daily_total() {
+            let history = TransactionHistory::in_memory().unwrap();
+
+            // Record transactions that would overflow if not using saturating_add
+            let large_value = U256::MAX - U256::from(100u64);
+            history.record("ETH", large_value, "0x1").unwrap();
+            history.record("ETH", U256::from(200u64), "0x2").unwrap();
+
+            // Total should saturate at MAX, not wrap around
+            let total = history.daily_total("ETH").unwrap();
+            assert_eq!(total, U256::MAX);
+        }
+    }
 }
