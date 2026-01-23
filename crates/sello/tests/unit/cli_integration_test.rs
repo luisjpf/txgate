@@ -3,7 +3,14 @@
 //! These tests verify that CLI arguments are correctly parsed and dispatched
 //! to the appropriate command handlers.
 
-#![allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::doc_markdown,
+    clippy::uninlined_format_args,
+    clippy::single_char_pattern
+)]
 
 use clap::Parser;
 use sello::cli::{Cli, Commands, ConfigAction, EthereumCommands, OutputFormat};

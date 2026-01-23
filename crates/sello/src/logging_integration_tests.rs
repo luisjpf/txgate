@@ -3,7 +3,6 @@
 //! These tests ensure that logging can be initialized with various configurations
 //! and that the system handles initialization errors gracefully.
 
-#![cfg(test)]
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
@@ -86,7 +85,7 @@ fn test_logging_invalid_file_path() {
     assert!(result.is_err());
 }
 
-/// Test that LogError implements Error trait correctly.
+/// Test that `LogError` implements Error trait correctly.
 #[test]
 fn test_log_error_trait() {
     use std::error::Error;
@@ -103,7 +102,7 @@ fn test_log_error_trait() {
     assert!(err.source().is_none());
 }
 
-/// Test LogLevel equality and partial ordering.
+/// Test `LogLevel` equality and partial ordering.
 #[test]
 fn test_log_level_equality() {
     assert_eq!(LogLevel::Info, LogLevel::Info);
@@ -115,7 +114,7 @@ fn test_log_level_equality() {
     assert_eq!(level, level_copy);
 }
 
-/// Test LogFormat default and Display.
+/// Test `LogFormat` default and Display.
 #[test]
 fn test_log_format_traits() {
     // Test default
@@ -132,7 +131,7 @@ fn test_log_format_traits() {
     assert_eq!(format, format_clone);
 }
 
-/// Test LogConfig builder pattern.
+/// Test `LogConfig` builder pattern.
 #[test]
 fn test_log_config_builder() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");

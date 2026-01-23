@@ -70,7 +70,7 @@ Sello is a self-hosted, chain-agnostic transaction signing server. Unlike hash-s
 |                                                                             |
 +-----------------------------------------------------------------------------+
 
-* Planned chains - currently only Ethereum is implemented
+* Planned chains are marked with an asterisk
 ```
 
 ### Request Flow

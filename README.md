@@ -1,6 +1,6 @@
 # Sello
 
-[![CI](https://github.com/luisjpf/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/luisjpf/sello/actions/workflows/ci.yml)
+[![CI](https://github.com/sello-project/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/sello-project/sello/actions/workflows/ci.yml)
 
 Multi-chain transaction signing service with policy engine.
 
@@ -10,7 +10,7 @@ Sello is a secure, high-performance transaction signing service designed for blo
 
 - **Multi-chain support**: Sign transactions for Ethereum, Solana, Bitcoin, and more
 - **Policy engine**: Define and enforce signing policies (amount limits, address allowlists, etc.)
-- **Key management**: Secure key storage with support for HSMs and cloud KMS
+- **Key management**: Secure key storage with encrypted files (HSM and cloud KMS support planned)
 - **API server**: REST/gRPC APIs for integration with your applications
 
 ## Project Structure
@@ -100,13 +100,21 @@ cargo run -- --help
 ### Running the Server
 
 ```bash
-# Start the signing server (placeholder)
-cargo run -- server --config config.yaml
+# Start the signing server
+sello serve
 ```
 
 ## Configuration
 
-Configuration is done via YAML files. See `config.example.yaml` for available options.
+Configuration is done via TOML files. See `config.example.toml` and
+`docs/CONFIGURATION.md` for available options.
+
+## Documentation
+
+- Quickstart: `docs/QUICKSTART.md`
+- User guide: `docs/USER_GUIDE.md`
+- Configuration reference: `docs/CONFIGURATION.md`
+- Developer guide: `docs/DEVELOPER_GUIDE.md`
 
 ## Security
 
@@ -116,7 +124,7 @@ Sello is designed with security as a top priority:
 - Comprehensive input validation
 - Policy-based access control
 - Audit logging for all signing operations
-- Support for HSM and cloud KMS backends
+- HSM and cloud KMS backends (planned)
 
 ## License
 
@@ -130,5 +138,7 @@ at your option.
 ## Contributing
 
 Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+See `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` for expectations and workflows.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

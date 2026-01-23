@@ -9,6 +9,9 @@ repository.workspace = true
 description = "Core types, traits, and error definitions for Sello"
 keywords = ["sello", "core", "types"]
 categories = ["cryptography"]
+# Internal crate - not published to crates.io
+# Only the main `sello` binary is published
+publish = false
 
 [lints]
 workspace = true

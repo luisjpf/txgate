@@ -393,6 +393,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::similar_names)]
     #![allow(clippy::case_sensitive_file_extension_comparisons)]
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use std::sync::Arc;

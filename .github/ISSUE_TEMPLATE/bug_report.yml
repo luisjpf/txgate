@@ -1,0 +1,50 @@
+name: Bug Report
+description: Report a bug in Sello
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for taking the time to report a bug."
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal, reproducible set of steps.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and output
+      description: Add relevant logs or error output.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Sello version
+      description: Output of `sello --version`.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: e.g. macOS 14.0, Ubuntu 22.04.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help.

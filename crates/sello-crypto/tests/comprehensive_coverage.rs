@@ -8,6 +8,9 @@
 
 #![allow(clippy::expect_used)]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::panic)]
+#![allow(clippy::indexing_slicing)]
+#![allow(clippy::uninlined_format_args)]
 
 use sello_core::error::{SignError, StoreError};
 use sello_crypto::{
@@ -48,7 +51,7 @@ fn test_secret_key_error_copy() {
     let copied = error;
     // Both should be usable
     assert_eq!(error, copied);
-    assert_eq!(format!("{}", error), format!("{}", copied));
+    assert_eq!(format!("{error}"), format!("{copied}"));
 }
 
 #[test]

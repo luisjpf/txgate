@@ -915,9 +915,10 @@ USDC = "10000000000"
 
     #[test]
     fn test_status_command_default() {
+        #[allow(clippy::default_constructed_unit_structs)]
         let cmd = StatusCommand::default();
         // StatusCommand is a unit struct, just verify it works
-        let _ = format!("{:?}", cmd);
+        let _ = format!("{cmd:?}");
     }
 
     #[test]
@@ -925,8 +926,8 @@ USDC = "10000000000"
         let cmd = StatusCommand::new();
         let copied = cmd;
         // Both should work since StatusCommand is Copy
-        let _ = format!("{:?}", cmd);
-        let _ = format!("{:?}", copied);
+        let _ = format!("{cmd:?}");
+        let _ = format!("{copied:?}");
     }
 
     #[test]
@@ -1045,7 +1046,7 @@ whitelist_enabled = false
         if let Some(home) = dirs::home_dir() {
             let display = format_display_path(&home);
             // Should be "~/" or just "~"
-            assert!(display.starts_with("~"));
+            assert!(display.starts_with('~'));
         }
     }
 

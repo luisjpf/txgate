@@ -9,6 +9,9 @@ repository.workspace = true
 description = "Policy engine for transaction approval rules in Sello"
 keywords = ["sello", "policy", "rules", "authorization"]
 categories = ["cryptography", "config"]
+# Internal crate - not published to crates.io
+# Only the main `sello` binary is published
+publish = false
 
 [lints]
 workspace = true

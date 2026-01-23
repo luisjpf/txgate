@@ -9,6 +9,9 @@ repository.workspace = true
 description = "Multi-chain transaction parsing and construction for Sello"
 keywords = ["sello", "blockchain", "transaction", "parser"]
 categories = ["cryptography", "parser-implementations"]
+# Internal crate - not published to crates.io
+# Only the main `sello` binary is published
+publish = false
 
 [lints]
 workspace = true
