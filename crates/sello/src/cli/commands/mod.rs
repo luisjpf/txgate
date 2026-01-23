@@ -8,6 +8,7 @@
 //! - [`status`] - Display current status
 //! - [`config`] - Configuration management
 //! - [`ethereum`] - Ethereum-specific commands (address, sign)
+//! - [`key`] - Key management commands (list, import, export, delete)
 //! - [`serve`] - Start the signing server
 //!
 //! ## Implementation Notes
@@ -29,6 +30,7 @@
 pub mod config;
 pub mod ethereum;
 pub mod init;
+pub mod key;
 pub mod serve;
 pub mod status;
 
@@ -36,5 +38,9 @@ pub mod status;
 pub use config::{ConfigCommand, ConfigCommandError};
 pub use ethereum::{AddressCommand, AddressError, SignCommand, SignCommandError, SignOutput};
 pub use init::{InitCommand, InitError};
+pub use key::{
+    DeleteCommand, DeleteError, ExportCommand, ExportError, ImportCommand, ImportError,
+    ListCommand, ListError,
+};
 pub use serve::{ServeCommand, ServeError};
 pub use status::{StatusCommand, StatusError};

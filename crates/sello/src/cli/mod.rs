@@ -35,9 +35,16 @@
 //! - `sello serve [--foreground]` - Start the signing server
 //! - `sello ethereum address` - Display Ethereum address
 //! - `sello ethereum sign <TX_HEX> [--format hex|json]` - Sign a transaction
+//! - `sello key list [--verbose]` - List all stored keys
+//! - `sello key import <HEX> [--name NAME]` - Import a private key
+//! - `sello key export <NAME> [--output PATH] [--force]` - Export a key
+//! - `sello key delete <NAME> [--force]` - Delete a key
 
 pub mod args;
 pub mod commands;
 
 // Re-export main types for convenience
-pub use args::{Cli, Commands, ConfigAction, EthereumCommands, OutputFormat};
+pub use args::{
+    Cli, Commands, ConfigAction, EthereumCommands, KeyCommands, KeyDeleteArgs, KeyExportArgs,
+    KeyImportArgs, KeyListArgs, OutputFormat,
+};
