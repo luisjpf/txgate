@@ -16,8 +16,10 @@
 //! - Requires confirmation unless `--force` is provided
 //! - Cannot delete "default" key without `--force`
 //! - Deletion is permanent and cannot be undone
+//! - Confirmation prompts require an interactive terminal (not piped input)
+//! - Use `--force` flag when running in non-interactive contexts (scripts, CI)
 
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use sello_crypto::store::{FileKeyStore, KeyStore};
@@ -57,6 +59,10 @@ pub enum DeleteError {
     /// Deletion was cancelled by user.
     #[error("Deletion cancelled")]
     Cancelled,
+
+    /// Cannot prompt for confirmation without a terminal.
+    #[error("Cannot prompt for confirmation: stdin is not a terminal. Use --force to skip confirmation.")]
+    NotTerminal,
 
     /// I/O error.
     #[error("IO error: {0}")]
@@ -164,6 +170,7 @@ impl DeleteCommand {
     /// - Sello is not initialized
     /// - The key does not exist
     /// - I/O or storage errors occur
+    #[cfg(test)]
     pub fn run_with_base_dir_forced(&self, base_dir: &Path) -> Result<(), DeleteError> {
         // Check if initialized
         let keys_dir = base_dir.join(KEYS_DIR_NAME);
@@ -204,6 +211,11 @@ fn get_base_dir() -> Result<PathBuf, DeleteError> {
 
 /// Prompt user to confirm deletion.
 fn confirm_deletion(name: &str) -> Result<bool, DeleteError> {
+    // Ensure stdin is a terminal to prevent unexpected behavior when piped
+    if !io::stdin().is_terminal() {
+        return Err(DeleteError::NotTerminal);
+    }
+
     print!("Are you sure you want to delete key '{name}'? This cannot be undone. [y/N] ");
     io::stdout().flush()?;
 

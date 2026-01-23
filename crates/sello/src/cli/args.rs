@@ -212,7 +212,10 @@ pub struct KeyListArgs {
 }
 
 /// Arguments for the key import command.
-#[derive(Debug, Clone, Args)]
+///
+/// Note: This type implements a custom `Debug` that redacts the secret key
+/// to prevent accidental exposure in logs or error messages.
+#[derive(Clone, Args)]
 pub struct KeyImportArgs {
     /// Private key in hex format (with or without 0x prefix)
     ///
@@ -227,6 +230,15 @@ pub struct KeyImportArgs {
     /// you will be prompted to enter one.
     #[arg(short, long, value_name = "NAME")]
     pub name: Option<String>,
+}
+
+impl std::fmt::Debug for KeyImportArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyImportArgs")
+            .field("key", &"[REDACTED]")
+            .field("name", &self.name)
+            .finish()
+    }
 }
 
 /// Arguments for the key export command.

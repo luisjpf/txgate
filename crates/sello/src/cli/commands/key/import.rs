@@ -16,6 +16,9 @@
 //! - Keys are validated as valid secp256k1 scalars before storage
 //! - Keys are encrypted with a passphrase before storing
 //! - Passphrase must be at least 8 characters and confirmed
+//! - Intermediate key bytes are zeroized after use to prevent memory leaks
+//! - `ImportCommand` implements a custom `Debug` trait that redacts the secret key
+//! - Passphrase prompts require an interactive terminal (not piped input)
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -23,6 +26,7 @@ use std::path::{Path, PathBuf};
 use sello_crypto::keypair::{KeyPair, Secp256k1KeyPair};
 use sello_crypto::keys::SecretKey;
 use sello_crypto::store::{FileKeyStore, KeyStore};
+use zeroize::Zeroize;
 
 // ============================================================================
 // Constants
@@ -71,9 +75,13 @@ pub enum ImportError {
     #[error("Key name is required")]
     NameRequired,
 
-    /// Passphrase input was cancelled.
+    /// Passphrase input was cancelled (empty input).
     #[error("Passphrase input cancelled")]
     Cancelled,
+
+    /// Failed to read passphrase from terminal.
+    #[error("Failed to read passphrase from terminal: {0}")]
+    TerminalError(String),
 
     /// Passphrase is too short.
     #[error("Passphrase must be at least {MIN_PASSPHRASE_LENGTH} characters")]
@@ -101,13 +109,25 @@ pub enum ImportError {
 // ============================================================================
 
 /// Command to import a private key from hex.
-#[derive(Debug, Clone)]
+///
+/// Note: This type implements a custom `Debug` that redacts the secret key
+/// to prevent accidental exposure in logs or error messages.
+#[derive(Clone)]
 pub struct ImportCommand {
     /// The private key in hex format (with or without 0x prefix).
     pub key_hex: String,
 
     /// Optional name for the key.
     pub name: Option<String>,
+}
+
+impl std::fmt::Debug for ImportCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImportCommand")
+            .field("key_hex", &"[REDACTED]")
+            .field("name", &self.name)
+            .finish()
+    }
 }
 
 impl ImportCommand {
@@ -157,10 +177,13 @@ impl ImportCommand {
         }
 
         // Parse and validate the hex key
-        let key_bytes = parse_hex_key(&self.key_hex)?;
+        let mut key_bytes = parse_hex_key(&self.key_hex)?;
 
         // Create SecretKey and validate it
         let secret_key = SecretKey::new(key_bytes);
+
+        // Zeroize the intermediate key bytes now that SecretKey has a copy
+        key_bytes.zeroize();
 
         // Verify it's a valid secp256k1 key by trying to create a keypair
         let keypair = Secp256k1KeyPair::from_secret_key(&secret_key)
@@ -214,20 +237,26 @@ fn parse_hex_key(hex_str: &str) -> Result<[u8; SECRET_KEY_LEN], ImportError> {
     let hex_str = hex_str.strip_prefix("0X").unwrap_or(hex_str);
 
     // Decode hex
-    let bytes =
+    let mut bytes =
         hex::decode(hex_str).map_err(|e| ImportError::InvalidHex(format!("invalid hex: {e}")))?;
 
     // Check length
     if bytes.len() != SECRET_KEY_LEN {
-        return Err(ImportError::InvalidKeyLength(bytes.len()));
+        let actual_len = bytes.len();
+        bytes.zeroize();
+        return Err(ImportError::InvalidKeyLength(actual_len));
     }
 
     // Convert to fixed-size array
     let mut key = [0u8; SECRET_KEY_LEN];
     key.copy_from_slice(&bytes);
 
+    // Zeroize the intermediate Vec now that we've copied to the fixed-size array
+    bytes.zeroize();
+
     // Check for all-zero key (invalid)
     if key.iter().all(|&b| b == 0) {
+        key.zeroize();
         return Err(ImportError::InvalidKey(
             "key cannot be all zeros".to_string(),
         ));
@@ -241,7 +270,8 @@ fn prompt_passphrase() -> Result<String, ImportError> {
     print!("Enter passphrase to encrypt the key: ");
     io::stdout().flush()?;
 
-    let passphrase = rpassword::read_password().map_err(|_| ImportError::Cancelled)?;
+    let passphrase =
+        rpassword::read_password().map_err(|e| ImportError::TerminalError(e.to_string()))?;
 
     if passphrase.is_empty() {
         return Err(ImportError::Cancelled);
@@ -254,7 +284,8 @@ fn prompt_passphrase() -> Result<String, ImportError> {
     print!("Confirm passphrase: ");
     io::stdout().flush()?;
 
-    let confirmation = rpassword::read_password().map_err(|_| ImportError::Cancelled)?;
+    let confirmation =
+        rpassword::read_password().map_err(|e| ImportError::TerminalError(e.to_string()))?;
 
     if passphrase != confirmation {
         return Err(ImportError::PassphraseMismatch);
@@ -367,7 +398,7 @@ mod tests {
     #[test]
     fn test_import_duplicate_name() {
         let temp_dir = setup_test_env();
-        let keys_dir = temp_dir.path().join(KEYS_DIR_NAME);
+        let _keys_dir = temp_dir.path().join(KEYS_DIR_NAME);
 
         // Import first key
         let cmd = ImportCommand::new(test_key_hex(), Some("my-key".to_string()));

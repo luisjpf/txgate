@@ -30,6 +30,8 @@
 //! - Requires the current passphrase to decrypt the key
 //! - Requires a new passphrase for the export (with confirmation)
 //! - Output file permissions are set to 0600
+//! - Passphrase prompts require an interactive terminal (not piped input)
+//! - Wrong passphrase errors are detected reliably (not via string matching)
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -38,6 +40,7 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 
+use sello_core::error::StoreError;
 use sello_crypto::encryption::encrypt_key;
 use sello_crypto::keypair::{KeyPair, Secp256k1KeyPair};
 use sello_crypto::store::{FileKeyStore, KeyStore};
@@ -100,6 +103,10 @@ pub enum ExportError {
     /// Passphrase input was cancelled.
     #[error("Passphrase input cancelled")]
     Cancelled,
+
+    /// Failed to read passphrase from terminal.
+    #[error("Failed to read passphrase from terminal: {0}")]
+    TerminalError(String),
 
     /// Passphrase is too short.
     #[error("Passphrase must be at least {MIN_PASSPHRASE_LENGTH} characters")]
@@ -224,13 +231,9 @@ impl ExportCommand {
         // Load and decrypt the key
         let secret_key = key_store
             .load(&self.name, current_passphrase)
-            .map_err(|e| {
-                let err_str = e.to_string();
-                if err_str.contains("decryption") || err_str.contains("authentication") {
-                    ExportError::WrongPassphrase
-                } else {
-                    ExportError::Store(err_str)
-                }
+            .map_err(|e| match e {
+                StoreError::DecryptionFailed => ExportError::WrongPassphrase,
+                other => ExportError::Store(other.to_string()),
             })?;
 
         // Get Ethereum address
@@ -309,7 +312,8 @@ fn prompt_current_passphrase() -> Result<String, ExportError> {
     print!("Enter current passphrase: ");
     io::stdout().flush()?;
 
-    let passphrase = rpassword::read_password().map_err(|_| ExportError::Cancelled)?;
+    let passphrase =
+        rpassword::read_password().map_err(|e| ExportError::TerminalError(e.to_string()))?;
 
     if passphrase.is_empty() {
         return Err(ExportError::Cancelled);
@@ -323,7 +327,8 @@ fn prompt_new_passphrase() -> Result<String, ExportError> {
     print!("Enter new passphrase for export: ");
     io::stdout().flush()?;
 
-    let passphrase = rpassword::read_password().map_err(|_| ExportError::Cancelled)?;
+    let passphrase =
+        rpassword::read_password().map_err(|e| ExportError::TerminalError(e.to_string()))?;
 
     if passphrase.is_empty() {
         return Err(ExportError::Cancelled);
@@ -336,7 +341,8 @@ fn prompt_new_passphrase() -> Result<String, ExportError> {
     print!("Confirm new passphrase: ");
     io::stdout().flush()?;
 
-    let confirmation = rpassword::read_password().map_err(|_| ExportError::Cancelled)?;
+    let confirmation =
+        rpassword::read_password().map_err(|e| ExportError::TerminalError(e.to_string()))?;
 
     if passphrase != confirmation {
         return Err(ExportError::PassphraseMismatch);

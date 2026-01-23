@@ -152,11 +152,10 @@ impl ListCommand {
             let file_name = format!("{name}.enc");
             let file_path = keys_dir.join(&file_name);
 
-            let size = if file_path.exists() {
-                let metadata = fs::metadata(&file_path)?;
-                format_size(metadata.len())
-            } else {
-                "?".to_string()
+            let size = match fs::metadata(&file_path) {
+                Ok(metadata) => format_size(metadata.len()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => "(missing)".to_string(),
+                Err(e) => return Err(ListError::Io(e)),
             };
 
             println!("  {name:<20} {file_name:<25} {size:>10}");
