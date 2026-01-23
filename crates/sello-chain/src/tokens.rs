@@ -610,4 +610,119 @@ mod tests {
         assert!(json.contains("TEST"));
         assert!(json.contains("0x1234567890123456789012345678901234567890"));
     }
+
+    // ========================================================================
+    // Phase 2: Display/Debug and Serialization Edge Cases
+    // ========================================================================
+
+    #[test]
+    fn should_display_all_risk_level_variants_correctly() {
+        // Arrange & Act & Assert: Low
+        let low = RiskLevel::Low;
+        assert_eq!(format!("{low}"), "low");
+        assert_eq!(low.to_string(), "low");
+
+        // Arrange & Act & Assert: Medium
+        let medium = RiskLevel::Medium;
+        assert_eq!(format!("{medium}"), "medium");
+        assert_eq!(medium.to_string(), "medium");
+
+        // Arrange & Act & Assert: High
+        let high = RiskLevel::High;
+        assert_eq!(format!("{high}"), "high");
+        assert_eq!(high.to_string(), "high");
+    }
+
+    #[test]
+    fn should_serialize_and_deserialize_token_info_with_special_characters() {
+        // Arrange: TokenInfo with special characters in symbol and name
+        let info = TokenInfo::new("TEST-123_v2.0", 18, RiskLevel::Medium)
+            .with_name("Test Token (Beta) \"Official\" 'Version'");
+
+        // Act: Serialize to JSON
+        let json = serde_json::to_string(&info).expect("serialize");
+
+        // Assert: Round-trip preserves data
+        let deserialized: TokenInfo = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(deserialized.symbol, "TEST-123_v2.0");
+        assert_eq!(
+            deserialized.name,
+            Some("Test Token (Beta) \"Official\" 'Version'".to_string())
+        );
+        assert_eq!(deserialized.decimals, 18);
+        assert_eq!(deserialized.risk_level, RiskLevel::Medium);
+        assert_eq!(deserialized, info);
+    }
+
+    #[test]
+    fn should_serialize_and_deserialize_token_info_with_unicode() {
+        // Arrange: TokenInfo with Unicode characters
+        let info = TokenInfo::new("币", 6, RiskLevel::Low).with_name("中文代币 🚀");
+
+        // Act: Serialize and deserialize
+        let json = serde_json::to_string(&info).expect("serialize");
+        let deserialized: TokenInfo = serde_json::from_str(&json).expect("deserialize");
+
+        // Assert: Unicode preserved
+        assert_eq!(deserialized.symbol, "币");
+        assert_eq!(deserialized.name, Some("中文代币 🚀".to_string()));
+        assert_eq!(deserialized, info);
+    }
+
+    #[test]
+    fn should_serialize_token_info_with_zero_decimals() {
+        // Arrange: Token with 0 decimals (edge case, some NFTs do this)
+        let info = TokenInfo::new("NFT", 0, RiskLevel::High);
+
+        // Act: Serialize and deserialize
+        let json = serde_json::to_string(&info).expect("serialize");
+        let deserialized: TokenInfo = serde_json::from_str(&json).expect("deserialize");
+
+        // Assert: Zero decimals preserved
+        assert_eq!(deserialized.decimals, 0);
+        assert_eq!(deserialized, info);
+    }
+
+    #[test]
+    fn should_serialize_token_info_with_max_decimals() {
+        // Arrange: Token with 255 decimals (u8::MAX, theoretical edge case)
+        let info = TokenInfo::new("MAXDEC", 255, RiskLevel::High);
+
+        // Act: Serialize and deserialize
+        let json = serde_json::to_string(&info).expect("serialize");
+        let deserialized: TokenInfo = serde_json::from_str(&json).expect("deserialize");
+
+        // Assert: Max decimals preserved
+        assert_eq!(deserialized.decimals, 255);
+        assert_eq!(deserialized, info);
+    }
+
+    #[test]
+    fn should_serialize_token_info_with_empty_symbol() {
+        // Arrange: Token with empty symbol (edge case)
+        let info = TokenInfo::new("", 18, RiskLevel::High);
+
+        // Act: Serialize and deserialize
+        let json = serde_json::to_string(&info).expect("serialize");
+        let deserialized: TokenInfo = serde_json::from_str(&json).expect("deserialize");
+
+        // Assert: Empty symbol preserved
+        assert_eq!(deserialized.symbol, "");
+        assert_eq!(deserialized, info);
+    }
+
+    #[test]
+    fn should_serialize_token_info_with_very_long_name() {
+        // Arrange: Token with very long name (edge case)
+        let long_name = "A".repeat(1000);
+        let info = TokenInfo::new("LONG", 18, RiskLevel::Medium).with_name(&long_name);
+
+        // Act: Serialize and deserialize
+        let json = serde_json::to_string(&info).expect("serialize");
+        let deserialized: TokenInfo = serde_json::from_str(&json).expect("deserialize");
+
+        // Assert: Long name preserved
+        assert_eq!(deserialized.name, Some(long_name));
+        assert_eq!(deserialized, info);
+    }
 }

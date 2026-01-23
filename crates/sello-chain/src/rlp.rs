@@ -846,4 +846,308 @@ mod tests {
             assert_eq!(decoded, addr, "roundtrip failed for {addr}");
         }
     }
+
+    // ------------------------------------------------------------------------
+    // RLP Decoding Error Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_decode_bytes_truncated_data() {
+        // Arrange: RLP claims to have more data than actually present
+        // 0x85 = string of length 5, but only 3 bytes follow
+        let truncated = [0x85, 0x01, 0x02, 0x03];
+
+        // Act
+        let result = decode_bytes(&truncated);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_bytes_invalid_length_prefix() {
+        // Arrange: Invalid RLP with malformed length prefix
+        // 0xbf is the maximum single-byte string prefix, 0xc0 starts lists
+        // Using an invalid sequence that doesn't follow RLP rules
+        let invalid = [0xf9, 0x00]; // Long list prefix but data is too short
+
+        // Act
+        let result = decode_bytes(&invalid);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_bytes_empty_input() {
+        // Arrange: Empty input
+        let empty: [u8; 0] = [];
+
+        // Act
+        let result = decode_bytes(&empty);
+
+        // Assert: Should fail with InvalidRlp (no data to decode)
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_list_truncated_data() {
+        // Arrange: RLP list claims to have more items than present
+        // 0xc3 = list of 3 bytes total payload, but only 2 bytes follow
+        let truncated = [0xc3, 0x01, 0x02];
+
+        // Act
+        let result = decode_list(&truncated);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_list_invalid_structure() {
+        // Arrange: Malformed list structure with invalid length encoding
+        // 0xf8 requires a length byte, but it's missing or invalid
+        let invalid = [0xf8];
+
+        // Act
+        let result = decode_list(&invalid);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_list_string_instead_of_list() {
+        // Arrange: Try to decode a string as a list
+        // 0x83 = string of length 3
+        let string_data = [0x83, 0x61, 0x62, 0x63];
+
+        // Act
+        let result = decode_list(&string_data);
+
+        // Assert: Should fail with InvalidRlp indicating expected list
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+        if let Err(ParseError::InvalidRlp { context }) = result {
+            assert!(context.contains("Expected list"));
+        }
+    }
+
+    #[test]
+    fn test_decode_list_empty_input() {
+        // Arrange: Empty input
+        let empty: [u8; 0] = [];
+
+        // Act
+        let result = decode_list(&empty);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_u256_invalid_encoding() {
+        // Arrange: Truncated U256 encoding
+        // 0x82 = string of length 2, but only 1 byte follows
+        let invalid = [0x82, 0x01];
+
+        // Act
+        let result = decode_u256(&invalid);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_u256_empty_input() {
+        // Arrange: Empty input
+        let empty: [u8; 0] = [];
+
+        // Act
+        let result = decode_u256(&empty);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_u64_overflow() {
+        // Arrange: Value that's too large for u64 (9 bytes)
+        // 0x89 = string of length 9
+        let too_large = [0x89, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+
+        // Act
+        let result = decode_u64(&too_large);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_u64_truncated() {
+        // Arrange: Claims 4 bytes but only has 3
+        let truncated = [0x84, 0x01, 0x02, 0x03];
+
+        // Act
+        let result = decode_u64(&truncated);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_address_wrong_length() {
+        // Arrange: Address with wrong length (19 bytes instead of 20)
+        let wrong_length = [
+            0x93, // 19-byte string prefix
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10, 0x11, 0x12, 0x13,
+        ];
+
+        // Act
+        let result = decode_address(&wrong_length);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_address_truncated() {
+        // Arrange: Claims 20 bytes but only has 19
+        let truncated = [
+            0x94, // 20-byte string prefix
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10, 0x11, 0x12, 0x13,
+        ];
+
+        // Act
+        let result = decode_address(&truncated);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_address_empty_input() {
+        // Arrange: Empty input
+        let empty: [u8; 0] = [];
+
+        // Act
+        let result = decode_address(&empty);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_decode_optional_address_invalid_length() {
+        // Arrange: Non-empty address with wrong length
+        let wrong_length = [
+            0x93, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
+        ];
+
+        // Act
+        let result = decode_optional_address(&wrong_length);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_typed_tx_payload_boundary_type_0() {
+        // Arrange: Type 0 transaction with minimal payload
+        let type0 = [0x00];
+
+        // Act
+        let result = typed_tx_payload(&type0);
+
+        // Assert: Should return empty slice after type byte
+        assert!(result.is_ok());
+        let payload = result.unwrap();
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn test_typed_tx_payload_boundary_type_3() {
+        // Arrange: Type 3 transaction (boundary of supported types)
+        let type3 = [0x03, 0xf8, 0x73];
+
+        // Act
+        let result = typed_tx_payload(&type3);
+
+        // Assert: Should return payload without type byte
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), &[0xf8, 0x73]);
+    }
+
+    #[test]
+    fn test_rlp_boundary_length_zero() {
+        // Arrange: RLP string with length = 0 (should be encoded as 0x80)
+        let zero_length = [0x80];
+
+        // Act
+        let result = decode_bytes(&zero_length);
+
+        // Assert: Should decode to empty vec
+        assert!(result.is_ok());
+        let decoded = result.unwrap();
+        assert!(decoded.is_empty());
+    }
+
+    #[test]
+    fn test_rlp_boundary_length_one() {
+        // Arrange: RLP with single byte (length = 1)
+        // Single bytes < 0x80 are encoded as themselves
+        let one_byte = [0x42];
+
+        // Act
+        let result = decode_bytes(&one_byte);
+
+        // Assert: Should decode to vec with single byte
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), vec![0x42]);
+    }
+
+    #[test]
+    fn test_rlp_malformed_long_string_length() {
+        // Arrange: Long string (0xb8+) with invalid length encoding
+        // 0xb8 means the next byte specifies the length of the length field
+        // But if that's malformed, it should error
+        let malformed = [0xb8, 0x01, 0xff]; // Says length-of-length is 1, then 0xff bytes (but not present)
+
+        // Act
+        let result = decode_bytes(&malformed);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
+
+    #[test]
+    fn test_rlp_malformed_long_list_length() {
+        // Arrange: Long list (0xf8+) with invalid length encoding
+        let malformed = [0xf8, 0x01, 0xff]; // Says length-of-length is 1, then 0xff bytes (but not present)
+
+        // Act
+        let result = decode_list(&malformed);
+
+        // Assert: Should fail with InvalidRlp
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ParseError::InvalidRlp { .. })));
+    }
 }

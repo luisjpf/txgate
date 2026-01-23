@@ -604,4 +604,161 @@ whitelist_enabled = false
         let cmd_err: ConfigCommandError = config_err.into();
         assert!(matches!(cmd_err, ConfigCommandError::LoadError(_)));
     }
+
+    // ------------------------------------------------------------------------
+    // Additional Coverage Tests - Phase 3
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_config_command_debug() {
+        let cmd = ConfigCommand::new(None);
+        let debug_str = format!("{:?}", cmd);
+        assert!(debug_str.contains("ConfigCommand"));
+    }
+
+    #[test]
+    fn test_config_command_clone() {
+        let cmd = ConfigCommand::new(Some(ConfigAction::Path));
+        let cloned = cmd.clone();
+        assert!(matches!(cloned.action, Some(ConfigAction::Path)));
+    }
+
+    #[test]
+    fn test_config_command_error_io_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "not found");
+        let config_err: ConfigCommandError = io_err.into();
+        assert!(matches!(config_err, ConfigCommandError::Io(_)));
+    }
+
+    #[test]
+    fn test_validate_config_file_nonexistent() {
+        let path = std::path::Path::new("/nonexistent/path/config.toml");
+        let result = validate_config_file(path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_config_file_with_overlapping_policy() {
+        let temp_dir = create_test_dir();
+        let config_path = temp_dir.path().join("config.toml");
+
+        // Config with overlapping whitelist/blacklist (should fail validation)
+        let invalid_config = r#"
+[server]
+socket_path = "~/.sello/sello.sock"
+timeout_secs = 30
+
+[keys]
+directory = "~/.sello/keys"
+default_key = "default"
+
+[policy]
+whitelist_enabled = true
+whitelist = ["0xAAA"]
+blacklist = ["0xAAA"]
+"#;
+        fs::write(&config_path, invalid_config).expect("should write config");
+
+        let result = validate_config_file(&config_path);
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ConfigCommandError::ValidationFailed(_))
+        ));
+    }
+
+    #[test]
+    fn test_get_editor_empty_visual() {
+        // Save originals
+        let original_editor = env::var("EDITOR").ok();
+        let original_visual = env::var("VISUAL").ok();
+
+        // Set EDITOR to empty, VISUAL to empty
+        env::set_var("EDITOR", "");
+        env::set_var("VISUAL", "");
+
+        let editor = get_editor();
+        // Should fall back to default
+        assert_eq!(editor, DEFAULT_EDITOR);
+
+        // Restore
+        if let Some(val) = original_editor {
+            env::set_var("EDITOR", val);
+        } else {
+            env::remove_var("EDITOR");
+        }
+        if let Some(val) = original_visual {
+            env::set_var("VISUAL", val);
+        } else {
+            env::remove_var("VISUAL");
+        }
+    }
+
+    #[test]
+    fn test_config_command_all_actions() {
+        // Test that all ConfigAction variants create commands properly
+        let cmd_none = ConfigCommand::new(None);
+        assert!(cmd_none.action.is_none());
+
+        let cmd_edit = ConfigCommand::new(Some(ConfigAction::Edit));
+        assert!(matches!(cmd_edit.action, Some(ConfigAction::Edit)));
+
+        let cmd_path = ConfigCommand::new(Some(ConfigAction::Path));
+        assert!(matches!(cmd_path.action, Some(ConfigAction::Path)));
+    }
+
+    #[test]
+    fn test_config_command_error_source() {
+        // Test that LoadError has a proper source
+        let config_err = ConfigError::file_not_found("/test/path");
+        let cmd_err = ConfigCommandError::LoadError(config_err);
+
+        // Verify the error can be displayed
+        let display = cmd_err.to_string();
+        assert!(display.contains("Failed to load configuration"));
+    }
+
+    #[test]
+    fn test_format_toml_output_preserves_structure() {
+        let config = Config::default();
+        let output = format_toml_output(&config).expect("should format");
+
+        // Verify all sections are present
+        assert!(output.contains("[server]"));
+        assert!(output.contains("[keys]"));
+        assert!(output.contains("[policy]"));
+
+        // Verify it's valid TOML by parsing it back
+        let parsed: Config = toml::from_str(&output).expect("should parse back");
+        assert_eq!(parsed.keys.default_key, config.keys.default_key);
+    }
+
+    #[test]
+    fn test_validate_config_file_empty_socket_path() {
+        let temp_dir = create_test_dir();
+        let config_path = temp_dir.path().join("config.toml");
+
+        // Valid TOML but with empty socket_path which fails validation
+        let invalid_config = r#"
+[server]
+socket_path = ""
+timeout_secs = 30
+
+[keys]
+directory = "~/.sello/keys"
+default_key = "default"
+
+[policy]
+whitelist_enabled = false
+"#;
+        fs::write(&config_path, invalid_config).expect("should write config");
+
+        let result = validate_config_file(&config_path);
+        // Should fail because socket_path is empty (validation fails)
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ConfigCommandError::ValidationFailed(_))
+        ));
+    }
 }

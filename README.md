@@ -1,7 +1,6 @@
 # Sello
 
 [![CI](https://github.com/luisjpf/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/luisjpf/sello/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/luisjpf/sello/graph/badge.svg)](https://codecov.io/gh/luisjpf/sello)
 
 Multi-chain transaction signing service with policy engine.
 

@@ -884,4 +884,334 @@ mod tests {
 
         assert!(parse_erc20_call(&data).is_none());
     }
+
+    // ========================================================================
+    // Phase 2: Truncated Calldata Edge Cases
+    // ========================================================================
+
+    #[test]
+    fn should_return_none_when_transfer_calldata_has_partial_address() {
+        // Arrange: Transfer selector with calldata truncated in address field (36 bytes total)
+        let data = hex::decode(
+            "a9059cbb\
+             0000000000000000000000001234567890123456789012345678901234567890",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 36); // 4 + 32, but missing amount
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None for incomplete transfer calldata"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_transfer_calldata_missing_partial_amount() {
+        // Arrange: Transfer selector with complete address but partial amount (52 bytes)
+        let data = hex::decode(
+            "a9059cbb\
+             0000000000000000000000001234567890123456789012345678901234567890\
+             00000000000000000000000000000000",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 52); // 4 + 32 + 16 (partial amount)
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None when amount field is truncated"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_approve_calldata_truncated_before_amount() {
+        // Arrange: Approve selector with complete spender but missing amount (36 bytes)
+        let data = hex::decode(
+            "095ea7b3\
+             000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 36); // 4 + 32, missing amount
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None for approve missing amount"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_approve_calldata_has_partial_amount() {
+        // Arrange: Approve selector with complete spender but partial amount (60 bytes)
+        let data = hex::decode(
+            "095ea7b3\
+             000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd\
+             000000000000000000000000000000000000000000000000",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 60); // 4 + 32 + 24 (partial amount)
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None when approve amount is truncated"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_transfer_from_calldata_missing_to_address() {
+        // Arrange: TransferFrom selector with only 'from' address (36 bytes)
+        let data = hex::decode(
+            "23b872dd\
+             0000000000000000000000001111111111111111111111111111111111111111",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 36); // 4 + 32, missing 'to' and amount
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None when transferFrom missing 'to' and amount"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_transfer_from_calldata_missing_amount() {
+        // Arrange: TransferFrom selector with 'from' and 'to' but no amount (68 bytes)
+        let data = hex::decode(
+            "23b872dd\
+             0000000000000000000000001111111111111111111111111111111111111111\
+             0000000000000000000000002222222222222222222222222222222222222222",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 68); // 4 + 32 + 32, missing amount
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None when transferFrom missing amount"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_transfer_from_calldata_has_partial_to_address() {
+        // Arrange: TransferFrom with 'from' and partial 'to' address (52 bytes)
+        let data = hex::decode(
+            "23b872dd\
+             0000000000000000000000001111111111111111111111111111111111111111\
+             00000000000000000000000000000000",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 52); // 4 + 32 + 16 (partial 'to')
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None when 'to' address is truncated"
+        );
+    }
+
+    #[test]
+    fn should_return_none_when_transfer_from_calldata_has_partial_amount() {
+        // Arrange: TransferFrom with complete addresses but partial amount (84 bytes)
+        let data = hex::decode(
+            "23b872dd\
+             0000000000000000000000001111111111111111111111111111111111111111\
+             0000000000000000000000002222222222222222222222222222222222222222\
+             00000000000000000000000000000000",
+        )
+        .expect("valid hex");
+        assert_eq!(data.len(), 84); // 4 + 32 + 32 + 16 (partial amount)
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should return None when amount is truncated"
+        );
+    }
+
+    #[test]
+    fn should_handle_valid_selector_with_parameter_extraction_failure() {
+        // Arrange: Valid transfer selector but calldata too short for extraction
+        let data = vec![0xa9, 0x05, 0x9c, 0xbb, 0x00, 0x00, 0x00, 0x00]; // 8 bytes
+
+        // Act
+        let result = parse_erc20_call(&data);
+
+        // Assert
+        assert!(
+            result.is_none(),
+            "Should fail gracefully when extraction impossible"
+        );
+    }
+
+    #[test]
+    fn should_identify_all_transfer_variants_correctly() {
+        // Arrange & Act & Assert: Transfer variant
+        let transfer = Erc20Call::Transfer {
+            to: [0xAA; 20],
+            amount: U256::from(1000u64),
+        };
+        assert!(transfer.is_transfer());
+        assert!(!transfer.is_approval());
+
+        // Arrange & Act & Assert: TransferFrom variant
+        let transfer_from = Erc20Call::TransferFrom {
+            from: [0xBB; 20],
+            to: [0xCC; 20],
+            amount: U256::from(2000u64),
+        };
+        assert!(transfer_from.is_transfer());
+        assert!(!transfer_from.is_approval());
+
+        // Arrange & Act & Assert: Approve variant (not a transfer)
+        let approve = Erc20Call::Approve {
+            spender: [0xDD; 20],
+            amount: U256::from(3000u64),
+        };
+        assert!(!approve.is_transfer());
+    }
+
+    #[test]
+    fn should_identify_all_approval_variants_correctly() {
+        // Arrange & Act & Assert: Approve variant
+        let approve = Erc20Call::Approve {
+            spender: [0xEE; 20],
+            amount: U256::MAX,
+        };
+        assert!(approve.is_approval());
+        assert!(!approve.is_transfer());
+
+        // Arrange & Act & Assert: Transfer variant (not an approval)
+        let transfer = Erc20Call::Transfer {
+            to: [0xFF; 20],
+            amount: U256::from(500u64),
+        };
+        assert!(!transfer.is_approval());
+
+        // Arrange & Act & Assert: TransferFrom variant (not an approval)
+        let transfer_from = Erc20Call::TransferFrom {
+            from: [0x11; 20],
+            to: [0x22; 20],
+            amount: U256::from(600u64),
+        };
+        assert!(!transfer_from.is_approval());
+    }
+
+    // ========================================================================
+    // Phase 2: Debug Trait Coverage for Erc20Call
+    // ========================================================================
+
+    #[test]
+    fn should_format_transfer_debug_output_correctly() {
+        // Arrange: Transfer variant
+        let transfer = Erc20Call::Transfer {
+            to: [
+                0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB,
+                0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78,
+            ],
+            amount: U256::from(1_000_000u64),
+        };
+
+        // Act: Format with Debug
+        let debug_output = format!("{transfer:?}");
+
+        // Assert: Contains variant name and shows structure
+        assert!(debug_output.contains("Transfer"));
+        assert!(debug_output.contains("to"));
+        assert!(debug_output.contains("amount"));
+    }
+
+    #[test]
+    fn should_format_approve_debug_output_correctly() {
+        // Arrange: Approve variant with max amount
+        let approve = Erc20Call::Approve {
+            spender: [0xFF; 20],
+            amount: U256::MAX,
+        };
+
+        // Act: Format with Debug
+        let debug_output = format!("{approve:?}");
+
+        // Assert: Contains variant name and field names
+        assert!(debug_output.contains("Approve"));
+        assert!(debug_output.contains("spender"));
+        assert!(debug_output.contains("amount"));
+    }
+
+    #[test]
+    fn should_format_transfer_from_debug_output_correctly() {
+        // Arrange: TransferFrom variant
+        let transfer_from = Erc20Call::TransferFrom {
+            from: [0xAA; 20],
+            to: [0xBB; 20],
+            amount: U256::from(500_000_000u64),
+        };
+
+        // Act: Format with Debug
+        let debug_output = format!("{transfer_from:?}");
+
+        // Assert: Contains variant name and all field names
+        assert!(debug_output.contains("TransferFrom"));
+        assert!(debug_output.contains("from"));
+        assert!(debug_output.contains("to"));
+        assert!(debug_output.contains("amount"));
+    }
+
+    #[test]
+    fn should_format_erc20call_debug_with_zero_amount() {
+        // Arrange: Transfer with zero amount
+        let transfer = Erc20Call::Transfer {
+            to: [0x00; 20],
+            amount: U256::ZERO,
+        };
+
+        // Act: Format with Debug
+        let debug_output = format!("{transfer:?}");
+
+        // Assert: Debug output generated
+        assert!(debug_output.contains("Transfer"));
+        assert!(!debug_output.is_empty());
+    }
+
+    #[test]
+    fn should_format_erc20call_debug_with_max_amount() {
+        // Arrange: Approve with U256::MAX
+        let approve = Erc20Call::Approve {
+            spender: [0x00; 20],
+            amount: U256::MAX,
+        };
+
+        // Act: Format with Debug
+        let debug_output = format!("{approve:?}");
+
+        // Assert: Debug output generated
+        assert!(debug_output.contains("Approve"));
+        assert!(!debug_output.is_empty());
+    }
 }

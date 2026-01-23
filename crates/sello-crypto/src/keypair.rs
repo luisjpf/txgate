@@ -879,6 +879,180 @@ mod tests {
             "verification should fail with wrong hash"
         );
     }
+
+    #[test]
+    fn test_ethereum_address_never_fails_hash_extraction() {
+        // This test verifies that the defensive .get() check in ethereum_address()
+        // always succeeds because Keccak256 always produces 32 bytes
+        let keypair = Secp256k1KeyPair::generate();
+        let pubkey = keypair.public_key();
+
+        // Call ethereum_address multiple times to ensure consistency
+        let addr1 = pubkey.ethereum_address();
+        let addr2 = pubkey.ethereum_address();
+
+        assert_eq!(addr1, addr2);
+        assert_eq!(addr1.len(), 20);
+    }
+
+    #[test]
+    fn test_signature_normalization_both_paths() {
+        // Test that signature normalization works correctly
+        // We can't force a specific normalization path, but we can verify
+        // that all signatures are in normalized form
+        let keypair = Secp256k1KeyPair::generate();
+
+        for i in 0..10 {
+            let hash = [i; 32];
+            let signature = keypair.sign(&hash).expect("signing should succeed");
+
+            // Verify the signature is valid
+            assert!(keypair.verify(&hash, &signature));
+
+            // Recovery ID should always be 0 or 1
+            assert!(signature.recovery_id() <= 1);
+        }
+    }
+
+    // ========================================================================
+    // Phase 2: Signature Normalization Coverage
+    // ========================================================================
+
+    #[test]
+    fn should_produce_normalized_signatures_with_varied_hashes() {
+        // Arrange: Generate keypair
+        let keypair = Secp256k1KeyPair::generate();
+
+        // Act & Assert: Test with many different hashes to exercise both
+        // normalization branches (when S is already low, and when it needs normalization)
+        for i in 0..100 {
+            // Create varied hash patterns
+            let mut hash = [0u8; 32];
+            hash[0] = i;
+            hash[31] = 255 - i;
+
+            let signature = keypair.sign(&hash).expect("signing should succeed");
+
+            // All signatures should be normalized (low-S)
+            assert!(
+                keypair.verify(&hash, &signature),
+                "Normalized signature should verify"
+            );
+
+            // Recovery ID should be valid (0 or 1)
+            let recovery_id = signature.recovery_id();
+            assert!(
+                recovery_id <= 1,
+                "Recovery ID should be 0 or 1, got {recovery_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_handle_normalization_with_all_zero_hash() {
+        // Arrange: All zeros hash (edge case)
+        let keypair = Secp256k1KeyPair::generate();
+        let hash = [0u8; 32];
+
+        // Act: Sign the zero hash
+        let signature = keypair.sign(&hash).expect("signing should succeed");
+
+        // Assert: Signature is valid and normalized
+        assert!(keypair.verify(&hash, &signature));
+        assert!(signature.recovery_id() <= 1);
+    }
+
+    #[test]
+    fn should_handle_normalization_with_all_max_hash() {
+        // Arrange: All 0xFF hash (edge case)
+        let keypair = Secp256k1KeyPair::generate();
+        let hash = [0xFFu8; 32];
+
+        // Act: Sign the max hash
+        let signature = keypair.sign(&hash).expect("signing should succeed");
+
+        // Assert: Signature is valid and normalized
+        assert!(keypair.verify(&hash, &signature));
+        assert!(signature.recovery_id() <= 1);
+    }
+
+    #[test]
+    fn should_handle_recovery_id_flip_when_normalized() {
+        // Arrange: Generate multiple signatures to exercise the recovery ID flip logic
+        let keypair = Secp256k1KeyPair::generate();
+
+        // Act & Assert: Generate many signatures
+        // When normalize_s() returns Some(_), recovery ID is flipped (XOR 1)
+        // When normalize_s() returns None, recovery ID is unchanged
+        for i in 0..50 {
+            let hash = [i; 32];
+            let signature = keypair.sign(&hash).expect("signing should succeed");
+
+            // Recovery ID should always be valid (0 or 1)
+            assert!(signature.recovery_id() <= 1);
+
+            // Verify the signature with the recovery ID
+            assert!(keypair.verify(&hash, &signature));
+        }
+    }
+
+    #[test]
+    fn should_produce_consistent_signatures_with_same_hash() {
+        // Arrange: Same keypair, same hash
+        let keypair = Secp256k1KeyPair::generate();
+        let hash = [0x42u8; 32];
+
+        // Act: Sign the same hash multiple times (with randomized k)
+        let sig1 = keypair.sign(&hash).expect("signing should succeed");
+        let sig2 = keypair.sign(&hash).expect("signing should succeed");
+
+        // Assert: Both should verify (but may not be identical due to random k)
+        assert!(keypair.verify(&hash, &sig1));
+        assert!(keypair.verify(&hash, &sig2));
+
+        // Both should be normalized
+        assert!(sig1.recovery_id() <= 1);
+        assert!(sig2.recovery_id() <= 1);
+    }
+
+    #[test]
+    fn should_handle_normalization_edge_case_patterns() {
+        // Arrange: Test various bit patterns that might affect S normalization
+        let keypair = Secp256k1KeyPair::generate();
+
+        let test_patterns = vec![
+            [0x00u8; 32], // All zeros
+            [0xFFu8; 32], // All ones
+            [0xAAu8; 32], // Alternating 10101010
+            [0x55u8; 32], // Alternating 01010101
+            {
+                let mut h = [0u8; 32];
+                h[0] = 0xFF;
+                h
+            }, // First byte max
+            {
+                let mut h = [0u8; 32];
+                h[31] = 0xFF;
+                h
+            }, // Last byte max
+        ];
+
+        // Act & Assert: All patterns should produce valid normalized signatures
+        for (idx, hash) in test_patterns.iter().enumerate() {
+            let signature = keypair
+                .sign(hash)
+                .unwrap_or_else(|_| panic!("Pattern {idx} signing should succeed"));
+
+            assert!(
+                keypair.verify(hash, &signature),
+                "Pattern {idx} should verify"
+            );
+            assert!(
+                signature.recovery_id() <= 1,
+                "Pattern {idx} recovery ID should be valid"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

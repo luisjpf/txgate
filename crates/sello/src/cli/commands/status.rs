@@ -876,4 +876,194 @@ USDC = "10000000000"
         let display = format_display_path(path);
         assert_eq!(display, "/etc/sello/config.toml");
     }
+
+    // ------------------------------------------------------------------------
+    // Additional Coverage Tests - Phase 3
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_policy_summary_default() {
+        let summary = PolicySummary::default();
+        assert!(!summary.whitelist_enabled);
+        assert_eq!(summary.whitelist_count, 0);
+        assert_eq!(summary.blacklist_count, 0);
+        assert_eq!(summary.tx_limit_count, 0);
+        assert_eq!(summary.daily_limit_count, 0);
+    }
+
+    #[test]
+    fn test_policy_summary_debug() {
+        let summary = PolicySummary::default();
+        let debug = format!("{:?}", summary);
+        assert!(debug.contains("PolicySummary"));
+        assert!(debug.contains("whitelist_enabled"));
+    }
+
+    #[test]
+    fn test_policy_summary_clone() {
+        let summary = PolicySummary {
+            whitelist_enabled: true,
+            whitelist_count: 5,
+            blacklist_count: 3,
+            tx_limit_count: 2,
+            daily_limit_count: 1,
+        };
+        let cloned = summary.clone();
+        assert_eq!(summary.whitelist_enabled, cloned.whitelist_enabled);
+        assert_eq!(summary.whitelist_count, cloned.whitelist_count);
+    }
+
+    #[test]
+    fn test_status_command_default() {
+        let cmd = StatusCommand::default();
+        // StatusCommand is a unit struct, just verify it works
+        let _ = format!("{:?}", cmd);
+    }
+
+    #[test]
+    fn test_status_command_copy() {
+        let cmd = StatusCommand::new();
+        let copied = cmd;
+        // Both should work since StatusCommand is Copy
+        let _ = format!("{:?}", cmd);
+        let _ = format!("{:?}", copied);
+    }
+
+    #[test]
+    fn test_list_key_names_empty_directory() {
+        let temp_dir = create_test_dir();
+        let keys_dir = temp_dir.path().join("keys");
+        fs::create_dir_all(&keys_dir).expect("failed to create dir");
+
+        let names = list_key_names(&keys_dir).expect("list should succeed");
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_list_key_names_nonexistent() {
+        let temp_dir = create_test_dir();
+        let keys_dir = temp_dir.path().join("nonexistent");
+
+        let names = list_key_names(&keys_dir).expect("list should succeed");
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_list_key_names_ignores_hidden_and_non_enc() {
+        let temp_dir = create_test_dir();
+        let keys_dir = temp_dir.path().join("keys");
+        fs::create_dir_all(&keys_dir).expect("failed to create dir");
+
+        // Create various files
+        fs::write(keys_dir.join("visible.enc"), b"data").expect("write");
+        fs::write(keys_dir.join(".hidden.enc"), b"data").expect("write");
+        fs::write(keys_dir.join("readme.txt"), b"data").expect("write");
+        fs::write(keys_dir.join("backup.bak"), b"data").expect("write");
+
+        let names = list_key_names(&keys_dir).expect("list should succeed");
+        assert_eq!(names, vec!["visible"]);
+    }
+
+    #[test]
+    fn test_status_error_history_variant() {
+        let err = StatusError::History("db error".to_string());
+        assert!(err.to_string().contains("History error"));
+        assert!(err.to_string().contains("db error"));
+    }
+
+    #[test]
+    fn test_print_status_many_keys() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+
+        create_initialized_sello(&base_dir);
+
+        // Add more keys (total > 5 to trigger truncation)
+        let keys_dir = base_dir.join(KEYS_DIR_NAME);
+        for i in 1..=8 {
+            fs::write(keys_dir.join(format!("key{}.enc", i)), b"data").expect("write");
+        }
+
+        let cmd = StatusCommand::new();
+        let result = cmd.run_with_base_dir(base_dir);
+
+        assert!(result.is_ok());
+        let output = result.expect("should succeed");
+        assert!(output.key_count > 5);
+    }
+
+    #[test]
+    fn test_status_with_missing_default_key() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+
+        // Create directories
+        fs::create_dir_all(base_dir.join(KEYS_DIR_NAME)).expect("failed to create keys dir");
+
+        // Create config with a different default key name
+        let config_content = r#"
+[server]
+socket_path = "~/.sello/sello.sock"
+timeout_secs = 30
+
+[keys]
+directory = "~/.sello/keys"
+default_key = "nonexistent-key"
+
+[policy]
+whitelist_enabled = false
+"#;
+        fs::write(base_dir.join(CONFIG_FILE_NAME), config_content).expect("failed to write config");
+
+        // Create a key with different name
+        fs::write(base_dir.join(KEYS_DIR_NAME).join("other.enc"), b"data").expect("write");
+
+        let cmd = StatusCommand::new();
+        let result = cmd.run_with_base_dir(base_dir);
+
+        assert!(result.is_ok());
+        let output = result.expect("should succeed");
+        // The default key is "nonexistent-key" but we have "other"
+        assert_eq!(output.default_key, "nonexistent-key");
+        assert!(!output.key_names.contains(&"nonexistent-key".to_string()));
+    }
+
+    #[test]
+    fn test_check_server_running_directory() {
+        let temp_dir = create_test_dir();
+        let socket_path = temp_dir.path().join("sello.sock");
+
+        // Create a directory instead of a file
+        fs::create_dir_all(&socket_path).expect("failed to create dir");
+
+        // Should still return true since the path exists
+        assert!(check_server_running(&socket_path));
+    }
+
+    #[test]
+    fn test_format_display_path_exact_home() {
+        if let Some(home) = dirs::home_dir() {
+            let display = format_display_path(&home);
+            // Should be "~/" or just "~"
+            assert!(display.starts_with("~"));
+        }
+    }
+
+    #[test]
+    fn test_status_output_fields() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+
+        create_initialized_sello(&base_dir);
+
+        let cmd = StatusCommand::new();
+        let result = cmd.run_with_base_dir(base_dir.clone());
+
+        assert!(result.is_ok());
+        let output = result.expect("should succeed");
+
+        assert_eq!(output.base_dir, base_dir);
+        assert!(output.initialized);
+        assert!(!output.server_running);
+    }
 }

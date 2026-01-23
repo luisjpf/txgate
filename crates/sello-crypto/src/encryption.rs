@@ -706,4 +706,108 @@ mod tests {
         assert_eq!(PLAINTEXT_LEN, 32);
         assert_eq!(ENCRYPTED_KEY_LEN, 77);
     }
+
+    // ------------------------------------------------------------------------
+    // Key Derivation Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_derive_key_deterministic() {
+        // Same passphrase and salt should produce the same key
+        let passphrase = "test passphrase";
+        let salt = [0x42u8; SALT_LEN];
+
+        let key1 = derive_key(passphrase, &salt).expect("derivation should succeed");
+        let key2 = derive_key(passphrase, &salt).expect("derivation should succeed");
+
+        assert_eq!(key1, key2);
+    }
+
+    #[test]
+    fn test_derive_key_different_salts() {
+        let passphrase = "test passphrase";
+        let salt1 = [0x42u8; SALT_LEN];
+        let salt2 = [0x43u8; SALT_LEN];
+
+        let key1 = derive_key(passphrase, &salt1).expect("derivation should succeed");
+        let key2 = derive_key(passphrase, &salt2).expect("derivation should succeed");
+
+        // Different salts should produce different keys
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_derive_key_different_passphrases() {
+        let salt = [0x42u8; SALT_LEN];
+
+        let key1 = derive_key("passphrase1", &salt).expect("derivation should succeed");
+        let key2 = derive_key("passphrase2", &salt).expect("derivation should succeed");
+
+        // Different passphrases should produce different keys
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_derive_key_empty_passphrase() {
+        let salt = [0x42u8; SALT_LEN];
+
+        // Empty passphrase should still work (though not recommended)
+        let result = derive_key("", &salt);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_derive_key_output_length() {
+        let passphrase = "test";
+        let salt = [0x00u8; SALT_LEN];
+
+        let key = derive_key(passphrase, &salt).expect("derivation should succeed");
+
+        // Output should always be 32 bytes
+        assert_eq!(key.len(), 32);
+    }
+
+    // ------------------------------------------------------------------------
+    // Additional Edge Case Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_encrypted_key_from_bytes_empty() {
+        let result = EncryptedKey::from_bytes(&[]);
+        assert!(matches!(result, Err(StoreError::InvalidFormat)));
+    }
+
+    #[test]
+    fn test_encrypted_key_version_field() {
+        let secret_key = SecretKey::generate();
+        let encrypted = encrypt_key(&secret_key, "test").expect("encryption should succeed");
+
+        assert_eq!(encrypted.version, ENCRYPTION_VERSION);
+    }
+
+    #[test]
+    fn test_decrypt_with_invalid_ciphertext_length() {
+        let encrypted = EncryptedKey {
+            version: ENCRYPTION_VERSION,
+            salt: [0u8; SALT_LEN],
+            nonce: [0u8; NONCE_LEN],
+            ciphertext: vec![0u8; 10], // Wrong length (should be 48)
+        };
+
+        let result = decrypt_key(&encrypted, "passphrase");
+        assert!(matches!(result, Err(StoreError::InvalidFormat)));
+    }
+
+    #[test]
+    fn test_decrypt_with_valid_length_but_wrong_data() {
+        let encrypted = EncryptedKey {
+            version: ENCRYPTION_VERSION,
+            salt: [0u8; SALT_LEN],
+            nonce: [0u8; NONCE_LEN],
+            ciphertext: vec![0u8; PLAINTEXT_LEN + TAG_LEN], // Correct length but garbage data
+        };
+
+        let result = decrypt_key(&encrypted, "passphrase");
+        assert!(matches!(result, Err(StoreError::DecryptionFailed)));
+    }
 }

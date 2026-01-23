@@ -35,3 +35,7 @@ pub use logging::{
     init_logging, log_security_event, new_correlation_id, redact_sensitive, verbosity_to_level,
     LogConfig, LogError, LogFormat, LogGuard, LogLevel,
 };
+
+// Additional integration tests
+#[cfg(test)]
+mod logging_integration_tests;

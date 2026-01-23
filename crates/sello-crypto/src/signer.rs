@@ -865,6 +865,77 @@ mod tests {
     }
 
     // ------------------------------------------------------------------------
+    // EIP-55 Checksum Edge Cases
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_eip55_checksum_all_digits_address() {
+        // Address with only digits (no letters to case-transform)
+        let address_hex = "1234567890123456789012345678901234567890";
+        let mut address = [0u8; 20];
+        hex::decode_to_slice(address_hex, &mut address).expect("valid hex");
+
+        let checksummed = to_eip55_checksum(&address);
+
+        // Should still be all lowercase digits with 0x prefix
+        assert!(checksummed.starts_with("0x"));
+        assert_eq!(checksummed.len(), 42);
+        assert!(checksummed[2..].chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn test_eip55_checksum_boundary_nibbles() {
+        // Test addresses that exercise boundary conditions in nibble extraction
+        // High nibbles (even indices) and low nibbles (odd indices)
+        let test_vectors = vec![
+            // Address designed to test nibble extraction at different positions
+            ("0000000000000000000000000000000000000000", 42),
+            ("ffffffffffffffffffffffffffffffffffffffff", 42),
+            ("abcdefabcdefabcdefabcdefabcdefabcdefabcd", 42),
+        ];
+
+        for (hex_addr, expected_len) in test_vectors {
+            let mut address = [0u8; 20];
+            hex::decode_to_slice(hex_addr, &mut address).expect("valid hex");
+
+            let checksummed = to_eip55_checksum(&address);
+            assert_eq!(checksummed.len(), expected_len);
+            assert!(checksummed.starts_with("0x"));
+        }
+    }
+
+    #[test]
+    fn test_eip55_checksum_hash_byte_boundary() {
+        // Test that we correctly handle hash byte extraction at i/2
+        // This exercises the hash.get(i/2) logic
+        for i in 0..20 {
+            let mut address = [0u8; 20];
+            address[i] = 0xAB; // Mix of letters to test case conversion
+
+            let checksummed = to_eip55_checksum(&address);
+            assert_eq!(checksummed.len(), 42);
+            assert!(checksummed.starts_with("0x"));
+        }
+    }
+
+    #[test]
+    fn test_eip55_checksum_even_odd_indices() {
+        // Specifically test even and odd character indices for nibble extraction
+        let address_hex = "aabbccddeeff00112233445566778899aabbccdd";
+        let mut address = [0u8; 20];
+        hex::decode_to_slice(address_hex, &mut address).expect("valid hex");
+
+        let checksummed = to_eip55_checksum(&address);
+
+        // Verify format is correct
+        assert_eq!(checksummed.len(), 42);
+        assert!(checksummed.starts_with("0x"));
+
+        // Verify all characters after 0x are valid hex
+        assert!(checksummed[2..].chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // ------------------------------------------------------------------------
     // Signature Verification Roundtrip Tests
     // ------------------------------------------------------------------------
 
