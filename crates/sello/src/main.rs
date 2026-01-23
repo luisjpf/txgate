@@ -28,10 +28,10 @@
 
 use clap::Parser;
 use sello::cli::commands::{
-    AddressCommand, ConfigCommand, InitCommand, ServeCommand, SignCommand, SignCommandError,
-    StatusCommand,
+    AddressCommand, ConfigCommand, DeleteCommand, ExportCommand, ImportCommand, InitCommand,
+    ListCommand, ServeCommand, SignCommand, SignCommandError, StatusCommand,
 };
-use sello::cli::{Cli, Commands, EthereumCommands};
+use sello::cli::{Cli, Commands, EthereumCommands, KeyCommands};
 use sello::logging::{init_logging, verbosity_to_level, LogConfig, LogError, LogFormat, LogGuard};
 
 /// Exit code for policy denied (sign command).
@@ -98,6 +98,7 @@ fn main() {
             rt.block_on(cmd.run()).map_err(|e| e.to_string())
         }
         Commands::Ethereum { command } => handle_ethereum(command),
+        Commands::Key { command } => handle_key(command),
     };
 
     if let Err(e) = result {
@@ -143,6 +144,36 @@ fn handle_ethereum(command: EthereumCommands) -> Result<(), String> {
                     std::process::exit(EXIT_ERROR);
                 }
             }
+        }
+    }
+}
+
+/// Handle Key management subcommands.
+///
+/// # Arguments
+///
+/// * `command` - The Key subcommand to execute.
+///
+/// # Returns
+///
+/// `Ok(())` on success, or an error message string on failure.
+fn handle_key(command: KeyCommands) -> Result<(), String> {
+    match command {
+        KeyCommands::List(args) => {
+            let cmd = ListCommand::new(args.details);
+            cmd.run().map_err(|e| e.to_string())
+        }
+        KeyCommands::Import(args) => {
+            let cmd = ImportCommand::new(args.key, args.name);
+            cmd.run().map_err(|e| e.to_string())
+        }
+        KeyCommands::Export(args) => {
+            let cmd = ExportCommand::new(args.name, args.output, args.force);
+            cmd.run().map_err(|e| e.to_string())
+        }
+        KeyCommands::Delete(args) => {
+            let cmd = DeleteCommand::new(args.name, args.force);
+            cmd.run().map_err(|e| e.to_string())
         }
     }
 }

@@ -60,6 +60,10 @@ The following modules require extra scrutiny for any changes:
 | ERC-20 Detection | `crates/sello-chain/src/erc20.rs` | Token operation detection |
 | Policy Engine | `crates/sello-policy/src/engine.rs` | Policy enforcement |
 | Audit Logging | `crates/sello/src/audit.rs` | Tamper-evident logging |
+| Key Import | `crates/sello/src/cli/commands/key/import.rs` | Secret key handling, zeroization |
+| Key Export | `crates/sello/src/cli/commands/key/export.rs` | Passphrase handling, re-encryption |
+| Key Delete | `crates/sello/src/cli/commands/key/delete.rs` | Confirmation bypass prevention |
+| CLI Args | `crates/sello/src/cli/args.rs` | Secret redaction in Debug |
 
 ## Security Testing
 

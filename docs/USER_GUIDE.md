@@ -136,6 +136,99 @@ Keys are stored encrypted at `~/.sello/keys/default.enc` with:
 - Required for all operations that access the key
 - Never stored on disk
 
+### Multiple Keys
+
+Sello supports managing multiple keys. Each key has a unique name.
+
+#### List Keys
+
+```bash
+sello key list
+```
+
+Shows all stored keys:
+
+```
+Keys:
+  default
+  trading-wallet
+  cold-storage
+```
+
+Use `--verbose` for additional details:
+
+```bash
+sello key list --verbose
+```
+
+```
+Keys:
+  NAME                 FILE                      SIZE
+  default              default.enc               77 B
+  trading-wallet       trading-wallet.enc        77 B
+```
+
+#### Import an Existing Key
+
+Import a private key from a hex string:
+
+```bash
+sello key import 0xabc123... --name my-imported-key
+```
+
+You will be prompted for a passphrase to encrypt the key.
+
+**Security notes:**
+- The key hex is validated as a valid secp256k1 scalar
+- Intermediate key bytes are zeroized after import
+- Requires an interactive terminal (use scripts with caution)
+
+#### Export a Key
+
+Export a key as an encrypted backup:
+
+```bash
+sello key export my-key --output /path/to/backup.json
+```
+
+You will be prompted for:
+1. The current passphrase to decrypt the key
+2. A new passphrase for the exported backup
+
+The exported file is JSON with the encrypted key data:
+
+```json
+{
+  "version": 1,
+  "name": "my-key",
+  "ethereum_address": "0x...",
+  "encrypted_key": "base64-encoded-data"
+}
+```
+
+**Security notes:**
+- Output file permissions are set to 0600 (Unix)
+- Requires an interactive terminal for passphrase prompts
+
+#### Delete a Key
+
+Delete a key permanently:
+
+```bash
+sello key delete my-key
+```
+
+You will be prompted to confirm deletion. Use `--force` to skip confirmation:
+
+```bash
+sello key delete my-key --force
+```
+
+**Security notes:**
+- The "default" key cannot be deleted without `--force`
+- Deletion is permanent and cannot be undone
+- Confirmation prompts require an interactive terminal
+
 ---
 
 ## Policy Configuration

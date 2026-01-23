@@ -14,12 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security policy documentation (`SECURITY.md`)
 - Security audit checklist (`docs/SECURITY_AUDIT.md`)
 - Release preparation script (`scripts/release.sh`)
+- Key management CLI commands: `sello key import`, `sello key export`, `sello key list`, `sello key delete`
 
 ### Changed
 
 - Replaced Codecov with native PR coverage comments in CI
 - Coverage thresholds enforced per-crate with PR comment reports
 - Enabled security audit job (`cargo audit`) in CI
+
+### Security
+
+- Custom `Debug` implementations for `KeyImportArgs` and `ImportCommand` that redact secret keys
+- Zeroization of intermediate key bytes in `parse_hex_key` and `run_with_base_dir_and_passphrase`
+- Added `TerminalError` variant for proper terminal read error handling (prevents masking errors as "cancelled")
+- Improved passphrase error detection in export command using pattern matching instead of string matching
+- Terminal check before confirmation prompts in delete command (prevents unexpected behavior with piped input)
+- Explicit `(missing)` indicator for missing key files instead of silent `?` fallback
+- `run_with_base_dir_forced` method restricted to test builds only (`#[cfg(test)]`)
 
 ## [0.1.0] - 2025-01-21
 

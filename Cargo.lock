@@ -2835,6 +2835,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "axum",
+ "base64",
  "chrono",
  "clap",
  "dirs",
@@ -2858,6 +2859,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "zeroize",
 ]
 
 [[package]]
