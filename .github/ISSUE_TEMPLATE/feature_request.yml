@@ -1,0 +1,31 @@
+name: Feature Request
+description: Propose an enhancement or new feature
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for helping improve Sello."
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Outline how this should work.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider?

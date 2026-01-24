@@ -17,14 +17,7 @@ Thank you for your interest in contributing to Sello! This document provides gui
 
 ## Code of Conduct
 
-We are committed to providing a welcoming and inclusive environment. All contributors are expected to:
-
-- **Be respectful**: Treat everyone with respect and consideration
-- **Be constructive**: Provide helpful feedback and accept criticism gracefully
-- **Be collaborative**: Work together to achieve common goals
-- **Be professional**: Maintain a professional demeanor in all interactions
-
-Unacceptable behavior includes harassment, discrimination, and personal attacks. Violations may result in removal from the project.
+Please read and follow `CODE_OF_CONDUCT.md` in the repository root.
 
 ---
 

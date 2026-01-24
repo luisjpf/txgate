@@ -1765,7 +1765,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+            Err(ParseError::InvalidRlp { .. } | ParseError::MalformedTransaction { .. })
         ));
     }
 
@@ -1796,7 +1796,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+            Err(ParseError::InvalidRlp { .. } | ParseError::MalformedTransaction { .. })
         ));
     }
 
@@ -1826,7 +1826,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+            Err(ParseError::InvalidRlp { .. } | ParseError::MalformedTransaction { .. })
         ));
     }
 
@@ -1845,7 +1845,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+            Err(ParseError::InvalidRlp { .. } | ParseError::MalformedTransaction { .. })
         ));
     }
 
@@ -1864,7 +1864,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(ParseError::InvalidRlp { .. }) | Err(ParseError::MalformedTransaction { .. })
+            Err(ParseError::InvalidRlp { .. } | ParseError::MalformedTransaction { .. })
         ));
     }
 

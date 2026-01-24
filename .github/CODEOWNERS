@@ -1,0 +1,50 @@
+# Sello CODEOWNERS
+#
+# This file defines code ownership for automatic review assignment.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @luisjpf
+
+# =============================================================================
+# Security-Critical Paths - Require explicit maintainer review
+# =============================================================================
+
+# Cryptographic operations - key management, signing, encryption
+/crates/sello-crypto/ @luisjpf
+
+# Policy engine - authorization and enforcement
+/crates/sello-policy/ @luisjpf
+
+# Transaction parsing - correctness is critical for policy enforcement
+/crates/sello-chain/ @luisjpf
+
+# Core types and errors - foundation for all modules
+/crates/sello-core/ @luisjpf
+
+# =============================================================================
+# CI/CD and Infrastructure
+# =============================================================================
+
+# GitHub Actions workflows
+/.github/workflows/ @luisjpf
+
+# Cargo configuration and dependencies
+/Cargo.toml @luisjpf
+/Cargo.lock @luisjpf
+/.cargo/ @luisjpf
+
+# =============================================================================
+# Security and Governance Documents
+# =============================================================================
+
+/SECURITY.md @luisjpf
+/CODE_OF_CONDUCT.md @luisjpf
+/MAINTAINERS.md @luisjpf
+/.github/CODEOWNERS @luisjpf
+
+# =============================================================================
+# Fuzzing Targets - Security testing
+# =============================================================================
+
+/fuzz/ @luisjpf

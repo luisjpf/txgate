@@ -10,7 +10,8 @@
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-If you discover a security vulnerability in Sello, please report it by emailing the maintainers directly. You should receive a response within 48 hours.
+If you discover a security vulnerability in Sello, please report it by emailing
+**security@sello-project.org**. You should receive a response within 48 hours.
 
 Please include the following information in your report:
 

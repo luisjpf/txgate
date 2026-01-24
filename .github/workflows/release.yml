@@ -142,13 +142,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Optionally publish to crates.io
+  # Publish all crates to crates.io
+  #
+  # All crates are published in dependency order:
+  #   1. sello-core (no internal deps)
+  #   2. sello-crypto (depends on sello-core)
+  #   3. sello-chain (depends on sello-core, sello-crypto)
+  #   4. sello-policy (depends on sello-core, sello-chain)
+  #   5. sello (depends on all above)
+  #
+  # Note: The library crates (sello-core, sello-crypto, sello-chain, sello-policy)
+  # are internal implementation details with unstable APIs. They are published
+  # only because Cargo requires all dependencies to be on crates.io.
+  # Users should only depend on the `sello` binary crate.
+  #
+  # Uses CARGO_REGISTRY_TOKEN environment variable for authentication.
+  # Cargo automatically reads this env var for registry authentication.
+  # See: https://doc.rust-lang.org/cargo/reference/config.html#credentials
+  #
+  # Setup:
+  #   1. Generate a token at https://crates.io/settings/tokens
+  #   2. Add it as a repository secret named CARGO_REGISTRY_TOKEN
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     needs: release
     # Only publish on non-prerelease tags
     if: ${{ !contains(github.ref_name, '-') }}
+
+    env:
+      # Cargo automatically uses CARGO_REGISTRY_TOKEN for authentication
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -160,28 +184,59 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
 
-      - name: Publish crates
+      - name: Verify token is set
         run: |
-          # Publish crates in dependency order
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN secret is not set"
+            echo "Please add your crates.io token as a repository secret"
+            exit 1
+          fi
+          echo "CARGO_REGISTRY_TOKEN is configured"
+
+      - name: Publish crates in dependency order
+        run: |
+          # Publish crates in dependency order with retries
           # Wait between publishes for crates.io index to update
-
-          echo "Publishing sello-core..."
-          cargo publish --package sello-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || true
+          
+          publish_crate() {
+            local crate=$1
+            local max_retries=3
+            local retry=0
+            
+            echo "Publishing $crate..."
+            while [ $retry -lt $max_retries ]; do
+              if cargo publish --package "$crate"; then
+                echo "$crate published successfully"
+                return 0
+              fi
+              retry=$((retry + 1))
+              if [ $retry -lt $max_retries ]; then
+                echo "Retry $retry/$max_retries for $crate in 30s..."
+                sleep 30
+              fi
+            done
+            echo "::error::Failed to publish $crate after $max_retries attempts"
+            return 1
+          }
+          
+          # 1. sello-core (no internal deps)
+          publish_crate sello-core
+          echo "Waiting for crates.io index to update..."
           sleep 30
-
-          echo "Publishing sello-crypto..."
-          cargo publish --package sello-crypto --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || true
+          
+          # 2. sello-crypto (depends on sello-core)
+          publish_crate sello-crypto
           sleep 30
-
-          echo "Publishing sello-chain..."
-          cargo publish --package sello-chain --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || true
+          
+          # 3. sello-chain (depends on sello-core, sello-crypto)
+          publish_crate sello-chain
           sleep 30
-
-          echo "Publishing sello-policy..."
-          cargo publish --package sello-policy --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || true
+          
+          # 4. sello-policy (depends on sello-core, sello-chain)
+          publish_crate sello-policy
           sleep 30
-
-          echo "Publishing sello..."
-          cargo publish --package sello --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || true
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          
+          # 5. sello binary (depends on all above)
+          publish_crate sello
+          
+          echo "All crates published successfully!"

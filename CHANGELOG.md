@@ -7,71 +7,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Comprehensive server integration tests for concurrent requests and stress testing
-- Persistence tests verifying daily limits survive server restarts
-- Security policy documentation (`SECURITY.md`)
-- Security audit checklist (`docs/SECURITY_AUDIT.md`)
-- Release preparation script (`scripts/release.sh`)
-- Key management CLI commands: `sello key import`, `sello key export`, `sello key list`, `sello key delete`
-
 ### Changed
 
-- Replaced Codecov with native PR coverage comments in CI
-- Coverage thresholds enforced per-crate with PR comment reports
-- Enabled security audit job (`cargo audit`) in CI
-
-### Security
-
-- Custom `Debug` implementations for `KeyImportArgs` and `ImportCommand` that redact secret keys
-- Zeroization of intermediate key bytes in `parse_hex_key` and `run_with_base_dir_and_passphrase`
-- Added `TerminalError` variant for proper terminal read error handling (prevents masking errors as "cancelled")
-- Improved passphrase error detection in export command using pattern matching instead of string matching
-- Terminal check before confirmation prompts in delete command (prevents unexpected behavior with piped input)
-- Explicit `(missing)` indicator for missing key files instead of silent `?` fallback
-- `run_with_base_dir_forced` method restricted to test builds only (`#[cfg(test)]`)
-
-## [0.1.0] - 2025-01-21
+- Upgraded `lru` crate to 0.16 to fix RUSTSEC-2026-0002 soundness issue.
+- Consolidated all dependencies to workspace-level management.
+- **Publishing strategy**: All crates are now published to crates.io to enable
+  `cargo install sello`. Library crates (`sello-core`, `sello-crypto`, `sello-chain`,
+  `sello-policy`) are marked as internal with unstable APIs - users should only
+  depend on the `sello` binary crate directly. Publishing all crates prevents name
+  squatting attacks and provides the expected Rust installation experience.
 
 ### Added
 
-- Initial release of Sello multi-chain transaction signing service
-- **sello-core**: Core types, traits, and error definitions
-  - Unified error handling with `SelloError`
-  - Chain abstraction types (`ChainId`, `Address`, `TransactionData`)
-  - Common traits for signing and validation
-- **sello-crypto**: Cryptographic operations
-  - ECDSA signing with secp256k1 (Ethereum-compatible)
-  - Ed25519 signing (Solana-compatible)
-  - Secure key storage with ChaCha20-Poly1305 encryption
-  - Argon2id key derivation
-  - Zeroizing memory for sensitive data
-- **sello-chain**: Multi-chain transaction parsing
-  - Ethereum transaction parsing (Legacy, EIP-1559, EIP-2930)
-  - Transaction field extraction for policy evaluation
-  - Extensible chain adapter architecture
-- **sello-policy**: Policy engine for signing rules
-  - Amount limit policies (per-transaction, daily, weekly, monthly)
-  - Address allowlist/blocklist policies
-  - Gas limit policies for Ethereum
-  - Contract interaction policies
-  - Policy composition with AND/OR logic
-  - SQLite-backed policy storage with caching
-- **sello**: CLI and server binary
-  - Key generation and management commands
-  - Policy configuration commands
-  - Transaction signing commands
-  - HTTP server for API access
-  - Structured audit logging
+- Added `.github/CODEOWNERS` for automatic review routing on security-critical paths.
+
+## [0.1.0] - 2026-01-23
+
+### Added
+
+#### Core Infrastructure
+
+- Five-crate workspace architecture: `sello-core`, `sello-crypto`, `sello-chain`, `sello-policy`, and `sello` binary.
+- Comprehensive error types with `thiserror` for all modules.
+- Trait-based dependency injection for testability.
+
+#### Cryptography (`sello-crypto`)
+
+- `SecretKey` type with automatic memory zeroization (`Zeroize`, `ZeroizeOnDrop`).
+- Secp256k1 key pair generation and management using `k256`.
+- Ed25519 key pair support using `ed25519-dalek`.
+- Key encryption at rest with ChaCha20-Poly1305 AEAD.
+- Argon2id key derivation (64 MiB memory, 3 iterations, 4 lanes).
+- File-based key store with proper permissions (0700 directories, 0600 files).
+- Atomic file writes using temp files and rename.
+- Constant-time comparisons for cryptographic operations.
+
+#### Transaction Parsing (`sello-chain`)
+
+- `Chain` trait for pluggable blockchain parsers.
+- `ChainRegistry` for runtime chain lookup and management.
+- Ethereum transaction parser supporting:
+  - Legacy transactions (type 0)
+  - EIP-2930 access list transactions (type 1)
+  - EIP-1559 dynamic fee transactions (type 2)
+- ERC-20 token operation detection:
+  - `transfer(address,uint256)` - token transfers
+  - `approve(address,uint256)` - spending approvals
+  - `transferFrom(address,address,uint256)` - delegated transfers
+- Built-in token registry with major stablecoins (USDC, USDT, DAI).
+
+#### Policy Engine (`sello-policy`)
+
+- `PolicyEngine` trait for configurable transaction approval rules.
+- SQLite-backed transaction history for daily limit tracking.
+- Policy rules:
+  - Address whitelist/blacklist
+  - Per-token transaction limits
+  - Per-token daily spending limits
+- LRU caching for efficient daily total queries.
+- Connection pooling with `r2d2` for concurrent access.
+
+#### CLI (`sello` binary)
+
+- `sello init` - Initialize Sello with encrypted key generation.
+- `sello status` - Display current configuration and key status.
+- `sello config` - View and edit configuration.
+- `sello keys list` - List all stored keys.
+- `sello keys generate` - Generate new key pairs.
+- `sello keys import` - Import existing private keys.
+- `sello keys export` - Export public keys or encrypted private keys.
+- `sello keys delete` - Remove keys from storage.
+- `sello ethereum address` - Display Ethereum address for a key.
+- `sello ethereum sign` - Parse, validate, and sign Ethereum transactions.
+- `sello serve` - Start JSON-RPC server on Unix socket.
+
+#### Server
+
+- JSON-RPC 2.0 protocol over Unix socket.
+- Concurrent connection handling with Tokio.
+- Graceful shutdown on SIGTERM/SIGINT.
+- Socket permissions enforcement (0600).
+
+#### Audit Logging
+
+- Tamper-evident audit logs with HMAC chain.
+- JSONL format for structured logging.
+- Automatic log rotation by size.
+- Log verification command for integrity checking.
+
+#### Security
+
+- `unsafe_code = "forbid"` enforced at workspace level.
+- Strict Clippy lints: `unwrap_used`, `panic`, `indexing_slicing` denied.
+- No `Clone` or `Debug` that exposes secret material.
+- Comprehensive input validation at system boundaries.
+
+#### Testing & Quality
+
+- Unit tests with 100% coverage target for critical crates.
+- Integration tests for full signing flow.
+- Property-based testing with `proptest`.
+- Fuzz testing with `cargo-fuzz` for parsers and policy rules.
+- Code coverage with `cargo-llvm-cov`.
+
+#### CI/CD
+
+- GitHub Actions workflow for build, test, lint, and coverage.
+- Multi-platform release builds (Linux x86_64, macOS x86_64/aarch64).
+- Automated security audit with `cargo audit`.
+- Scheduled daily fuzz testing with crash reporting.
+- Automatic crates.io publishing on release tags.
+
+#### Documentation
+
+- Comprehensive README with installation and quickstart.
+- Architecture documentation with diagrams.
+- User guide covering all CLI commands.
+- Developer guide with IDE setup and debugging.
+- Security policy with vulnerability reporting process.
+- Contributing guidelines with code style requirements.
 
 ### Security
 
-- No unsafe code (`#![forbid(unsafe_code)]`)
-- Comprehensive input validation
-- Strict clippy lints enabled
-- Fuzz testing for parser and policy engine
-- 100% test coverage for security-critical crates
+- All cryptographic keys are zeroized on drop.
+- File permissions enforced on key storage (0600).
+- Constant-time operations for secret comparisons.
+- Audit logging provides forensic evidence for security incidents.
 
 [Unreleased]: https://github.com/sello-project/sello/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/sello-project/sello/releases/tag/v0.1.0

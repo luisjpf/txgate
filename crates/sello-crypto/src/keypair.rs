@@ -573,6 +573,8 @@ impl std::fmt::Debug for Secp256k1KeyPair {
 mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::uninlined_format_args)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::panic)]
 
     use super::*;
 

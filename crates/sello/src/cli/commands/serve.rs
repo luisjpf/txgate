@@ -920,6 +920,7 @@ mod tests {
             let cmd = ServeCommand { foreground: false };
             assert!(!cmd.foreground);
 
+            #[allow(clippy::redundant_clone)]
             let cloned = cmd.clone();
             assert!(!cloned.foreground);
         }

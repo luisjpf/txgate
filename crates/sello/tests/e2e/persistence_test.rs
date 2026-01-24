@@ -7,7 +7,8 @@
     clippy::expect_used,
     clippy::unwrap_used,
     clippy::panic,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::redundant_clone
 )]
 
 use alloy_primitives::U256;

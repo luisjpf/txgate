@@ -3,7 +3,6 @@
 //! This module contains tests that cover edge cases, error paths, and scenarios
 //! not covered by the inline module tests.
 
-#![cfg(test)]
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
@@ -14,7 +13,8 @@
     clippy::manual_string_new,
     clippy::needless_raw_string_hashes,
     clippy::needless_collect,
-    clippy::unreadable_literal
+    clippy::unreadable_literal,
+    clippy::default_trait_access
 )]
 
 use alloy_consensus::{transaction::RlpEcdsaEncodableTx, TxEip1559};
@@ -93,6 +93,7 @@ fn test_mock_parse_error_copy_clone() {
     let copied = error;
     assert_eq!(error, copied);
 
+    #[allow(clippy::clone_on_copy)]
     let cloned = error.clone();
     assert_eq!(error, cloned);
 }
@@ -100,7 +101,7 @@ fn test_mock_parse_error_copy_clone() {
 #[test]
 fn test_mock_parse_error_debug() {
     let error = MockParseError::UnknownTxType;
-    let debug_str = format!("{:?}", error);
+    let debug_str = format!("{error:?}");
     assert!(debug_str.contains("UnknownTxType"));
 }
 
@@ -521,7 +522,7 @@ fn test_chain_registry_debug() {
     use crate::ChainRegistry;
 
     let registry = ChainRegistry::empty();
-    let debug_str = format!("{:?}", registry);
+    let debug_str = format!("{registry:?}");
     assert!(debug_str.contains("ChainRegistry"));
 }
 
@@ -541,7 +542,7 @@ fn test_token_registry_debug() {
     use crate::TokenRegistry;
 
     let registry = TokenRegistry::new();
-    let debug_str = format!("{:?}", registry);
+    let debug_str = format!("{registry:?}");
     assert!(debug_str.contains("TokenRegistry"));
 }
 
@@ -561,7 +562,7 @@ fn test_token_info_debug() {
     use crate::{RiskLevel, TokenInfo};
 
     let info = TokenInfo::new("TEST", 18, RiskLevel::Low);
-    let debug_str = format!("{:?}", info);
+    let debug_str = format!("{info:?}");
     assert!(debug_str.contains("TEST"));
     assert!(debug_str.contains("18"));
 }
@@ -571,6 +572,7 @@ fn test_risk_level_clone() {
     use crate::RiskLevel;
 
     let risk = RiskLevel::Low;
+    #[allow(clippy::clone_on_copy)]
     let cloned = risk.clone();
     assert_eq!(risk, cloned);
 }
@@ -580,7 +582,7 @@ fn test_risk_level_debug() {
     use crate::RiskLevel;
 
     let debug_str = format!("{:?}", RiskLevel::Low);
-    assert!(debug_str.contains("Low"));
+    assert!(debug_str.contains("Low")); // Cannot inline format arg when using method call
 }
 
 #[test]
@@ -591,7 +593,7 @@ fn test_erc20_call_debug() {
         to: [0x12; 20],
         amount: U256::from(100u64),
     };
-    let debug_str = format!("{:?}", call);
+    let debug_str = format!("{call:?}");
     assert!(debug_str.contains("Transfer"));
 }
 

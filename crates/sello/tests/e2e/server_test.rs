@@ -7,7 +7,8 @@
     clippy::expect_used,
     clippy::unwrap_used,
     clippy::panic,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::uninlined_format_args
 )]
 
 use alloy_primitives::U256;

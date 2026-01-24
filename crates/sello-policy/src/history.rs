@@ -424,7 +424,9 @@ mod tests {
         clippy::manual_string_new,
         clippy::needless_raw_string_hashes,
         clippy::needless_collect,
-        clippy::unreadable_literal
+        clippy::unreadable_literal,
+        clippy::stable_sort_primitive,
+        clippy::useless_vec
     )]
 
     use super::*;

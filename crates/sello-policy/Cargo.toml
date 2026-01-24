@@ -9,13 +9,16 @@ repository.workspace = true
 description = "Policy engine for transaction approval rules in Sello"
 keywords = ["sello", "policy", "rules", "authorization"]
 categories = ["cryptography", "config"]
+# Note: This is an internal crate with unstable API.
+# Published to crates.io only as a dependency of the `sello` binary.
+# Do not depend on this crate directly - use `sello` instead.
 
 [lints]
 workspace = true
 
 [dependencies]
-sello-core = { path = "../sello-core" }
-sello-chain = { path = "../sello-chain" }
+sello-core = { version = "0.1.0", path = "../sello-core" }
+sello-chain = { version = "0.1.0", path = "../sello-chain" }
 rusqlite = { workspace = true }
 r2d2 = { workspace = true }
 r2d2_sqlite = { workspace = true }

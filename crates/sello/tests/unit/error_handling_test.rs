@@ -3,7 +3,13 @@
 //! These tests verify that error types implement the correct traits,
 //! have proper Display implementations, and convert correctly between types.
 
-#![allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::doc_markdown,
+    clippy::io_other_error,
+    clippy::no_effect_underscore_binding
+)]
 
 use sello::audit::{AuditError, PolicyResultInput};
 use sello::cli::commands::{
