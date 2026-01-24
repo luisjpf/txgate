@@ -11,10 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Upgraded `lru` crate to 0.16 to fix RUSTSEC-2026-0002 soundness issue.
 - Consolidated all dependencies to workspace-level management.
-- **Publishing strategy**: Only the `sello` binary crate is published to crates.io.
-  Library crates (`sello-core`, `sello-crypto`, `sello-chain`, `sello-policy`) are
-  internal and not published. This focuses the project on the integrated signing
-  service rather than individual components.
+- **Publishing strategy**: All crates are now published to crates.io to enable
+  `cargo install sello`. Library crates (`sello-core`, `sello-crypto`, `sello-chain`,
+  `sello-policy`) are marked as internal with unstable APIs - users should only
+  depend on the `sello` binary crate directly. Publishing all crates prevents name
+  squatting attacks and provides the expected Rust installation experience.
 
 ### Added
 

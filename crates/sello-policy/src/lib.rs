@@ -2,6 +2,19 @@
 //!
 //! Policy engine for transaction approval rules in the Sello signing service.
 //!
+//! ## Internal Crate Warning
+//!
+//! **This crate is an internal implementation detail of [`sello`](https://crates.io/crates/sello).**
+//!
+//! It is published to crates.io only because Cargo requires all dependencies to be
+//! published. The API is **unstable** and may change without notice between any versions,
+//! including patch releases.
+//!
+//! **Do not depend on this crate directly.** Instead:
+//! - For the signing server binary: `cargo install sello`
+//! - For programmatic access: Open an issue at <https://github.com/sello-project/sello>
+//!   to discuss a stable public API.
+//!
 //! This crate provides the policy evaluation and rule management system:
 //!
 //! ## Modules

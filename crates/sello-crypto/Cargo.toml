@@ -9,9 +9,9 @@ repository.workspace = true
 description = "Cryptographic operations for Sello - key management, signing, and verification"
 keywords = ["sello", "crypto", "signing", "keys"]
 categories = ["cryptography"]
-# Internal crate - not published to crates.io
-# Only the main `sello` binary is published
-publish = false
+# Note: This is an internal crate with unstable API.
+# Published to crates.io only as a dependency of the `sello` binary.
+# Do not depend on this crate directly - use `sello` instead.
 
 [lints]
 workspace = true
