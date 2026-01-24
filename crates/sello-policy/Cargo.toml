@@ -17,8 +17,8 @@ categories = ["cryptography", "config"]
 workspace = true
 
 [dependencies]
-sello-core = { path = "../sello-core" }
-sello-chain = { path = "../sello-chain" }
+sello-core = { version = "0.1.0", path = "../sello-core" }
+sello-chain = { version = "0.1.0", path = "../sello-chain" }
 rusqlite = { workspace = true }
 r2d2 = { workspace = true }
 r2d2_sqlite = { workspace = true }

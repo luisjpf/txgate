@@ -8,7 +8,7 @@ Multi-chain transaction signing service with policy engine.
 
 Sello is a secure, high-performance transaction signing service designed for blockchain applications. It provides:
 
-- **Multi-chain support**: Sign transactions for Ethereum, Solana, Bitcoin, and more
+- **Multi-chain support**: Sign transactions for Ethereum (Solana, Bitcoin planned)
 - **Policy engine**: Define and enforce signing policies (amount limits, address allowlists, etc.)
 - **Key management**: Secure key storage with encrypted files (HSM and cloud KMS support planned)
 - **API server**: REST/gRPC APIs for integration with your applications

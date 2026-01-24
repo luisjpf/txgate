@@ -17,8 +17,8 @@ categories = ["cryptography", "parser-implementations"]
 workspace = true
 
 [dependencies]
-sello-core = { path = "../sello-core" }
-sello-crypto = { path = "../sello-crypto" }
+sello-core = { version = "0.1.0", path = "../sello-core" }
+sello-crypto = { version = "0.1.0", path = "../sello-crypto" }
 alloy-consensus = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }

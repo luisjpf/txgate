@@ -18,10 +18,10 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-sello-core = { path = "../sello-core" }
-sello-crypto = { path = "../sello-crypto" }
-sello-chain = { path = "../sello-chain" }
-sello-policy = { path = "../sello-policy" }
+sello-core = { version = "0.1.0", path = "../sello-core" }
+sello-crypto = { version = "0.1.0", path = "../sello-crypto" }
+sello-chain = { version = "0.1.0", path = "../sello-chain" }
+sello-policy = { version = "0.1.0", path = "../sello-policy" }
 tokio = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
