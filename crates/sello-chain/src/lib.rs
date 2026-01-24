@@ -101,11 +101,13 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
+pub mod bitcoin;
 pub mod chain;
 pub mod erc20;
 pub mod ethereum;
 pub mod registry;
 pub mod rlp;
+pub mod solana;
 pub mod tokens;
 
 // Additional comprehensive tests for 100% coverage
@@ -115,8 +117,10 @@ mod additional_tests;
 // Re-export the Chain trait at crate root for convenience
 pub use chain::Chain;
 
-// Re-export EthereumParser at crate root for convenience
+// Re-export chain parsers at crate root for convenience
+pub use bitcoin::BitcoinParser;
 pub use ethereum::EthereumParser;
+pub use solana::SolanaParser;
 
 // Re-export ChainRegistry at crate root for convenience
 pub use registry::ChainRegistry;

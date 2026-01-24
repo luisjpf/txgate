@@ -87,14 +87,9 @@ impl ChainRegistry {
     /// Create a new registry with all supported chain parsers.
     ///
     /// Currently supported chains:
-    /// - None (placeholder - parsers will be added in future tasks)
-    ///
-    /// # Future Chains
     /// - `ethereum` - Ethereum and EVM-compatible chains
-    /// - `bitcoin` - Bitcoin (PSBT format)
-    /// - `solana` - Solana
-    /// - `tron` - Tron
-    /// - `ripple` - Ripple/XRP
+    /// - `bitcoin` - Bitcoin (Legacy, `SegWit`, Taproot)
+    /// - `solana` - Solana (Legacy and Versioned messages)
     ///
     /// # Example
     ///
@@ -102,15 +97,25 @@ impl ChainRegistry {
     /// use sello_chain::ChainRegistry;
     ///
     /// let registry = ChainRegistry::new();
-    /// assert!(registry.is_empty()); // Currently empty - parsers coming soon
+    /// assert_eq!(registry.len(), 3);
+    /// assert!(registry.supports("ethereum"));
+    /// assert!(registry.supports("bitcoin"));
+    /// assert!(registry.supports("solana"));
     /// ```
     #[must_use]
     pub fn new() -> Self {
-        let chains: HashMap<String, Arc<dyn Chain>> = HashMap::new();
+        let mut chains: HashMap<String, Arc<dyn Chain>> = HashMap::new();
 
         // Register supported chains
-        // TODO: Uncomment when EthereumParser is implemented (SELLO-013)
-        // chains.insert("ethereum".to_string(), Arc::new(EthereumParser::new()));
+        chains.insert(
+            "ethereum".to_string(),
+            Arc::new(crate::EthereumParser::new()),
+        );
+        chains.insert(
+            "bitcoin".to_string(),
+            Arc::new(crate::BitcoinParser::mainnet()),
+        );
+        chains.insert("solana".to_string(), Arc::new(crate::SolanaParser::new()));
 
         Self {
             chains: Arc::new(chains),
@@ -339,8 +344,11 @@ mod tests {
     #[test]
     fn test_new_registry() {
         let registry = ChainRegistry::new();
-        // Currently empty - parsers will be added in future tasks
-        assert!(registry.is_empty());
+        // Should have ethereum, bitcoin, and solana
+        assert_eq!(registry.len(), 3);
+        assert!(registry.supports("ethereum"));
+        assert!(registry.supports("bitcoin"));
+        assert!(registry.supports("solana"));
     }
 
     #[test]
@@ -355,7 +363,7 @@ mod tests {
     fn test_default_registry() {
         let registry = ChainRegistry::default();
         // Default is same as new()
-        assert!(registry.is_empty());
+        assert_eq!(registry.len(), 3);
     }
 
     // ------------------------------------------------------------------------
