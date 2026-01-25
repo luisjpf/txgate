@@ -46,8 +46,8 @@ Sello is a self-hosted, chain-agnostic transaction signing server. Unlike hash-s
 | | Registry |    |   Engine    |    |    Log    |                            |
 | |          |    |             |    |           |                            |
 | | Ethereum |    | Blacklist   |    | JSONL     |                            |
-| | Bitcoin* |    | Whitelist   |    | +HMAC     |                            |
-| | Solana*  |    | Tx Limit    |    | chain     |                            |
+| | Bitcoin  |    | Whitelist   |    | +HMAC     |                            |
+| | Solana   |    | Tx Limit    |    | chain     |                            |
 | +----+-----+    | Daily Limit |    +-----------+                            |
 |      |          | History     |                                             |
 |      |          +------+------+                                             |
@@ -70,7 +70,7 @@ Sello is a self-hosted, chain-agnostic transaction signing server. Unlike hash-s
 |                                                                             |
 +-----------------------------------------------------------------------------+
 
-* Planned chains are marked with an asterisk
+All three chains (Ethereum, Bitcoin, Solana) are fully implemented.
 ```
 
 ### Request Flow
@@ -190,16 +190,31 @@ sello-chain/src/
 +-- chain.rs      # Chain trait definition
 +-- registry.rs   # ChainRegistry for runtime lookup
 +-- ethereum.rs   # EthereumParser implementation
++-- bitcoin.rs    # BitcoinParser implementation
++-- solana.rs     # SolanaParser implementation
 +-- erc20.rs      # ERC-20 transfer/approve detection
 +-- tokens.rs     # Token registry with risk levels
 +-- rlp.rs        # RLP decoding utilities
 ```
 
 **Supported Transaction Formats**:
+
+*Ethereum*:
 - EIP-1559 (Type 2) - Modern Ethereum transactions
 - EIP-2930 (Type 1) - Access list transactions
 - Legacy (Type 0) - Pre-EIP-1559 transactions
 - ERC-20 transfers, approvals, and transferFrom
+
+*Bitcoin*:
+- Legacy transactions
+- SegWit v0 (P2WPKH, P2WSH)
+- Taproot (P2TR)
+
+*Solana*:
+- Legacy messages
+- Versioned messages (V0)
+- System Program transfers
+- SPL Token transfers (Token and Token-2022)
 
 ### sello-policy
 
@@ -407,7 +422,7 @@ pub trait Chain: Send + Sync {
 }
 ```
 
-**Implementations**: `EthereumParser`, `MockChain` (for testing)
+**Implementations**: `EthereumParser`, `BitcoinParser`, `SolanaParser`, `MockChain` (for testing)
 
 ### Signer Trait
 

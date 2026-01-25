@@ -1,6 +1,6 @@
 # Sello User Guide
 
-Sello is a secure Ethereum transaction signing daemon that provides policy-based transaction approval with encrypted key storage.
+Sello is a secure multi-chain transaction signing daemon that provides policy-based transaction approval with encrypted key storage. It supports Ethereum, Bitcoin, and Solana.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ Sello is a secure Ethereum transaction signing daemon that provides policy-based
 
 ## What is Sello?
 
-Sello is a transaction signing daemon designed for secure, automated signing of Ethereum transactions. It separates key management from application logic, enabling:
+Sello is a transaction signing daemon designed for secure, automated signing of blockchain transactions. It supports Ethereum (secp256k1), Bitcoin (secp256k1), and Solana (ed25519). It separates key management from application logic, enabling:
 
 - **Isolated key storage**: Private keys never leave the Sello process
 - **Policy enforcement**: Define rules for which transactions can be signed

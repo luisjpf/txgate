@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-chain support**: Added Bitcoin and Solana transaction parsers (`sello-chain`).
+  - `BitcoinParser`: Parses Legacy, SegWit v0, and Taproot transactions.
+    - Extracts recipients from P2PKH, P2SH, P2WPKH, P2WSH, P2TR outputs.
+    - Computes txid, vsize, weight for fee estimation.
+    - Supports mainnet, testnet, signet, and regtest networks.
+  - `SolanaParser`: Parses Legacy and Versioned (V0) messages.
+    - Detects SOL transfers via System Program.
+    - Detects SPL Token transfers (Token and Token-2022 programs).
+    - Extracts fee payer, recent blockhash, and instruction details.
+  - `ChainRegistry` now registers all three parsers (Ethereum, Bitcoin, Solana) by default.
+- Added `.github/CODEOWNERS` for automatic review routing on security-critical paths.
+
 ### Changed
 
 - Upgraded `lru` crate to 0.16 to fix RUSTSEC-2026-0002 soundness issue.
@@ -16,10 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sello-policy`) are marked as internal with unstable APIs - users should only
   depend on the `sello` binary crate directly. Publishing all crates prevents name
   squatting attacks and provides the expected Rust installation experience.
-
-### Added
-
-- Added `.github/CODEOWNERS` for automatic review routing on security-critical paths.
 
 ## [0.1.0] - 2026-01-23
 
