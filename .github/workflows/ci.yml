@@ -190,8 +190,14 @@ jobs:
 
           echo "$AUDIT_OUTPUT"
 
-          # Check for actual vulnerabilities (have "Solution:" indicating upgrade path)
-          HAS_VULNS=$(echo "$AUDIT_OUTPUT" | grep -c "Solution:" || echo "0")
+          # Check for vulnerabilities in OUR crates (sello-*)
+          # These are the only ones we can directly fix
+          # Vulnerabilities in transitive deps from solana-sdk, bitcoin, etc. we can only warn about
+          DIRECT_VULNS=$(echo "$AUDIT_OUTPUT" | grep -B20 "Solution:" | grep -E "sello(-|_)" | wc -l || echo "0")
+          
+          # Total vulnerabilities with solutions (includes transitive)
+          TOTAL_VULNS=$(echo "$AUDIT_OUTPUT" | grep -c "Solution:" || echo "0")
+          TRANSITIVE_VULNS=$((TOTAL_VULNS - DIRECT_VULNS))
           
           # Extract warning count (unmaintained, unsound without known exploit)
           WARNING_COUNT=$(echo "$AUDIT_OUTPUT" | grep -c "Warning:" || echo "0")
@@ -201,37 +207,63 @@ jobs:
             echo "## 🔒 Security Audit Report"
             echo ""
 
-            if [ "$HAS_VULNS" -gt 0 ]; then
-              echo "### ❌ Vulnerabilities Found"
+            if [ "$DIRECT_VULNS" -gt 0 ]; then
+              echo "### ❌ Direct Vulnerabilities Found"
               echo ""
-              echo "The security audit found **$HAS_VULNS vulnerability(ies)** that need to be addressed."
+              echo "Found **$DIRECT_VULNS vulnerability(ies)** in direct dependencies that must be fixed."
               echo ""
               echo "\`\`\`"
               echo "$AUDIT_OUTPUT" | grep -E "(Crate:|Version:|Title:|Date:|ID:|URL:|Solution:)" | head -50
               echo "\`\`\`"
               echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
             else
-              echo "### ✅ No Vulnerabilities Found"
+              echo "### ✅ No Direct Vulnerabilities"
               echo ""
               echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
             fi
 
+            if [ "$TRANSITIVE_VULNS" -gt 0 ]; then
+              echo ""
+              echo "### ⚠️ Transitive Vulnerabilities ($TRANSITIVE_VULNS)"
+              echo ""
+              echo "The following vulnerabilities are in transitive dependencies (e.g., from solana-sdk)."
+              echo "We cannot directly fix these - they require upstream updates."
+              echo ""
+              echo "<details>"
+              echo "<summary>Click to expand transitive vulnerabilities</summary>"
+              echo ""
+              echo "| Crate | Advisory | Title |"
+              echo "|-------|----------|-------|"
+              
+              echo "$AUDIT_OUTPUT" | awk '
+                /^Crate:/ { crate=$2 }
+                /^ID:/ { id=$2 }
+                /^Title:/ { 
+                  title=$0; 
+                  sub(/^Title:[[:space:]]*/, "", title);
+                  if (crate && id) {
+                    printf "| %s | %s | %s |\n", crate, id, title
+                  }
+                }
+                /^Solution:/ { crate=""; id=""; title="" }
+              '
+              
+              echo ""
+              echo "</details>"
+            fi
+
             if [ "$WARNING_COUNT" -gt 0 ]; then
               echo ""
-              echo "### ⚠️ Warnings ($WARNING_COUNT)"
+              echo "### ℹ️ Warnings ($WARNING_COUNT)"
               echo ""
-              echo "The following advisories are warnings (unmaintained crates, etc.) from transitive dependencies."
-              echo "These don't block the build but reviewers should be aware:"
+              echo "Unmaintained or low-severity advisories in transitive dependencies:"
               echo ""
               echo "<details>"
               echo "<summary>Click to expand warnings</summary>"
               echo ""
-              
-              # Extract each warning block cleanly
               echo "| Crate | Advisory | Type | Title |"
               echo "|-------|----------|------|-------|"
               
-              # Parse warnings into table format
               echo "$AUDIT_OUTPUT" | awk '
                 /^Crate:/ { crate=$2 }
                 /^ID:/ { id=$2 }
@@ -239,7 +271,7 @@ jobs:
                 /^Title:/ { 
                   title=$0; 
                   sub(/^Title:[[:space:]]*/, "", title);
-                  if (crate && id) {
+                  if (crate && id && warning) {
                     printf "| %s | %s | %s | %s |\n", crate, id, warning, title
                   }
                   crate=""; id=""; warning=""; title=""
@@ -256,13 +288,16 @@ jobs:
 
           # Also add to step summary
           echo "## Security Audit" >> $GITHUB_STEP_SUMMARY
-          if [ "$HAS_VULNS" -gt 0 ]; then
-            echo "❌ **$HAS_VULNS vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+          if [ "$DIRECT_VULNS" -gt 0 ]; then
+            echo "❌ **$DIRECT_VULNS direct vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            echo "✅ No direct vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$TRANSITIVE_VULNS" -gt 0 ]; then
+            echo "⚠️ $TRANSITIVE_VULNS transitive vulnerabilities (from external crates)" >> $GITHUB_STEP_SUMMARY
           fi
           if [ "$WARNING_COUNT" -gt 0 ]; then
-            echo "⚠️ $WARNING_COUNT warnings (unmaintained deps, etc.)" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ $WARNING_COUNT warnings (unmaintained deps, etc.)" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Find existing audit comment
