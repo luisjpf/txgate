@@ -1,0 +1,46 @@
+# cargo-audit configuration
+# https://rustsec.org/
+
+[advisories]
+# Advisories to ignore (with justification)
+#
+# All of these are transitive dependencies from solana-sdk that we cannot
+# directly upgrade. We only use solana-sdk for transaction parsing (read-only),
+# not for signing or key management, so these vulnerabilities do not affect
+# our security posture.
+ignore = [
+    # RUSTSEC-2021-0145: atty - Potential unaligned read
+    # Transitive dep of solana-sdk via env_logger.
+    # Only affects Windows, low severity. We don't expose this.
+    "RUSTSEC-2021-0145",
+
+    # RUSTSEC-2024-0375: atty - Unmaintained
+    # Same as above, transitive dep of solana-sdk.
+    "RUSTSEC-2024-0375",
+
+    # RUSTSEC-2024-0436: paste - No longer maintained
+    # Transitive dep of solana-sdk via ark-ff.
+    # Proc-macro used only at compile time, no runtime impact.
+    "RUSTSEC-2024-0436",
+
+    # RUSTSEC-2024-0344: curve25519-dalek - Timing variability
+    # Transitive dep of solana-sdk via ed25519-dalek 1.0.1.
+    # We use ed25519-dalek 2.x directly for our signing; solana-sdk's
+    # internal usage doesn't affect our key operations.
+    "RUSTSEC-2024-0344",
+
+    # RUSTSEC-2022-0093: ed25519-dalek 1.x - Double Public Key Signing Oracle
+    # Transitive dep of solana-sdk. We use ed25519-dalek 2.x directly.
+    # solana-sdk uses this internally for signature verification only.
+    "RUSTSEC-2022-0093",
+
+    # RUSTSEC-2025-0141: bincode - Unmaintained
+    # Transitive dep of solana-sdk for serialization.
+    # No known vulnerabilities, just unmaintained status.
+    "RUSTSEC-2025-0141",
+
+    # RUSTSEC-2024-0388: derivative - Unmaintained
+    # Transitive dep of solana-sdk via ark-ff/ark-ec.
+    # Proc-macro used only at compile time, no runtime impact.
+    "RUSTSEC-2024-0388",
+]
