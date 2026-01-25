@@ -174,59 +174,85 @@ jobs:
 
       - name: Run security audit
         id: audit
+        env:
+          # Disable color output for cleaner parsing
+          CARGO_TERM_COLOR: never
+          NO_COLOR: 1
         run: |
-          # Run audit and capture output
-          # --ignore warnings still shows them but doesn't fail
-          # We'll parse the output to determine what to do
+          # Run audit and capture output (no colors for clean parsing)
           set +e
           AUDIT_OUTPUT=$(cargo audit 2>&1)
           AUDIT_EXIT=$?
           set -e
 
+          # Strip any remaining ANSI codes just in case
+          AUDIT_OUTPUT=$(echo "$AUDIT_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+
           echo "$AUDIT_OUTPUT"
 
-          # Count vulnerabilities vs warnings
-          VULN_COUNT=$(echo "$AUDIT_OUTPUT" | grep -c "^Crate:" | grep -v "Warning:" || echo "0")
+          # Check for actual vulnerabilities (have "Solution:" indicating upgrade path)
+          HAS_VULNS=$(echo "$AUDIT_OUTPUT" | grep -c "Solution:" || echo "0")
           
-          # Check for actual vulnerabilities (not just warnings)
-          # Vulnerabilities have lines like "Severity: critical/high/medium/low"
-          # Warnings have lines like "Warning: unmaintained/unsound"
-          HAS_VULNS=$(echo "$AUDIT_OUTPUT" | grep -E "^(Title:|ID:.*RUSTSEC)" -A2 | grep -c "Solution:" || echo "0")
-          
-          # Extract warning count
+          # Extract warning count (unmaintained, unsound without known exploit)
           WARNING_COUNT=$(echo "$AUDIT_OUTPUT" | grep -c "Warning:" || echo "0")
 
           # Build PR comment
-          COMMENT_BODY="## 🔒 Security Audit Report\n\n"
+          {
+            echo "## 🔒 Security Audit Report"
+            echo ""
 
-          if [ "$HAS_VULNS" -gt 0 ]; then
-            COMMENT_BODY+="### ❌ Vulnerabilities Found\n\n"
-            COMMENT_BODY+="The security audit found **$HAS_VULNS vulnerability(ies)** that need to be addressed.\n\n"
-            COMMENT_BODY+="\`\`\`\n"
-            COMMENT_BODY+="$(echo "$AUDIT_OUTPUT" | grep -E "(Crate:|Version:|Title:|Date:|ID:|URL:|Solution:)" | head -50)\n"
-            COMMENT_BODY+="\`\`\`\n"
-            echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
-          else
-            COMMENT_BODY+="### ✅ No Vulnerabilities Found\n\n"
-            echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
-          fi
+            if [ "$HAS_VULNS" -gt 0 ]; then
+              echo "### ❌ Vulnerabilities Found"
+              echo ""
+              echo "The security audit found **$HAS_VULNS vulnerability(ies)** that need to be addressed."
+              echo ""
+              echo "\`\`\`"
+              echo "$AUDIT_OUTPUT" | grep -E "(Crate:|Version:|Title:|Date:|ID:|URL:|Solution:)" | head -50
+              echo "\`\`\`"
+              echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+            else
+              echo "### ✅ No Vulnerabilities Found"
+              echo ""
+              echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+            fi
 
-          if [ "$WARNING_COUNT" -gt 0 ]; then
-            COMMENT_BODY+="\n### ⚠️ Warnings ($WARNING_COUNT)\n\n"
-            COMMENT_BODY+="The following advisories are warnings (unmaintained crates, etc.) from transitive dependencies.\n"
-            COMMENT_BODY+="These don't block the build but reviewers should be aware:\n\n"
-            COMMENT_BODY+="<details>\n<summary>Click to expand warnings</summary>\n\n"
-            COMMENT_BODY+="\`\`\`\n"
-            # Extract warning blocks
-            COMMENT_BODY+="$(echo "$AUDIT_OUTPUT" | grep -B1 -A5 "Warning:" | head -100)\n"
-            COMMENT_BODY+="\`\`\`\n"
-            COMMENT_BODY+="</details>\n"
-          fi
+            if [ "$WARNING_COUNT" -gt 0 ]; then
+              echo ""
+              echo "### ⚠️ Warnings ($WARNING_COUNT)"
+              echo ""
+              echo "The following advisories are warnings (unmaintained crates, etc.) from transitive dependencies."
+              echo "These don't block the build but reviewers should be aware:"
+              echo ""
+              echo "<details>"
+              echo "<summary>Click to expand warnings</summary>"
+              echo ""
+              
+              # Extract each warning block cleanly
+              echo "| Crate | Advisory | Type | Title |"
+              echo "|-------|----------|------|-------|"
+              
+              # Parse warnings into table format
+              echo "$AUDIT_OUTPUT" | awk '
+                /^Crate:/ { crate=$2 }
+                /^ID:/ { id=$2 }
+                /^Warning:/ { warning=$2 }
+                /^Title:/ { 
+                  title=$0; 
+                  sub(/^Title:[[:space:]]*/, "", title);
+                  if (crate && id) {
+                    printf "| %s | %s | %s | %s |\n", crate, id, warning, title
+                  }
+                  crate=""; id=""; warning=""; title=""
+                }
+              '
+              
+              echo ""
+              echo "</details>"
+            fi
 
-          COMMENT_BODY+="\n<sub>Generated by CI • cargo-audit</sub>"
-
-          # Save comment for PR
-          echo -e "$COMMENT_BODY" > audit_comment.md
+            echo ""
+            echo "<sub>Generated by CI • cargo-audit</sub>"
+          } > audit_comment.md
 
           # Also add to step summary
           echo "## Security Audit" >> $GITHUB_STEP_SUMMARY
