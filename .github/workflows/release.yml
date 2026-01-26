@@ -4,6 +4,13 @@
 # is pushed. It builds for multiple platforms and creates a GitHub Release with
 # all assets attached.
 #
+# Supported platforms:
+#   - Linux x86_64 (glibc)
+#   - Linux arm64 (glibc) - Raspberry Pi 4+, AWS Graviton
+#   - macOS x86_64 (Intel)
+#   - macOS arm64 (Apple Silicon)
+#   - Windows x86_64
+#
 # Usage:
 #   git tag v0.1.0
 #   git push origin v0.1.0
@@ -22,56 +29,115 @@ env:
 jobs:
   # Build release binaries for each platform
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x86_64
-          - os: ubuntu-latest
+          # Linux x86_64 (native)
+          - name: Linux-x86_64
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: sello
             asset_name: sello-linux-x86_64
-          # macOS Apple Silicon
-          - os: macos-latest
+            cross: false
+
+          # Linux arm64 (cross-compile for Raspberry Pi 4+, AWS Graviton)
+          - name: Linux-arm64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            asset_name: sello-linux-aarch64
+            cross: true
+
+          # macOS Intel (native on Intel runner)
+          - name: macOS-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            asset_name: sello-macos-x86_64
+            cross: false
+
+          # macOS Apple Silicon (native)
+          - name: macOS-arm64
+            os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: sello
             asset_name: sello-macos-aarch64
-          # Note: Linux arm64 and macOS x86_64 removed due to OpenSSL cross-compilation issues.
-          # Users on these platforms can build from source: cargo install sello
+            cross: false
+
+          # Windows x86_64 (native)
+          - name: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: sello-windows-x86_64
+            cross: false
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      # Use actions-rust-cross for cross-compilation (handles OpenSSL)
+      - name: Build with cross
+        if: matrix.cross
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          args: "--locked --release --package sello"
+          strip: true
+
+      # Native builds use standard cargo
+      - name: Install Rust toolchain (native)
+        if: ${{ !matrix.cross }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache cargo registry and build
+      - name: Cache cargo registry and build (native)
+        if: ${{ !matrix.cross }}
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --package sello
+      - name: Build release binary (native)
+        if: ${{ !matrix.cross }}
+        run: cargo build --locked --release --target ${{ matrix.target }} --package sello
 
+      # Prepare Unix binaries
       - name: Prepare binary (Unix)
+        if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
-          strip ${{ matrix.artifact_name }} || true
-          tar -czvf ${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          strip sello || true
+          tar -czvf ${{ matrix.asset_name }}.tar.gz sello
           shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
 
-      - name: Upload artifact
+      # Prepare Windows binaries
+      - name: Prepare binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path sello.exe -DestinationPath ${{ matrix.asset_name }}.zip
+          $hash = (Get-FileHash -Algorithm SHA256 ${{ matrix.asset_name }}.zip).Hash.ToLower()
+          "$hash  ${{ matrix.asset_name }}.zip" | Out-File -Encoding utf8 ${{ matrix.asset_name }}.zip.sha256
+
+      - name: Upload artifact (Unix)
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: |
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha256
+          retention-days: 1
+
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip
+            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha256
           retention-days: 1
 
   # Create GitHub Release with all binaries
@@ -94,7 +160,8 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          echo "Release assets:"
           ls -la release-assets/
 
       - name: Extract version from tag
@@ -104,32 +171,54 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Release version: $VERSION"
 
-      - name: Extract changelog for this version
-        id: changelog
+      - name: Generate release notes
+        id: notes
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          # Extract changelog section for this version
-          if [ -f CHANGELOG.md ]; then
-            # Extract content between this version header and the next version header
-            NOTES=$(awk -v ver="$VERSION" '
-              /^## \[/ {
-                if (found) exit
-                if ($0 ~ "\\[" ver "\\]") found=1
-                next
-              }
-              found { print }
-            ' CHANGELOG.md)
+          cat > release_notes.md << 'EOF'
+          ## Installation
 
-            if [ -z "$NOTES" ]; then
-              NOTES="Release $VERSION"
-            fi
-          else
-            NOTES="Release $VERSION"
-          fi
+          ### Download Binary
 
-          # Write to file to handle multiline content
-          echo "$NOTES" > release_notes.md
-          echo "Release notes extracted"
+          | Platform | Architecture | Download |
+          |----------|--------------|----------|
+          | Linux | x86_64 | [sello-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-linux-x86_64.tar.gz) |
+          | Linux | arm64 | [sello-linux-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-linux-aarch64.tar.gz) |
+          | macOS | Intel | [sello-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-x86_64.tar.gz) |
+          | macOS | Apple Silicon | [sello-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-aarch64.tar.gz) |
+          | Windows | x86_64 | [sello-windows-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-windows-x86_64.zip) |
+
+          ### Install from crates.io
+
+          ```bash
+          cargo install sello
+          ```
+
+          ### Verify Download
+
+          Each binary has a corresponding `.sha256` file for verification:
+
+          ```bash
+          # Linux/macOS
+          shasum -a 256 -c sello-linux-x86_64.tar.gz.sha256
+
+          # Windows (PowerShell)
+          (Get-FileHash sello-windows-x86_64.zip -Algorithm SHA256).Hash -eq (Get-Content sello-windows-x86_64.zip.sha256).Split()[0]
+          ```
+
+          ## Quick Start
+
+          ```bash
+          # Extract (Unix)
+          tar -xzf sello-*.tar.gz
+
+          # Initialize
+          ./sello init
+
+          # View your address
+          ./sello ethereum address
+          ```
+          EOF
+          echo "Release notes generated"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -143,26 +232,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Publish all crates to crates.io
-  #
-  # All crates are published in dependency order:
-  #   1. sello-core (no internal deps)
-  #   2. sello-crypto (depends on sello-core)
-  #   3. sello-chain (depends on sello-core, sello-crypto)
-  #   4. sello-policy (depends on sello-core, sello-chain)
-  #   5. sello (depends on all above)
-  #
-  # Note: The library crates (sello-core, sello-crypto, sello-chain, sello-policy)
-  # are internal implementation details with unstable APIs. They are published
-  # only because Cargo requires all dependencies to be on crates.io.
-  # Users should only depend on the `sello` binary crate.
-  #
-  # Uses CARGO_REGISTRY_TOKEN environment variable for authentication.
-  # Cargo automatically reads this env var for registry authentication.
-  # See: https://doc.rust-lang.org/cargo/reference/config.html#credentials
-  #
-  # Setup:
-  #   1. Generate a token at https://crates.io/settings/tokens
-  #   2. Add it as a repository secret named CARGO_REGISTRY_TOKEN
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
@@ -171,7 +240,6 @@ jobs:
     if: ${{ !contains(github.ref_name, '-') }}
 
     env:
-      # Cargo automatically uses CARGO_REGISTRY_TOKEN for authentication
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
     steps:
@@ -195,14 +263,11 @@ jobs:
 
       - name: Publish crates in dependency order
         run: |
-          # Publish crates in dependency order with retries
-          # Wait between publishes for crates.io index to update
-          
           publish_crate() {
             local crate=$1
             local max_retries=3
             local retry=0
-            
+
             echo "Publishing $crate..."
             while [ $retry -lt $max_retries ]; do
               if cargo publish --package "$crate"; then
@@ -218,25 +283,12 @@ jobs:
             echo "::error::Failed to publish $crate after $max_retries attempts"
             return 1
           }
-          
-          # 1. sello-core (no internal deps)
-          publish_crate sello-core
-          echo "Waiting for crates.io index to update..."
-          sleep 30
-          
-          # 2. sello-crypto (depends on sello-core)
-          publish_crate sello-crypto
-          sleep 30
-          
-          # 3. sello-chain (depends on sello-core, sello-crypto)
-          publish_crate sello-chain
-          sleep 30
-          
-          # 4. sello-policy (depends on sello-core, sello-chain)
-          publish_crate sello-policy
-          sleep 30
-          
-          # 5. sello binary (depends on all above)
+
+          # Publish in dependency order
+          publish_crate sello-core && sleep 30
+          publish_crate sello-crypto && sleep 30
+          publish_crate sello-chain && sleep 30
+          publish_crate sello-policy && sleep 30
           publish_crate sello
-          
+
           echo "All crates published successfully!"
