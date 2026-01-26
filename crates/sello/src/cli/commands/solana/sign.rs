@@ -1016,4 +1016,59 @@ whitelist_enabled = false
         assert_eq!(cmd.transaction, cloned.transaction);
         assert!(matches!(cloned.format, OutputFormat::Json));
     }
+
+    // ------------------------------------------------------------------------
+    // Config Error Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_invalid_config() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+        let keys_dir = base_dir.join(KEYS_DIR_NAME);
+
+        // Create directory structure
+        fs::create_dir_all(&keys_dir).expect("failed to create keys dir");
+
+        // Create INVALID config file (invalid TOML syntax)
+        let invalid_config = "this is not valid toml [[[";
+        fs::write(base_dir.join(CONFIG_FILE_NAME), invalid_config).expect("failed to write config");
+
+        // Store an ed25519 key (same as setup_initialized_env)
+        let secret_key = SecretKey::generate();
+        let store = FileKeyStore::with_path(keys_dir).expect("failed to create key store");
+        store
+            .store(DEFAULT_ED25519_KEY_NAME, &secret_key, "test-passphrase")
+            .expect("failed to store key");
+
+        let cmd = SignCommand::new("0xdeadbeef", OutputFormat::Hex);
+        let result = cmd.run_with_base_dir(&base_dir);
+
+        // Should fail with ConfigError because config is invalid TOML
+        assert!(matches!(result, Err(SignCommandError::ConfigError(_))));
+    }
+
+    // ------------------------------------------------------------------------
+    // Invalid Transaction Parsing Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_invalid_solana_transaction() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use valid hex that decodes but isn't a valid Solana transaction
+        // (just 32 random bytes)
+        let invalid_tx_hex = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+
+        let cmd = SignCommand::new(invalid_tx_hex, OutputFormat::Hex);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        // Should fail with InvalidTransaction because the bytes aren't a valid Solana tx
+        assert!(
+            matches!(result, Err(SignCommandError::InvalidTransaction(_))),
+            "Expected InvalidTransaction, got: {:?}",
+            result
+        );
+    }
 }

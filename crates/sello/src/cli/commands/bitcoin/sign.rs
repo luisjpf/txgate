@@ -1017,4 +1017,141 @@ whitelist_enabled = false
         assert_eq!(cmd.transaction, cloned.transaction);
         assert!(matches!(cloned.format, OutputFormat::Json));
     }
+
+    // ------------------------------------------------------------------------
+    // Config Error Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_invalid_config() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+        let keys_dir = base_dir.join(KEYS_DIR_NAME);
+
+        // Create directory structure
+        fs::create_dir_all(&keys_dir).expect("failed to create keys dir");
+
+        // Create INVALID config file (missing required fields)
+        let invalid_config = "this is not valid toml [[[";
+        fs::write(base_dir.join(CONFIG_FILE_NAME), invalid_config).expect("failed to write config");
+
+        // Store a key
+        let secret_key = SecretKey::generate();
+        let store = FileKeyStore::with_path(keys_dir).expect("failed to create key store");
+        store
+            .store(DEFAULT_KEY_NAME, &secret_key, "test-passphrase")
+            .expect("failed to store key");
+
+        let cmd = SignCommand::new("0xdeadbeef", OutputFormat::Hex);
+        let result = cmd.run_with_base_dir(&base_dir);
+
+        // Should fail with ConfigError because config is invalid TOML
+        assert!(matches!(result, Err(SignCommandError::ConfigError(_))));
+    }
+
+    // ------------------------------------------------------------------------
+    // Invalid Transaction Parsing Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_invalid_bitcoin_transaction() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use valid hex that decodes but isn't a valid Bitcoin transaction
+        // (just 32 random bytes)
+        let invalid_tx_hex = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+
+        let cmd = SignCommand::new(invalid_tx_hex, OutputFormat::Hex);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        // Should fail with InvalidTransaction because the bytes aren't a valid Bitcoin tx
+        assert!(
+            matches!(result, Err(SignCommandError::InvalidTransaction(_))),
+            "Expected InvalidTransaction, got: {:?}",
+            result
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // JSON Output Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_json_output_format() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use a valid Bitcoin transaction hex
+        let valid_tx_hex = "0100000001000000000000000000000000000000000000000000000000\
+            0000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a\
+            0100000043410496b538e853519c726a2c91e61ec11600ae1390813a62\
+            7c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166\
+            bf621e73a82cbf2342c858eeac00000000";
+
+        let cmd = SignCommand::new(valid_tx_hex, OutputFormat::Json);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        // Should succeed with JSON output
+        assert!(result.is_ok(), "Expected success, got: {:?}", result.err());
+
+        let output = result.unwrap();
+        assert!(!output.signature.is_empty());
+        assert!(!output.transaction_hash.is_empty());
+        assert!(!output.signer.is_empty());
+        assert!(output.signer.starts_with("bc1")); // Bitcoin bech32 address
+    }
+
+    #[test]
+    fn test_sign_command_hex_output_format() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use a valid Bitcoin transaction hex
+        let valid_tx_hex = "0100000001000000000000000000000000000000000000000000000000\
+            0000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a\
+            0100000043410496b538e853519c726a2c91e61ec11600ae1390813a62\
+            7c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166\
+            bf621e73a82cbf2342c858eeac00000000";
+
+        let cmd = SignCommand::new(valid_tx_hex, OutputFormat::Hex);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        // Should succeed with hex output
+        assert!(result.is_ok(), "Expected success, got: {:?}", result.err());
+
+        let output = result.unwrap();
+        assert!(output.signature.starts_with("0x"));
+        assert!(output.transaction_hash.starts_with("0x"));
+    }
+
+    // ------------------------------------------------------------------------
+    // End-to-end Flow Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_full_signing_flow() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use a valid Bitcoin transaction hex
+        let valid_tx_hex = "0100000001000000000000000000000000000000000000000000000000\
+            0000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a\
+            0100000043410496b538e853519c726a2c91e61ec11600ae1390813a62\
+            7c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166\
+            bf621e73a82cbf2342c858eeac00000000";
+
+        let cmd = SignCommand::new(valid_tx_hex, OutputFormat::Json);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        assert!(result.is_ok(), "Failed: {:?}", result.err());
+
+        let output = result.unwrap();
+
+        // Verify output structure
+        assert!(output.transaction_hash.starts_with("0x"));
+        assert!(output.signature.starts_with("0x"));
+        assert!(output.signed_transaction.starts_with("0x"));
+        assert!(output.signer.starts_with("bc1")); // Bitcoin address
+    }
 }
