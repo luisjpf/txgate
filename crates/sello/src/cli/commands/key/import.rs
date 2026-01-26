@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 use sello_crypto::keypair::{Ed25519KeyPair, KeyPair, Secp256k1KeyPair};
 use sello_crypto::keys::SecretKey;
 use sello_crypto::store::{FileKeyStore, KeyStore};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::cli::args::CurveArg;
 
@@ -131,10 +131,15 @@ pub enum ImportError {
 ///
 /// Note: This type implements a custom `Debug` that redacts the secret key
 /// to prevent accidental exposure in logs or error messages.
-#[derive(Clone)]
+///
+/// # Security
+///
+/// The `key_hex` field uses `Zeroizing<String>` to ensure the private key
+/// material is automatically zeroized when the command is dropped.
 pub struct ImportCommand {
     /// The private key in hex format (with or without 0x prefix).
-    pub key_hex: String,
+    /// Wrapped in `Zeroizing` to ensure secure cleanup on drop.
+    pub key_hex: Zeroizing<String>,
 
     /// Optional name for the key.
     pub name: Option<String>,
@@ -155,10 +160,13 @@ impl std::fmt::Debug for ImportCommand {
 
 impl ImportCommand {
     /// Create a new import command.
+    ///
+    /// The `key_hex` is wrapped in `Zeroizing` to ensure the private key
+    /// material is securely erased when the command is dropped.
     #[must_use]
-    pub const fn new(key_hex: String, name: Option<String>, curve: CurveArg) -> Self {
+    pub fn new(key_hex: String, name: Option<String>, curve: CurveArg) -> Self {
         Self {
-            key_hex,
+            key_hex: Zeroizing::new(key_hex),
             name,
             curve,
         }

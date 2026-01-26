@@ -466,7 +466,335 @@ mod tests {
         assert!(debug_str.contains("SolanaParser"));
     }
 
-    // Note: Full transaction parsing tests require valid Solana transaction
-    // bytes which are complex to construct manually. In practice, these
-    // would be integration tests with real transaction data.
+    // -------------------------------------------------------------------------
+    // Real Transaction Parsing Tests
+    // -------------------------------------------------------------------------
+
+    use solana_sdk::hash::Hash;
+    use solana_sdk::instruction::{AccountMeta, Instruction};
+    use solana_sdk::signature::Keypair;
+    use solana_sdk::signer::Signer;
+    use solana_sdk::system_instruction;
+    use solana_sdk::transaction::Transaction;
+
+    /// Create a valid SOL transfer transaction for testing.
+    fn create_sol_transfer_tx(lamports: u64) -> Vec<u8> {
+        let from = Keypair::new();
+        let to = Pubkey::new_unique();
+        let recent_blockhash = Hash::new_unique();
+
+        let instruction = system_instruction::transfer(&from.pubkey(), &to, lamports);
+        let tx = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&from.pubkey()),
+            &[&from],
+            recent_blockhash,
+        );
+
+        bincode::serialize(&tx).expect("failed to serialize transaction")
+    }
+
+    #[test]
+    fn test_parse_sol_transfer() {
+        let parser = SolanaParser::new();
+        let lamports = 1_000_000_000u64; // 1 SOL
+        let tx_bytes = create_sol_transfer_tx(lamports);
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok(), "Failed to parse SOL transfer: {:?}", result);
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain, "solana");
+        assert!(matches!(parsed.tx_type, TxType::Transfer));
+        assert!(parsed.recipient.is_some());
+        assert!(parsed.amount.is_some());
+        assert_eq!(parsed.amount.unwrap(), U256::from(lamports));
+        assert_eq!(parsed.token, Some("SOL".to_string()));
+    }
+
+    #[test]
+    fn test_parse_sol_transfer_small_amount() {
+        let parser = SolanaParser::new();
+        let lamports = 1u64; // 1 lamport
+        let tx_bytes = create_sol_transfer_tx(lamports);
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.amount.unwrap(), U256::from(1u64));
+    }
+
+    #[test]
+    fn test_parse_sol_transfer_large_amount() {
+        let parser = SolanaParser::new();
+        let lamports = u64::MAX; // Max lamports
+        let tx_bytes = create_sol_transfer_tx(lamports);
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.amount.unwrap(), U256::from(u64::MAX));
+    }
+
+    #[test]
+    fn test_parse_transaction_metadata() {
+        let parser = SolanaParser::new();
+        let tx_bytes = create_sol_transfer_tx(1_000_000);
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        // Check metadata fields
+        assert!(parsed.metadata.contains_key("fee_payer"));
+        assert!(parsed.metadata.contains_key("recent_blockhash"));
+        assert!(parsed.metadata.contains_key("signature_count"));
+        assert!(parsed.metadata.contains_key("instruction_count"));
+    }
+
+    #[test]
+    fn test_parse_transaction_hash() {
+        let parser = SolanaParser::new();
+        let tx_bytes = create_sol_transfer_tx(1_000_000);
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        // Hash should be non-zero
+        assert!(!parsed.hash.iter().all(|&b| b == 0));
+    }
+
+    /// Create a token transfer instruction for testing.
+    /// The owner must be passed in so it can match the signer.
+    fn create_token_transfer_instruction(amount: u64, owner: &Pubkey) -> Instruction {
+        let token_program = Pubkey::from_str(TOKEN_PROGRAM_ID).unwrap();
+        let source = Pubkey::new_unique();
+        let destination = Pubkey::new_unique();
+
+        // Token Transfer instruction: type 3 + amount (little-endian u64)
+        let mut data = vec![3u8]; // instruction type
+        data.extend_from_slice(&amount.to_le_bytes());
+
+        Instruction {
+            program_id: token_program,
+            accounts: vec![
+                AccountMeta::new(source, false),
+                AccountMeta::new(destination, false),
+                AccountMeta::new_readonly(*owner, true),
+            ],
+            data,
+        }
+    }
+
+    #[test]
+    fn test_parse_token_transfer() {
+        let parser = SolanaParser::new();
+
+        let from = Keypair::new();
+        let recent_blockhash = Hash::new_unique();
+        let token_amount = 1_000_000u64;
+
+        // Use from.pubkey() as the owner so we only need one signer
+        let instruction = create_token_transfer_instruction(token_amount, &from.pubkey());
+        let tx = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&from.pubkey()),
+            &[&from],
+            recent_blockhash,
+        );
+
+        let tx_bytes = bincode::serialize(&tx).expect("failed to serialize");
+        let result = parser.parse(&tx_bytes);
+        assert!(
+            result.is_ok(),
+            "Failed to parse token transfer: {:?}",
+            result
+        );
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain, "solana");
+        assert!(matches!(parsed.tx_type, TxType::TokenTransfer));
+        assert!(parsed.recipient.is_some());
+        assert!(parsed.amount.is_some());
+        assert_eq!(parsed.amount.unwrap(), U256::from(token_amount));
+    }
+
+    /// Create a TransferChecked instruction for testing.
+    /// The owner must be passed in so it can match the signer.
+    fn create_transfer_checked_instruction(
+        amount: u64,
+        decimals: u8,
+        owner: &Pubkey,
+    ) -> Instruction {
+        let token_program = Pubkey::from_str(TOKEN_PROGRAM_ID).unwrap();
+        let source = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let destination = Pubkey::new_unique();
+
+        // TransferChecked instruction: type 12 + amount (u64) + decimals (u8)
+        let mut data = vec![12u8]; // instruction type
+        data.extend_from_slice(&amount.to_le_bytes());
+        data.push(decimals);
+
+        Instruction {
+            program_id: token_program,
+            accounts: vec![
+                AccountMeta::new(source, false),
+                AccountMeta::new_readonly(mint, false),
+                AccountMeta::new(destination, false),
+                AccountMeta::new_readonly(*owner, true),
+            ],
+            data,
+        }
+    }
+
+    #[test]
+    fn test_parse_transfer_checked() {
+        let parser = SolanaParser::new();
+
+        let from = Keypair::new();
+        let recent_blockhash = Hash::new_unique();
+        let token_amount = 500_000u64;
+        let decimals = 6u8;
+
+        // Use from.pubkey() as the owner so we only need one signer
+        let instruction =
+            create_transfer_checked_instruction(token_amount, decimals, &from.pubkey());
+        let tx = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&from.pubkey()),
+            &[&from],
+            recent_blockhash,
+        );
+
+        let tx_bytes = bincode::serialize(&tx).expect("failed to serialize");
+        let result = parser.parse(&tx_bytes);
+        assert!(
+            result.is_ok(),
+            "Failed to parse TransferChecked: {:?}",
+            result
+        );
+
+        let parsed = result.unwrap();
+        assert!(matches!(parsed.tx_type, TxType::TokenTransfer));
+        assert_eq!(parsed.amount.unwrap(), U256::from(token_amount));
+    }
+
+    #[test]
+    fn test_parse_system_transfer_helper() {
+        // Test the parse_system_transfer helper function directly
+        let lamports = 5_000_000_000u64;
+
+        // Build instruction data: 4 bytes type (2 = transfer) + 8 bytes amount
+        let mut data = vec![2u8, 0, 0, 0]; // instruction type 2 in little-endian
+        data.extend_from_slice(&lamports.to_le_bytes());
+
+        let source = Pubkey::new_unique();
+        let destination = Pubkey::new_unique();
+        let accounts = vec![source, destination];
+
+        let result = SolanaParser::parse_system_transfer(&data, &accounts);
+        assert!(result.is_some());
+
+        let (dest, amount) = result.unwrap();
+        assert_eq!(dest, destination.to_string());
+        assert_eq!(amount, lamports);
+    }
+
+    #[test]
+    fn test_parse_system_transfer_wrong_instruction_type() {
+        // instruction type 1 (CreateAccount) should return None
+        let mut data = vec![1u8, 0, 0, 0];
+        data.extend_from_slice(&1000u64.to_le_bytes());
+
+        let accounts = vec![Pubkey::new_unique(), Pubkey::new_unique()];
+
+        let result = SolanaParser::parse_system_transfer(&data, &accounts);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_system_transfer_insufficient_data() {
+        // Less than 12 bytes should return None
+        let data = vec![2u8, 0, 0, 0, 0, 0, 0, 0]; // Only 8 bytes
+
+        let accounts = vec![Pubkey::new_unique(), Pubkey::new_unique()];
+
+        let result = SolanaParser::parse_system_transfer(&data, &accounts);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_token_transfer_helper() {
+        let amount = 1_000_000u64;
+
+        // Transfer instruction: type 3 + amount
+        let mut data = vec![3u8];
+        data.extend_from_slice(&amount.to_le_bytes());
+
+        let accounts = vec![
+            Pubkey::new_unique(), // source
+            Pubkey::new_unique(), // destination
+            Pubkey::new_unique(), // owner
+        ];
+
+        let result = SolanaParser::parse_token_transfer(&data, &accounts);
+        assert!(result.is_some());
+
+        let (dest, parsed_amount, is_checked) = result.unwrap();
+        assert_eq!(dest, accounts[1].to_string());
+        assert_eq!(parsed_amount, amount);
+        assert!(!is_checked);
+    }
+
+    #[test]
+    fn test_parse_token_transfer_checked_helper() {
+        let amount = 2_000_000u64;
+
+        // TransferChecked instruction: type 12 + amount + decimals
+        let mut data = vec![12u8];
+        data.extend_from_slice(&amount.to_le_bytes());
+        data.push(9u8); // decimals
+
+        let accounts = vec![
+            Pubkey::new_unique(), // source
+            Pubkey::new_unique(), // mint
+            Pubkey::new_unique(), // destination
+            Pubkey::new_unique(), // owner
+        ];
+
+        let result = SolanaParser::parse_token_transfer(&data, &accounts);
+        assert!(result.is_some());
+
+        let (dest, parsed_amount, is_checked) = result.unwrap();
+        assert_eq!(dest, accounts[2].to_string()); // destination is at index 2
+        assert_eq!(parsed_amount, amount);
+        assert!(is_checked);
+    }
+
+    #[test]
+    fn test_parse_token_transfer_unknown_instruction() {
+        // Unknown instruction type should return None
+        let data = vec![99u8, 0, 0, 0, 0, 0, 0, 0, 0];
+        let accounts = vec![Pubkey::new_unique(), Pubkey::new_unique()];
+
+        let result = SolanaParser::parse_token_transfer(&data, &accounts);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_is_token_instruction() {
+        let token_program = Pubkey::from_str(TOKEN_PROGRAM_ID).unwrap();
+        let token_2022_program = Pubkey::from_str(TOKEN_2022_PROGRAM_ID).unwrap();
+        let system_program = Pubkey::from_str(SYSTEM_PROGRAM_ID).unwrap();
+        let random_program = Pubkey::new_unique();
+
+        assert!(SolanaParser::is_token_instruction(&token_program));
+        assert!(SolanaParser::is_token_instruction(&token_2022_program));
+        assert!(!SolanaParser::is_token_instruction(&system_program));
+        assert!(!SolanaParser::is_token_instruction(&random_program));
+    }
 }

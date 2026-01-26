@@ -606,6 +606,8 @@ sello config edit
 
 ## CLI Reference
 
+### General Commands
+
 | Command | Description |
 |---------|-------------|
 | `sello init` | Initialize configuration and generate key |
@@ -616,9 +618,43 @@ sello config edit
 | `sello config path` | Show configuration file path |
 | `sello serve` | Start the signing server |
 | `sello serve --foreground` | Start server in foreground |
+
+### Ethereum Commands
+
+| Command | Description |
+|---------|-------------|
 | `sello ethereum address` | Display Ethereum address |
-| `sello ethereum sign <TX>` | Sign a transaction |
+| `sello ethereum sign <TX>` | Sign a transaction (hex output) |
 | `sello ethereum sign <TX> --format json` | Sign with JSON output |
+
+### Bitcoin Commands
+
+| Command | Description |
+|---------|-------------|
+| `sello bitcoin address` | Display Bitcoin address (P2WPKH bech32) |
+| `sello bitcoin sign <TX>` | Sign a Bitcoin transaction (hex output) |
+| `sello bitcoin sign <TX> --format json` | Sign with JSON output |
+
+### Solana Commands
+
+| Command | Description |
+|---------|-------------|
+| `sello solana address` | Display Solana address (base58 ed25519) |
+| `sello solana sign <TX>` | Sign a Solana transaction (hex output) |
+| `sello solana sign <TX> --format json` | Sign with JSON output |
+
+### Key Management Commands
+
+| Command | Description |
+|---------|-------------|
+| `sello key list` | List all stored keys |
+| `sello key list --verbose` | List keys with details |
+| `sello key import <HEX>` | Import a private key |
+| `sello key import <HEX> --name NAME` | Import with custom name |
+| `sello key import <HEX> --curve ed25519` | Import an ed25519 key |
+| `sello key export <NAME>` | Export a key as encrypted backup |
+| `sello key delete <NAME>` | Delete a key |
+| `sello key delete <NAME> --force` | Delete without confirmation |
 
 ### Global Options
 
@@ -628,6 +664,133 @@ sello config edit
 | `-c, --config <PATH>` | Use custom config file |
 | `--help` | Show help information |
 | `--version` | Show version |
+
+---
+
+## Exit Codes
+
+Sello uses consistent exit codes for scripting and automation:
+
+| Code | Name | Description |
+|------|------|-------------|
+| `0` | Success | Command completed successfully |
+| `1` | Policy Denied | Transaction rejected by policy rules |
+| `2` | Error | General error (invalid input, I/O failure, etc.) |
+
+### Usage in Scripts
+
+```bash
+#!/bin/bash
+
+# Sign a transaction
+sello ethereum sign "$TX_HEX"
+exit_code=$?
+
+case $exit_code in
+    0)
+        echo "Transaction signed successfully"
+        ;;
+    1)
+        echo "Policy denied the transaction"
+        # Handle policy violation (e.g., notify admin)
+        ;;
+    2)
+        echo "An error occurred"
+        # Handle error (e.g., retry or alert)
+        ;;
+esac
+```
+
+### Error Handling Examples
+
+```bash
+# Check if policy allows the transaction
+if sello ethereum sign "$TX_HEX" > /dev/null 2>&1; then
+    echo "Signed!"
+elif [ $? -eq 1 ]; then
+    echo "Policy denied - check your limits"
+else
+    echo "Error occurred"
+fi
+```
+
+---
+
+## JSON Output Examples
+
+All `sign` commands support `--format json` for machine-readable output.
+
+### Ethereum JSON Output
+
+```bash
+sello ethereum sign 0xf86c... --format json
+```
+
+**Success Response:**
+```json
+{
+  "chain": "ethereum",
+  "transaction_hash": "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060",
+  "signature": {
+    "v": 28,
+    "r": "0x88ff6cf0fefd94db46111149ae4bfc179e9b94721fffd821d38d16464b3f71d0",
+    "s": "0x45e0aff800961cfce805daef7016b9b675c137a6a41a548f7b60a3484c06a33a"
+  },
+  "signed_transaction": "0xf86c...signed...",
+  "signer": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+}
+```
+
+### Bitcoin JSON Output
+
+```bash
+sello bitcoin sign 0100000001... --format json
+```
+
+**Success Response:**
+```json
+{
+  "chain": "bitcoin",
+  "transaction_hash": "abc123...txid...",
+  "signature": "304402...der...",
+  "signed_transaction": "0100000001...signed...",
+  "signer": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+}
+```
+
+### Solana JSON Output
+
+```bash
+sello solana sign 0100000001... --format json
+```
+
+**Success Response:**
+```json
+{
+  "chain": "solana",
+  "transaction_hash": "5WXz...base58...",
+  "signature": "5aB3...base58-sig...",
+  "signed_transaction": "0100...signed...",
+  "signer": "9aE7...base58-pubkey..."
+}
+```
+
+### Error Response (All Chains)
+
+When a policy denies a transaction:
+
+```json
+{
+  "error": {
+    "code": "policy_denied",
+    "message": "Transaction denied: blacklist - recipient address is blacklisted",
+    "policy": "blacklist",
+    "details": {
+      "recipient": "0x0000000000000000000000000000000000000000"
+    }
+  }
+}
+```
 
 ---
 
