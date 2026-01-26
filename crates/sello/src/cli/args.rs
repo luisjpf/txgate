@@ -113,6 +113,27 @@ pub enum Commands {
         command: EthereumCommands,
     },
 
+    /// Bitcoin-related commands
+    ///
+    /// Commands for interacting with the Bitcoin blockchain,
+    /// including address display and transaction signing.
+    Bitcoin {
+        /// Bitcoin command to execute
+        #[command(subcommand)]
+        command: BitcoinCommands,
+    },
+
+    /// Solana-related commands
+    ///
+    /// Commands for interacting with the Solana blockchain,
+    /// including address display and transaction signing.
+    /// Note: Solana uses ed25519 keys (stored as `default-ed25519.enc`).
+    Solana {
+        /// Solana command to execute
+        #[command(subcommand)]
+        command: SolanaCommands,
+    },
+
     /// Key management commands
     ///
     /// Commands for managing cryptographic keys including
@@ -158,6 +179,68 @@ pub enum EthereumCommands {
         /// Raw transaction hex (with or without 0x prefix)
         ///
         /// The unsigned transaction in RLP-encoded hexadecimal format.
+        /// The 0x prefix is optional.
+        #[arg(value_name = "TX_HEX")]
+        transaction: String,
+
+        /// Output format
+        ///
+        /// Choose the format for the signed transaction output:
+        /// - `hex` - Raw hexadecimal (default)
+        /// - `json` - JSON with transaction details
+        #[arg(short, long, default_value = "hex", value_name = "FORMAT")]
+        format: OutputFormat,
+    },
+}
+
+/// Bitcoin-specific commands.
+#[derive(Debug, Subcommand)]
+pub enum BitcoinCommands {
+    /// Display Bitcoin address for default key
+    ///
+    /// Shows the Bitcoin address (P2WPKH/bech32 format) derived from the
+    /// default signing key. This address starts with 'bc1q' on mainnet.
+    Address,
+
+    /// Sign a Bitcoin transaction
+    ///
+    /// Signs a raw Bitcoin transaction using the default key.
+    /// The transaction should be provided as a hex-encoded raw transaction.
+    Sign {
+        /// Raw transaction hex (with or without 0x prefix)
+        ///
+        /// The unsigned transaction in hexadecimal format.
+        /// The 0x prefix is optional.
+        #[arg(value_name = "TX_HEX")]
+        transaction: String,
+
+        /// Output format
+        ///
+        /// Choose the format for the signed transaction output:
+        /// - `hex` - Raw hexadecimal (default)
+        /// - `json` - JSON with transaction details
+        #[arg(short, long, default_value = "hex", value_name = "FORMAT")]
+        format: OutputFormat,
+    },
+}
+
+/// Solana-specific commands.
+#[derive(Debug, Subcommand)]
+pub enum SolanaCommands {
+    /// Display Solana address for default ed25519 key
+    ///
+    /// Shows the Solana address (base58-encoded public key) derived from the
+    /// default ed25519 signing key. Requires a `default-ed25519.enc` key file.
+    Address,
+
+    /// Sign a Solana transaction
+    ///
+    /// Signs a raw Solana transaction using the default ed25519 key.
+    /// The transaction should be provided as a hex-encoded raw transaction.
+    Sign {
+        /// Raw transaction hex (with or without 0x prefix)
+        ///
+        /// The unsigned transaction in hexadecimal format.
         /// The 0x prefix is optional.
         #[arg(value_name = "TX_HEX")]
         transaction: String,
@@ -230,6 +313,16 @@ pub struct KeyImportArgs {
     /// you will be prompted to enter one.
     #[arg(short, long, value_name = "NAME")]
     pub name: Option<String>,
+
+    /// Elliptic curve type for the key
+    ///
+    /// Specifies which curve the private key belongs to:
+    /// - `secp256k1` (default) - For Bitcoin and Ethereum keys
+    /// - `ed25519` - For Solana keys
+    ///
+    /// Ed25519 keys will be stored with a `-ed25519` suffix.
+    #[arg(short = 'C', long, default_value = "secp256k1", value_name = "CURVE")]
+    pub curve: CurveArg,
 }
 
 impl std::fmt::Debug for KeyImportArgs {
@@ -237,6 +330,7 @@ impl std::fmt::Debug for KeyImportArgs {
         f.debug_struct("KeyImportArgs")
             .field("key", &"[REDACTED]")
             .field("name", &self.name)
+            .field("curve", &self.curve)
             .finish()
     }
 }
@@ -279,6 +373,36 @@ pub struct KeyDeleteArgs {
     /// Required when deleting the "default" key.
     #[arg(long)]
     pub force: bool,
+}
+
+/// Curve type for key import.
+///
+/// Specifies which elliptic curve the private key belongs to.
+/// This determines how the key is validated and stored.
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum CurveArg {
+    /// secp256k1 curve (used by Bitcoin and Ethereum)
+    ///
+    /// The default curve type. Keys using this curve can be used
+    /// to sign Bitcoin and Ethereum transactions.
+    #[default]
+    Secp256k1,
+
+    /// Ed25519 curve (used by Solana)
+    ///
+    /// Keys using this curve can be used to sign Solana transactions.
+    /// When importing an ed25519 key, it will be stored with a `-ed25519`
+    /// suffix in the key name.
+    Ed25519,
+}
+
+impl std::fmt::Display for CurveArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Secp256k1 => write!(f, "secp256k1"),
+            Self::Ed25519 => write!(f, "ed25519"),
+        }
+    }
 }
 
 /// Output format for command results.

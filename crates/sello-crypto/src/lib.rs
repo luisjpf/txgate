@@ -62,10 +62,13 @@ pub use encryption::{
 pub use keys::{SecretKey, SecretKeyError, SECRET_KEY_LEN};
 
 // Re-export key pair types
-pub use keypair::{KeyPair, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
+pub use keypair::{
+    Ed25519KeyPair, Ed25519PublicKey, Ed25519Signature, KeyPair, Secp256k1KeyPair,
+    Secp256k1PublicKey, Secp256k1Signature,
+};
 
 // Re-export signer types
-pub use signer::{Chain, CurveType, Secp256k1Signer, Signer};
+pub use signer::{Chain, CurveType, Ed25519Signer, Secp256k1Signer, Signer};
 
 // Re-export key store types
 pub use store::{FileKeyStore, KeyStore};

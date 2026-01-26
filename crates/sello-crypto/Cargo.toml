@@ -28,6 +28,8 @@ subtle = { workspace = true }
 sha3 = { workspace = true }
 hex = { workspace = true }
 dirs = { workspace = true }
+bitcoin = { workspace = true }
+bs58 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -3609,6 +3609,8 @@ name = "sello-crypto"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "bitcoin",
+ "bs58",
  "chacha20poly1305",
  "dirs",
  "ed25519-dalek 2.2.0",

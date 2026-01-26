@@ -35,6 +35,10 @@
 //! - `sello serve [--foreground]` - Start the signing server
 //! - `sello ethereum address` - Display Ethereum address
 //! - `sello ethereum sign <TX_HEX> [--format hex|json]` - Sign a transaction
+//! - `sello bitcoin address` - Display Bitcoin address (P2WPKH bech32)
+//! - `sello bitcoin sign <TX_HEX> [--format hex|json]` - Sign a Bitcoin transaction
+//! - `sello solana address` - Display Solana address (base58 ed25519 pubkey)
+//! - `sello solana sign <TX_HEX> [--format hex|json]` - Sign a Solana transaction
 //! - `sello key list [--verbose]` - List all stored keys
 //! - `sello key import <HEX> [--name NAME]` - Import a private key
 //! - `sello key export <NAME> [--output PATH] [--force]` - Export a key
@@ -45,6 +49,6 @@ pub mod commands;
 
 // Re-export main types for convenience
 pub use args::{
-    Cli, Commands, ConfigAction, EthereumCommands, KeyCommands, KeyDeleteArgs, KeyExportArgs,
-    KeyImportArgs, KeyListArgs, OutputFormat,
+    BitcoinCommands, Cli, Commands, ConfigAction, CurveArg, EthereumCommands, KeyCommands,
+    KeyDeleteArgs, KeyExportArgs, KeyImportArgs, KeyListArgs, OutputFormat, SolanaCommands,
 };

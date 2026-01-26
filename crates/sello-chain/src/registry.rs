@@ -222,8 +222,7 @@ impl ChainRegistry {
     ///
     /// // Get list of all supported chains (sorted alphabetically)
     /// let chains = registry.supported_chains();
-    /// // Currently empty - parsers will be added in future tasks
-    /// assert!(chains.is_empty());
+    /// assert_eq!(chains, vec!["bitcoin", "ethereum", "solana"]);
     /// ```
     #[must_use]
     pub fn supported_chains(&self) -> Vec<&str> {
@@ -251,9 +250,10 @@ impl ChainRegistry {
     /// let registry = ChainRegistry::new();
     ///
     /// // Check if a chain is supported
-    /// // Currently empty - parsers will be added in future tasks
-    /// assert!(!registry.supports("ethereum"));
-    /// assert!(!registry.supports("bitcoin"));
+    /// assert!(registry.supports("ethereum"));
+    /// assert!(registry.supports("bitcoin"));
+    /// assert!(registry.supports("solana"));
+    /// assert!(!registry.supports("unknown"));
     /// ```
     #[must_use]
     pub fn supports(&self, chain_id: &str) -> bool {
@@ -268,8 +268,7 @@ impl ChainRegistry {
     /// use sello_chain::ChainRegistry;
     ///
     /// let registry = ChainRegistry::new();
-    /// // Currently empty - parsers will be added in future tasks
-    /// assert_eq!(registry.len(), 0);
+    /// assert_eq!(registry.len(), 3);  // ethereum, bitcoin, solana
     ///
     /// let registry = ChainRegistry::empty();
     /// assert_eq!(registry.len(), 0);
@@ -287,8 +286,7 @@ impl ChainRegistry {
     /// use sello_chain::ChainRegistry;
     ///
     /// let registry = ChainRegistry::new();
-    /// // Currently empty - parsers will be added in future tasks
-    /// assert!(registry.is_empty());
+    /// assert!(!registry.is_empty());  // has 3 chains registered
     ///
     /// let registry = ChainRegistry::empty();
     /// assert!(registry.is_empty());

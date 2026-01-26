@@ -6,6 +6,7 @@
 //! # Supported Curves
 //!
 //! - [`Secp256k1KeyPair`] - For Ethereum, Bitcoin, Tron, and Ripple
+//! - [`Ed25519KeyPair`] - For Solana and other ed25519-based chains
 //!
 //! # Example
 //!
@@ -560,6 +561,254 @@ impl KeyPair for Secp256k1KeyPair {
 impl std::fmt::Debug for Secp256k1KeyPair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Secp256k1KeyPair")
+            .field("public_key", &self.public_key)
+            .finish_non_exhaustive()
+    }
+}
+
+// ============================================================================
+// Ed25519 Public Key
+// ============================================================================
+
+/// Wrapper for ed25519 public keys.
+///
+/// Stores the 32-byte public key for ed25519 operations.
+/// Used for Solana and other ed25519-based chains.
+///
+/// # Example
+///
+/// ```rust
+/// use sello_crypto::keypair::{KeyPair, Ed25519KeyPair};
+///
+/// let keypair = Ed25519KeyPair::generate();
+/// let pubkey = keypair.public_key();
+///
+/// // Get raw bytes (32 bytes)
+/// assert_eq!(pubkey.as_bytes().len(), 32);
+///
+/// // Get Solana address (base58 encoded)
+/// let address = pubkey.solana_address();
+/// assert!(!address.is_empty());
+/// ```
+#[derive(Clone)]
+pub struct Ed25519PublicKey {
+    /// The 32-byte public key
+    bytes: [u8; 32],
+}
+
+impl Ed25519PublicKey {
+    /// Create a new public key from raw bytes.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self { bytes }
+    }
+
+    /// Get the raw public key bytes (32 bytes).
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.bytes
+    }
+
+    /// Derive the Solana address from this public key.
+    ///
+    /// The Solana address is simply the base58-encoded 32-byte public key.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use sello_crypto::keypair::{KeyPair, Ed25519KeyPair};
+    ///
+    /// let keypair = Ed25519KeyPair::generate();
+    /// let address = keypair.public_key().solana_address();
+    /// // Solana addresses are base58 encoded, typically 32-44 characters
+    /// assert!(address.len() >= 32 && address.len() <= 44);
+    /// ```
+    #[must_use]
+    pub fn solana_address(&self) -> String {
+        bs58::encode(&self.bytes).into_string()
+    }
+}
+
+impl AsRef<[u8]> for Ed25519PublicKey {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl std::fmt::Debug for Ed25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ed25519PublicKey({})", hex::encode(self.bytes))
+    }
+}
+
+// ============================================================================
+// Ed25519 Signature
+// ============================================================================
+
+/// Wrapper for ed25519 signatures.
+///
+/// Contains the 64-byte signature.
+///
+/// # Example
+///
+/// ```rust
+/// use sello_crypto::keypair::{KeyPair, Ed25519KeyPair};
+///
+/// let keypair = Ed25519KeyPair::generate();
+/// let hash = [0u8; 32];
+/// let signature = keypair.sign(&hash).expect("signing failed");
+///
+/// // Get signature bytes (64 bytes)
+/// assert_eq!(signature.as_ref().len(), 64);
+/// ```
+#[derive(Clone)]
+pub struct Ed25519Signature {
+    /// The 64-byte signature
+    bytes: [u8; 64],
+}
+
+impl Ed25519Signature {
+    /// Create a signature from raw bytes.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 64]) -> Self {
+        Self { bytes }
+    }
+}
+
+impl AsRef<[u8]> for Ed25519Signature {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl std::fmt::Debug for Ed25519Signature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ed25519Signature({})", hex::encode(self.bytes))
+    }
+}
+
+// ============================================================================
+// Ed25519 Key Pair
+// ============================================================================
+
+/// Ed25519 key pair for Solana and other ed25519-based chains.
+///
+/// This key pair uses the ed25519 elliptic curve, which is the standard
+/// for Solana and some other blockchain networks.
+///
+/// # Security
+///
+/// - The signing key is stored securely
+/// - Uses ed25519-dalek for cryptographic operations
+///
+/// # Example
+///
+/// ```rust
+/// use sello_crypto::keypair::{KeyPair, Ed25519KeyPair};
+///
+/// // Generate a new key pair
+/// let keypair = Ed25519KeyPair::generate();
+///
+/// // Or create from existing bytes
+/// let secret_bytes = [0x42u8; 32]; // Use real secret in production!
+/// let keypair = Ed25519KeyPair::from_bytes(secret_bytes)
+///     .expect("valid secret key");
+///
+/// // Sign a message hash
+/// let hash = [0u8; 32]; // Use real hash in production!
+/// let signature = keypair.sign(&hash).expect("signing succeeded");
+///
+/// // Get Solana address
+/// let address = keypair.public_key().solana_address();
+/// println!("Solana address: {address}");
+/// ```
+pub struct Ed25519KeyPair {
+    /// The signing key (private key)
+    signing_key: ed25519_dalek::SigningKey,
+    /// Cached public key wrapper
+    public_key: Ed25519PublicKey,
+}
+
+impl Ed25519KeyPair {
+    /// Create a key pair from a [`SecretKey`].
+    ///
+    /// # Errors
+    /// Returns an error if the secret key bytes are not valid.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use sello_crypto::keys::SecretKey;
+    /// use sello_crypto::keypair::{KeyPair, Ed25519KeyPair};
+    ///
+    /// let secret = SecretKey::generate();
+    /// let keypair = Ed25519KeyPair::from_secret_key(&secret)
+    ///     .expect("valid secret key");
+    /// ```
+    pub fn from_secret_key(secret: &SecretKey) -> Result<Self, SignError> {
+        Self::from_bytes(*secret.as_bytes())
+    }
+
+    /// Verify a signature against a hash using this key pair's public key.
+    ///
+    /// # Arguments
+    /// * `hash` - The 32-byte hash that was signed
+    /// * `signature` - The signature to verify
+    ///
+    /// # Returns
+    /// `true` if the signature is valid, `false` otherwise.
+    #[must_use]
+    pub fn verify(&self, hash: &[u8; 32], signature: &Ed25519Signature) -> bool {
+        use ed25519_dalek::Verifier;
+
+        let Ok(sig) = ed25519_dalek::Signature::from_slice(signature.as_ref()) else {
+            return false;
+        };
+
+        self.signing_key.verifying_key().verify(hash, &sig).is_ok()
+    }
+}
+
+impl KeyPair for Ed25519KeyPair {
+    type Signature = Ed25519Signature;
+    type PublicKey = Ed25519PublicKey;
+
+    fn generate() -> Self {
+        let secret = SecretKey::generate();
+        // Generated random keys from OsRng should always be valid ed25519 keys
+        Self::from_bytes(*secret.as_bytes())
+            .unwrap_or_else(|_| unreachable!("OsRng generated an invalid ed25519 key"))
+    }
+
+    fn from_bytes(bytes: [u8; 32]) -> Result<Self, SignError> {
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&bytes);
+        let verifying_key = signing_key.verifying_key();
+        let public_key = Ed25519PublicKey::from_bytes(verifying_key.to_bytes());
+
+        Ok(Self {
+            signing_key,
+            public_key,
+        })
+    }
+
+    fn public_key(&self) -> &Self::PublicKey {
+        &self.public_key
+    }
+
+    fn sign(&self, hash: &[u8; 32]) -> Result<Self::Signature, SignError> {
+        use ed25519_dalek::Signer;
+
+        let signature = self.signing_key.sign(hash);
+        let bytes = signature.to_bytes();
+
+        Ok(Ed25519Signature { bytes })
+    }
+}
+
+// Implement Debug for Ed25519KeyPair without exposing the private key
+impl std::fmt::Debug for Ed25519KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ed25519KeyPair")
             .field("public_key", &self.public_key)
             .finish_non_exhaustive()
     }
