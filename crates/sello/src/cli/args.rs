@@ -971,4 +971,59 @@ mod tests {
         let cli = Cli::try_parse_from(["sello", "key"]);
         assert!(cli.is_err(), "Should fail when key subcommand is missing");
     }
+
+    /// Test CurveArg display implementation.
+    #[test]
+    fn test_curve_arg_display() {
+        assert_eq!(CurveArg::Secp256k1.to_string(), "secp256k1");
+        assert_eq!(CurveArg::Ed25519.to_string(), "ed25519");
+    }
+
+    /// Test CurveArg to CurveType conversion.
+    #[test]
+    fn test_curve_arg_to_curve_type_conversion() {
+        use sello_crypto::signer::CurveType;
+
+        let curve: CurveType = CurveArg::Secp256k1.into();
+        assert_eq!(curve, CurveType::Secp256k1);
+
+        let curve: CurveType = CurveArg::Ed25519.into();
+        assert_eq!(curve, CurveType::Ed25519);
+    }
+
+    /// Test parsing of key import command with curve flag.
+    #[test]
+    fn test_parse_key_import_with_curve() {
+        let cli =
+            Cli::try_parse_from(["sello", "key", "import", "0xdeadbeef", "--curve", "ed25519"]);
+        assert!(
+            cli.is_ok(),
+            "Failed to parse 'key import --curve': {:?}",
+            cli.err()
+        );
+        let cli = cli.expect("CLI should parse");
+        match cli.command {
+            Commands::Key {
+                command: KeyCommands::Import(args),
+            } => {
+                assert_eq!(args.key, "0xdeadbeef");
+                assert!(matches!(args.curve, CurveArg::Ed25519));
+            }
+            _ => panic!("Expected Key Import command"),
+        }
+    }
+
+    /// Test KeyImportArgs debug does not expose key.
+    #[test]
+    fn test_key_import_args_debug_redacts_key() {
+        let args = KeyImportArgs {
+            key: "0xsupersecretkey".to_string(),
+            name: Some("my-key".to_string()),
+            curve: CurveArg::Secp256k1,
+        };
+        let debug_str = format!("{:?}", args);
+        assert!(debug_str.contains("[REDACTED]"));
+        assert!(!debug_str.contains("supersecretkey"));
+        assert!(debug_str.contains("my-key"));
+    }
 }

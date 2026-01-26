@@ -716,6 +716,41 @@ blacklist = []
         let store_err = StoreError::InvalidFormat;
         let sign_err: SignCommandError = store_err.into();
         assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+
+        let store_err = StoreError::EncryptionFailed;
+        let sign_err: SignCommandError = store_err.into();
+        assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+
+        let store_err = StoreError::KeyExists {
+            name: "test".to_string(),
+        };
+        let sign_err: SignCommandError = store_err.into();
+        assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+
+        let store_err = StoreError::PermissionDenied;
+        let sign_err: SignCommandError = store_err.into();
+        assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+    }
+
+    #[test]
+    fn test_passphrase_input_failed_error_display() {
+        let err = SignCommandError::PassphraseInputFailed("test error".to_string());
+        assert_eq!(err.to_string(), "Failed to read passphrase: test error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_policy_error_display() {
+        let err = SignCommandError::PolicyError("test policy error".to_string());
+        assert_eq!(err.to_string(), "Policy error: test policy error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        let err = SignCommandError::ConfigError("config parse error".to_string());
+        assert_eq!(err.to_string(), "Configuration error: config parse error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
     }
 
     // ------------------------------------------------------------------------
