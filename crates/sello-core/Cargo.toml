@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Core types, traits, and error definitions for Sello"
 keywords = ["sello", "core", "types"]
 categories = ["cryptography"]

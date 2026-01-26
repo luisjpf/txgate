@@ -1,6 +1,6 @@
 # Sello
 
-[![CI](https://github.com/sello-project/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/sello-project/sello/actions/workflows/ci.yml)
+[![CI](https://github.com/luisjpf/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/luisjpf/sello/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/sello.svg)](https://crates.io/crates/sello)
 [![Documentation](https://img.shields.io/badge/docs-user_guide-blue)](docs/USER_GUIDE.md)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
@@ -36,25 +36,25 @@ sello/
 
 ### From GitHub Releases (Recommended)
 
-Download the latest pre-built binary for your platform from the [Releases](https://github.com/sello-project/sello/releases) page.
+Download the latest pre-built binary for your platform from the [Releases](https://github.com/luisjpf/sello/releases) page.
 
 **Linux (x86_64)**
 ```bash
-curl -LO https://github.com/sello-project/sello/releases/latest/download/sello-linux-x86_64.tar.gz
+curl -LO https://github.com/luisjpf/sello/releases/latest/download/sello-linux-x86_64.tar.gz
 tar -xzf sello-linux-x86_64.tar.gz
 sudo mv sello /usr/local/bin/
 ```
 
 **macOS (Apple Silicon)**
 ```bash
-curl -LO https://github.com/sello-project/sello/releases/latest/download/sello-macos-aarch64.tar.gz
+curl -LO https://github.com/luisjpf/sello/releases/latest/download/sello-macos-aarch64.tar.gz
 tar -xzf sello-macos-aarch64.tar.gz
 sudo mv sello /usr/local/bin/
 ```
 
 **macOS (Intel)**
 ```bash
-curl -LO https://github.com/sello-project/sello/releases/latest/download/sello-macos-x86_64.tar.gz
+curl -LO https://github.com/luisjpf/sello/releases/latest/download/sello-macos-x86_64.tar.gz
 tar -xzf sello-macos-x86_64.tar.gz
 sudo mv sello /usr/local/bin/
 ```
@@ -84,7 +84,7 @@ cargo install sello
 
 ```bash
 # Clone the repository
-git clone https://github.com/sello-project/sello.git
+git clone https://github.com/luisjpf/sello.git
 cd sello
 
 # Build all crates

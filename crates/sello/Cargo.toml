@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Multi-chain transaction signing service with policy engine"
 keywords = ["sello", "signing", "blockchain", "cli", "server"]
 categories = ["command-line-utilities", "cryptography"]

@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Cryptographic operations for Sello - key management, signing, and verification"
 keywords = ["sello", "crypto", "signing", "keys"]
 categories = ["cryptography"]

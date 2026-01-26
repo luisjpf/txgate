@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Multi-chain transaction parsing and construction for Sello"
 keywords = ["sello", "blockchain", "transaction", "parser"]
 categories = ["cryptography", "parser-implementations"]
