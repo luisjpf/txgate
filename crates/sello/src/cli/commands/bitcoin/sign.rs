@@ -575,6 +575,7 @@ mod tests {
     )]
 
     use super::*;
+    use sello_core::types::ParsedTx;
     use sello_crypto::keys::SecretKey;
     use std::fs;
     use tempfile::TempDir;
@@ -751,6 +752,67 @@ blacklist = []
         let err = SignCommandError::ConfigError("config parse error".to_string());
         assert_eq!(err.to_string(), "Configuration error: config parse error");
         assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_io_error_display() {
+        let io_err = io::Error::other("test io error");
+        let err: SignCommandError = io_err.into();
+        assert!(err.to_string().contains("IO error"));
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_format_json_output() {
+        use std::collections::HashMap;
+        let parsed_tx = ParsedTx {
+            chain: "bitcoin".to_string(),
+            hash: [0x12; 32],
+            tx_type: sello_core::types::TxType::Transfer,
+            recipient: Some("bc1qtest".to_string()),
+            amount: None,
+            token: None,
+            token_address: None,
+            nonce: None,
+            chain_id: None,
+            metadata: HashMap::new(),
+        };
+        let signature = vec![0xab, 0xcd];
+        let tx_bytes = vec![0xde, 0xad];
+        let signer_address = "bc1qsigner";
+
+        let result = format_json_output(&parsed_tx, &signature, &tx_bytes, signer_address);
+        assert!(result.is_ok());
+        let json = result.unwrap();
+        assert!(json.contains("transaction_hash"));
+        assert!(json.contains("0xabcd"));
+        assert!(json.contains("bc1qsigner"));
+    }
+
+    #[test]
+    fn test_sign_output_debug() {
+        let output = SignOutput {
+            transaction_hash: "0x1234".to_string(),
+            signature: "0x5678".to_string(),
+            signed_transaction: "0x9abc".to_string(),
+            signer: "bc1qtest".to_string(),
+        };
+        let debug_str = format!("{:?}", output);
+        assert!(debug_str.contains("SignOutput"));
+        assert!(debug_str.contains("transaction_hash"));
+    }
+
+    #[test]
+    fn test_sign_output_clone() {
+        let output = SignOutput {
+            transaction_hash: "0x1234".to_string(),
+            signature: "0x5678".to_string(),
+            signed_transaction: "0x9abc".to_string(),
+            signer: "bc1qtest".to_string(),
+        };
+        let cloned = output.clone();
+        assert_eq!(cloned.transaction_hash, output.transaction_hash);
+        assert_eq!(cloned.signature, output.signature);
     }
 
     // ------------------------------------------------------------------------
