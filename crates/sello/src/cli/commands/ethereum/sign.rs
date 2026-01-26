@@ -1047,6 +1047,13 @@ whitelist_enabled = false
     }
 
     #[test]
+    fn test_passphrase_input_failed_error() {
+        let err = SignCommandError::PassphraseInputFailed("terminal error".to_string());
+        assert_eq!(err.to_string(), "Failed to read passphrase: terminal error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
     fn test_format_amount_with_decimals_edge_cases() {
         // Large amount
         assert_eq!(
