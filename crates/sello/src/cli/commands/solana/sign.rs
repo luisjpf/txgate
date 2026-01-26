@@ -57,6 +57,7 @@ use sello_policy::engine::{DefaultPolicyEngine, PolicyEngine};
 use sello_policy::history::TransactionHistory;
 
 use crate::cli::args::OutputFormat;
+use crate::cli::commands::exit_codes::{EXIT_ERROR, EXIT_POLICY_DENIED};
 
 // ============================================================================
 // Constants
@@ -73,19 +74,6 @@ const CONFIG_FILE_NAME: &str = "config.toml";
 
 /// Default ed25519 key name.
 const DEFAULT_ED25519_KEY_NAME: &str = "default-ed25519";
-
-// ============================================================================
-// Exit Codes
-// ============================================================================
-
-/// Exit code for successful signing.
-pub const EXIT_SUCCESS: i32 = 0;
-
-/// Exit code when policy denies the transaction.
-pub const EXIT_POLICY_DENIED: i32 = 1;
-
-/// Exit code for other errors.
-pub const EXIT_ERROR: i32 = 2;
 
 // ============================================================================
 // SignCommandError
@@ -324,9 +312,9 @@ impl SignCommand {
                 return Err(SignCommandError::PolicyDenied { rule, reason });
             }
             _ => {
-                return Err(SignCommandError::PolicyError(
-                    "Unexpected policy result".to_string(),
-                ));
+                return Err(SignCommandError::PolicyError(format!(
+                    "Unexpected policy result: {policy_result:?}"
+                )));
             }
         }
 
@@ -432,9 +420,9 @@ impl SignCommand {
                 return Err(SignCommandError::PolicyDenied { rule, reason });
             }
             _ => {
-                return Err(SignCommandError::PolicyError(
-                    "Unexpected policy result".to_string(),
-                ));
+                return Err(SignCommandError::PolicyError(format!(
+                    "Unexpected policy result: {policy_result:?}"
+                )));
             }
         }
 

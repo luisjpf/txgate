@@ -57,6 +57,7 @@ use sello_policy::engine::{DefaultPolicyEngine, PolicyEngine};
 use sello_policy::history::TransactionHistory;
 
 use crate::cli::args::OutputFormat;
+use crate::cli::commands::exit_codes::{EXIT_ERROR, EXIT_POLICY_DENIED};
 
 // ============================================================================
 // Constants
@@ -73,19 +74,6 @@ const CONFIG_FILE_NAME: &str = "config.toml";
 
 /// Default key name.
 const DEFAULT_KEY_NAME: &str = "default";
-
-// ============================================================================
-// Exit Codes
-// ============================================================================
-
-/// Exit code for successful signing.
-pub const EXIT_SUCCESS: i32 = 0;
-
-/// Exit code when policy denies the transaction.
-pub const EXIT_POLICY_DENIED: i32 = 1;
-
-/// Exit code for other errors.
-pub const EXIT_ERROR: i32 = 2;
 
 // ============================================================================
 // SignCommandError
@@ -130,6 +118,10 @@ pub enum SignCommandError {
     /// Passphrase input was cancelled.
     #[error("Passphrase input cancelled")]
     Cancelled,
+
+    /// Passphrase input failed.
+    #[error("Failed to read passphrase: {0}")]
+    PassphraseInputFailed(String),
 
     /// Home directory could not be determined.
     #[error("Could not determine home directory")]
@@ -310,9 +302,9 @@ impl SignCommand {
                 return Err(SignCommandError::PolicyDenied { rule, reason });
             }
             _ => {
-                return Err(SignCommandError::PolicyError(
-                    "Unknown policy result".to_string(),
-                ));
+                return Err(SignCommandError::PolicyError(format!(
+                    "Unexpected policy result: {policy_result:?}"
+                )));
             }
         }
 
@@ -417,9 +409,9 @@ impl SignCommand {
                 return Err(SignCommandError::PolicyDenied { rule, reason });
             }
             _ => {
-                return Err(SignCommandError::PolicyError(
-                    "Unknown policy result".to_string(),
-                ));
+                return Err(SignCommandError::PolicyError(format!(
+                    "Unexpected policy result: {policy_result:?}"
+                )));
             }
         }
 
@@ -483,7 +475,8 @@ fn is_initialized(base_dir: &Path) -> bool {
 /// Uses `rpassword` for secure hidden input.
 fn prompt_passphrase() -> Result<String, SignCommandError> {
     println!("Enter passphrase to unlock key:");
-    let passphrase = rpassword::read_password().map_err(|_| SignCommandError::Cancelled)?;
+    let passphrase = rpassword::read_password()
+        .map_err(|e| SignCommandError::PassphraseInputFailed(e.to_string()))?;
 
     if passphrase.is_empty() {
         return Err(SignCommandError::Cancelled);

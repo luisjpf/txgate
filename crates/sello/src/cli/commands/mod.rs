@@ -32,6 +32,7 @@
 pub mod bitcoin;
 pub mod config;
 pub mod ethereum;
+pub mod exit_codes;
 pub mod init;
 pub mod key;
 pub mod serve;

@@ -53,6 +53,12 @@ const SECRET_KEY_LEN: usize = 32;
 /// Minimum passphrase length.
 const MIN_PASSPHRASE_LENGTH: usize = 8;
 
+/// Maximum key name length.
+const MAX_KEY_NAME_LENGTH: usize = 64;
+
+/// Ed25519 key suffix.
+const ED25519_KEY_SUFFIX: &str = "-ed25519";
+
 // ============================================================================
 // ImportError
 // ============================================================================
@@ -111,6 +117,10 @@ pub enum ImportError {
     /// Storage error.
     #[error("Storage error: {0}")]
     Store(String),
+
+    /// Invalid key name.
+    #[error("Invalid key name: {0}")]
+    InvalidKeyName(String),
 }
 
 // ============================================================================
@@ -204,6 +214,10 @@ impl ImportCommand {
 
         // Determine key name based on curve type
         let base_name = self.name.as_ref().ok_or(ImportError::NameRequired)?.clone();
+
+        // Validate the key name for security
+        validate_key_name(&base_name)?;
+
         let (name, address_display, curve_display) = match self.curve {
             CurveArg::Secp256k1 => {
                 // Verify it's a valid secp256k1 key by trying to create a keypair
@@ -225,10 +239,10 @@ impl ImportCommand {
                 let solana_address = keypair.public_key().solana_address();
 
                 // For ed25519 keys, append -ed25519 to the name if not already present
-                let name = if base_name.ends_with("-ed25519") {
+                let name = if base_name.ends_with(ED25519_KEY_SUFFIX) {
                     base_name
                 } else {
-                    format!("{base_name}-ed25519")
+                    format!("{base_name}{ED25519_KEY_SUFFIX}")
                 };
 
                 (name, solana_address, "ed25519 (Solana)")
@@ -268,6 +282,46 @@ fn get_base_dir() -> Result<PathBuf, ImportError> {
     dirs::home_dir()
         .map(|home| home.join(BASE_DIR_NAME))
         .ok_or(ImportError::NoHomeDirectory)
+}
+
+/// Validate a key name for security and filesystem safety.
+///
+/// Rejects names that:
+/// - Are empty
+/// - Exceed the maximum length
+/// - Contain path traversal sequences (`..`, `/`, `\`)
+/// - Contain null bytes
+/// - Contain only whitespace
+fn validate_key_name(name: &str) -> Result<(), ImportError> {
+    // Check for empty or whitespace-only names
+    if name.trim().is_empty() {
+        return Err(ImportError::InvalidKeyName(
+            "name cannot be empty or whitespace only".to_string(),
+        ));
+    }
+
+    // Check length (account for potential suffix)
+    if name.len() > MAX_KEY_NAME_LENGTH {
+        return Err(ImportError::InvalidKeyName(format!(
+            "name exceeds maximum length of {MAX_KEY_NAME_LENGTH} characters"
+        )));
+    }
+
+    // Check for null bytes
+    if name.contains('\0') {
+        return Err(ImportError::InvalidKeyName(
+            "name cannot contain null bytes".to_string(),
+        ));
+    }
+
+    // Check for path traversal
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err(ImportError::InvalidKeyName(
+            "name cannot contain path separators or '..'".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// Parse a hex string into a 32-byte key.

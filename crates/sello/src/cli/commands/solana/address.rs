@@ -78,6 +78,10 @@ pub enum AddressError {
     #[error("Passphrase input cancelled")]
     Cancelled,
 
+    /// Passphrase input failed (terminal error).
+    #[error("Failed to read passphrase: {0}")]
+    PassphraseInputFailed(String),
+
     /// Home directory could not be determined.
     #[error("Could not determine home directory")]
     NoHomeDirectory,
@@ -259,7 +263,8 @@ fn is_initialized(base_dir: &Path) -> bool {
 /// Uses `rpassword` for secure hidden input.
 fn prompt_passphrase() -> Result<String, AddressError> {
     println!("Enter passphrase to unlock ed25519 key:");
-    let passphrase = rpassword::read_password().map_err(|_| AddressError::Cancelled)?;
+    let passphrase = rpassword::read_password()
+        .map_err(|e| AddressError::PassphraseInputFailed(e.to_string()))?;
 
     if passphrase.is_empty() {
         return Err(AddressError::Cancelled);

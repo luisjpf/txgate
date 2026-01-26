@@ -590,7 +590,7 @@ impl std::fmt::Debug for Secp256k1KeyPair {
 /// let address = pubkey.solana_address();
 /// assert!(!address.is_empty());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey {
     /// The 32-byte public key
     bytes: [u8; 32],
@@ -661,7 +661,7 @@ impl std::fmt::Debug for Ed25519PublicKey {
 /// // Get signature bytes (64 bytes)
 /// assert_eq!(signature.as_ref().len(), 64);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519Signature {
     /// The 64-byte signature
     bytes: [u8; 64],
@@ -699,9 +699,9 @@ impl std::fmt::Debug for Ed25519Signature {
 /// # Security
 ///
 /// - The signing key is stored securely using [`ed25519_dalek::SigningKey`]
-/// - The signing key implements `Zeroize`, ensuring secret material is
-///   automatically zeroed when dropped (when ed25519-dalek is built with
-///   the "zeroize" feature, which is enabled by default)
+/// - The signing key implements `Zeroize` and `ZeroizeOnDrop`, ensuring secret
+///   material is automatically zeroed when dropped (the "zeroize" feature is
+///   explicitly enabled in the workspace Cargo.toml)
 /// - `Debug` output does not expose the private key
 /// - Uses ed25519-dalek for cryptographic operations
 ///
