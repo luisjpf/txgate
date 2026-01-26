@@ -113,6 +113,27 @@ pub enum Commands {
         command: EthereumCommands,
     },
 
+    /// Bitcoin-related commands
+    ///
+    /// Commands for interacting with the Bitcoin blockchain,
+    /// including address display and transaction signing.
+    Bitcoin {
+        /// Bitcoin command to execute
+        #[command(subcommand)]
+        command: BitcoinCommands,
+    },
+
+    /// Solana-related commands
+    ///
+    /// Commands for interacting with the Solana blockchain,
+    /// including address display and transaction signing.
+    /// Note: Solana uses ed25519 keys (stored as `default-ed25519.enc`).
+    Solana {
+        /// Solana command to execute
+        #[command(subcommand)]
+        command: SolanaCommands,
+    },
+
     /// Key management commands
     ///
     /// Commands for managing cryptographic keys including
@@ -158,6 +179,68 @@ pub enum EthereumCommands {
         /// Raw transaction hex (with or without 0x prefix)
         ///
         /// The unsigned transaction in RLP-encoded hexadecimal format.
+        /// The 0x prefix is optional.
+        #[arg(value_name = "TX_HEX")]
+        transaction: String,
+
+        /// Output format
+        ///
+        /// Choose the format for the signed transaction output:
+        /// - `hex` - Raw hexadecimal (default)
+        /// - `json` - JSON with transaction details
+        #[arg(short, long, default_value = "hex", value_name = "FORMAT")]
+        format: OutputFormat,
+    },
+}
+
+/// Bitcoin-specific commands.
+#[derive(Debug, Subcommand)]
+pub enum BitcoinCommands {
+    /// Display Bitcoin address for default key
+    ///
+    /// Shows the Bitcoin address (P2WPKH/bech32 format) derived from the
+    /// default signing key. This address starts with 'bc1q' on mainnet.
+    Address,
+
+    /// Sign a Bitcoin transaction
+    ///
+    /// Signs a raw Bitcoin transaction using the default key.
+    /// The transaction should be provided as a hex-encoded raw transaction.
+    Sign {
+        /// Raw transaction hex (with or without 0x prefix)
+        ///
+        /// The unsigned transaction in hexadecimal format.
+        /// The 0x prefix is optional.
+        #[arg(value_name = "TX_HEX")]
+        transaction: String,
+
+        /// Output format
+        ///
+        /// Choose the format for the signed transaction output:
+        /// - `hex` - Raw hexadecimal (default)
+        /// - `json` - JSON with transaction details
+        #[arg(short, long, default_value = "hex", value_name = "FORMAT")]
+        format: OutputFormat,
+    },
+}
+
+/// Solana-specific commands.
+#[derive(Debug, Subcommand)]
+pub enum SolanaCommands {
+    /// Display Solana address for default ed25519 key
+    ///
+    /// Shows the Solana address (base58-encoded public key) derived from the
+    /// default ed25519 signing key. Requires a `default-ed25519.enc` key file.
+    Address,
+
+    /// Sign a Solana transaction
+    ///
+    /// Signs a raw Solana transaction using the default ed25519 key.
+    /// The transaction should be provided as a hex-encoded raw transaction.
+    Sign {
+        /// Raw transaction hex (with or without 0x prefix)
+        ///
+        /// The unsigned transaction in hexadecimal format.
         /// The 0x prefix is optional.
         #[arg(value_name = "TX_HEX")]
         transaction: String,
@@ -230,6 +313,16 @@ pub struct KeyImportArgs {
     /// you will be prompted to enter one.
     #[arg(short, long, value_name = "NAME")]
     pub name: Option<String>,
+
+    /// Elliptic curve type for the key
+    ///
+    /// Specifies which curve the private key belongs to:
+    /// - `secp256k1` (default) - For Bitcoin and Ethereum keys
+    /// - `ed25519` - For Solana keys
+    ///
+    /// Ed25519 keys will be stored with a `-ed25519` suffix.
+    #[arg(short = 'C', long, default_value = "secp256k1", value_name = "CURVE")]
+    pub curve: CurveArg,
 }
 
 impl std::fmt::Debug for KeyImportArgs {
@@ -237,6 +330,7 @@ impl std::fmt::Debug for KeyImportArgs {
         f.debug_struct("KeyImportArgs")
             .field("key", &"[REDACTED]")
             .field("name", &self.name)
+            .field("curve", &self.curve)
             .finish()
     }
 }
@@ -279,6 +373,45 @@ pub struct KeyDeleteArgs {
     /// Required when deleting the "default" key.
     #[arg(long)]
     pub force: bool,
+}
+
+/// Curve type for key import.
+///
+/// Specifies which elliptic curve the private key belongs to.
+/// This determines how the key is validated and stored.
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum CurveArg {
+    /// secp256k1 curve (used by Bitcoin and Ethereum)
+    ///
+    /// The default curve type. Keys using this curve can be used
+    /// to sign Bitcoin and Ethereum transactions.
+    #[default]
+    Secp256k1,
+
+    /// Ed25519 curve (used by Solana)
+    ///
+    /// Keys using this curve can be used to sign Solana transactions.
+    /// When importing an ed25519 key, it will be stored with a `-ed25519`
+    /// suffix in the key name.
+    Ed25519,
+}
+
+impl std::fmt::Display for CurveArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Secp256k1 => write!(f, "secp256k1"),
+            Self::Ed25519 => write!(f, "ed25519"),
+        }
+    }
+}
+
+impl From<CurveArg> for sello_crypto::signer::CurveType {
+    fn from(curve: CurveArg) -> Self {
+        match curve {
+            CurveArg::Secp256k1 => Self::Secp256k1,
+            CurveArg::Ed25519 => Self::Ed25519,
+        }
+    }
 }
 
 /// Output format for command results.
@@ -837,5 +970,60 @@ mod tests {
     fn test_key_requires_subcommand() {
         let cli = Cli::try_parse_from(["sello", "key"]);
         assert!(cli.is_err(), "Should fail when key subcommand is missing");
+    }
+
+    /// Test CurveArg display implementation.
+    #[test]
+    fn test_curve_arg_display() {
+        assert_eq!(CurveArg::Secp256k1.to_string(), "secp256k1");
+        assert_eq!(CurveArg::Ed25519.to_string(), "ed25519");
+    }
+
+    /// Test CurveArg to CurveType conversion.
+    #[test]
+    fn test_curve_arg_to_curve_type_conversion() {
+        use sello_crypto::signer::CurveType;
+
+        let curve: CurveType = CurveArg::Secp256k1.into();
+        assert_eq!(curve, CurveType::Secp256k1);
+
+        let curve: CurveType = CurveArg::Ed25519.into();
+        assert_eq!(curve, CurveType::Ed25519);
+    }
+
+    /// Test parsing of key import command with curve flag.
+    #[test]
+    fn test_parse_key_import_with_curve() {
+        let cli =
+            Cli::try_parse_from(["sello", "key", "import", "0xdeadbeef", "--curve", "ed25519"]);
+        assert!(
+            cli.is_ok(),
+            "Failed to parse 'key import --curve': {:?}",
+            cli.err()
+        );
+        let cli = cli.expect("CLI should parse");
+        match cli.command {
+            Commands::Key {
+                command: KeyCommands::Import(args),
+            } => {
+                assert_eq!(args.key, "0xdeadbeef");
+                assert!(matches!(args.curve, CurveArg::Ed25519));
+            }
+            _ => panic!("Expected Key Import command"),
+        }
+    }
+
+    /// Test KeyImportArgs debug does not expose key.
+    #[test]
+    fn test_key_import_args_debug_redacts_key() {
+        let args = KeyImportArgs {
+            key: "0xsupersecretkey".to_string(),
+            name: Some("my-key".to_string()),
+            curve: CurveArg::Secp256k1,
+        };
+        let debug_str = format!("{:?}", args);
+        assert!(debug_str.contains("[REDACTED]"));
+        assert!(!debug_str.contains("supersecretkey"));
+        assert!(debug_str.contains("my-key"));
     }
 }

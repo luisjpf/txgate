@@ -8,6 +8,8 @@
 //! - [`status`] - Display current status
 //! - [`config`] - Configuration management
 //! - [`ethereum`] - Ethereum-specific commands (address, sign)
+//! - [`bitcoin`] - Bitcoin-specific commands (address, sign)
+//! - [`solana`] - Solana-specific commands (address, sign)
 //! - [`key`] - Key management commands (list, import, export, delete)
 //! - [`serve`] - Start the signing server
 //!
@@ -27,14 +29,22 @@
 //! is responsible for converting these errors into appropriate exit codes
 //! and user-friendly error messages.
 
+pub mod bitcoin;
 pub mod config;
 pub mod ethereum;
+pub mod exit_codes;
 pub mod init;
 pub mod key;
 pub mod serve;
+pub mod solana;
 pub mod status;
 
 // Re-export command types for convenience
+pub use bitcoin::{
+    AddressCommand as BitcoinAddressCommand, AddressError as BitcoinAddressError,
+    SignCommand as BitcoinSignCommand, SignCommandError as BitcoinSignCommandError,
+    SignOutput as BitcoinSignOutput,
+};
 pub use config::{ConfigCommand, ConfigCommandError};
 pub use ethereum::{AddressCommand, AddressError, SignCommand, SignCommandError, SignOutput};
 pub use init::{InitCommand, InitError};
@@ -43,4 +53,9 @@ pub use key::{
     ListCommand, ListError,
 };
 pub use serve::{ServeCommand, ServeError};
+pub use solana::{
+    AddressCommand as SolanaAddressCommand, AddressError as SolanaAddressError,
+    SignCommand as SolanaSignCommand, SignCommandError as SolanaSignCommandError,
+    SignOutput as SolanaSignOutput,
+};
 pub use status::{StatusCommand, StatusError};

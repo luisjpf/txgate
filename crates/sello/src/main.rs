@@ -19,6 +19,12 @@
 //!
 //! # Sign an Ethereum transaction
 //! sello ethereum sign 0xdeadbeef
+//!
+//! # Display Bitcoin address
+//! sello bitcoin address
+//!
+//! # Sign a Bitcoin transaction
+//! sello bitcoin sign 0x...
 //! ```
 
 #![forbid(unsafe_code)]
@@ -28,10 +34,12 @@
 
 use clap::Parser;
 use sello::cli::commands::{
-    AddressCommand, ConfigCommand, DeleteCommand, ExportCommand, ImportCommand, InitCommand,
-    ListCommand, ServeCommand, SignCommand, SignCommandError, StatusCommand,
+    AddressCommand, BitcoinAddressCommand, BitcoinSignCommand, BitcoinSignCommandError,
+    ConfigCommand, DeleteCommand, ExportCommand, ImportCommand, InitCommand, ListCommand,
+    ServeCommand, SignCommand, SignCommandError, SolanaAddressCommand, SolanaSignCommand,
+    SolanaSignCommandError, StatusCommand,
 };
-use sello::cli::{Cli, Commands, EthereumCommands, KeyCommands};
+use sello::cli::{BitcoinCommands, Cli, Commands, EthereumCommands, KeyCommands, SolanaCommands};
 use sello::logging::{init_logging, verbosity_to_level, LogConfig, LogError, LogFormat, LogGuard};
 
 /// Exit code for policy denied (sign command).
@@ -98,6 +106,8 @@ fn main() {
             rt.block_on(cmd.run()).map_err(|e| e.to_string())
         }
         Commands::Ethereum { command } => handle_ethereum(command),
+        Commands::Bitcoin { command } => handle_bitcoin(command),
+        Commands::Solana { command } => handle_solana(command),
         Commands::Key { command } => handle_key(command),
     };
 
@@ -148,6 +158,88 @@ fn handle_ethereum(command: EthereumCommands) -> Result<(), String> {
     }
 }
 
+/// Handle Bitcoin subcommands.
+///
+/// # Arguments
+///
+/// * `command` - The Bitcoin subcommand to execute.
+///
+/// # Returns
+///
+/// `Ok(())` on success, or an error message string on failure.
+///
+/// # Exit Codes
+///
+/// This function may call `std::process::exit` directly for policy denial:
+/// - Exit code 1: Policy denied (for sign command)
+/// - Exit code 2: Other error
+fn handle_bitcoin(command: BitcoinCommands) -> Result<(), String> {
+    match command {
+        BitcoinCommands::Address => {
+            let cmd = BitcoinAddressCommand::new();
+            cmd.run().map_err(|e| e.to_string())
+        }
+        BitcoinCommands::Sign {
+            transaction,
+            format,
+        } => {
+            let cmd = BitcoinSignCommand::new(transaction, format);
+            match cmd.run() {
+                Ok(()) => Ok(()),
+                Err(BitcoinSignCommandError::PolicyDenied { rule, reason }) => {
+                    eprintln!("Policy denied: {rule} - {reason}");
+                    std::process::exit(EXIT_POLICY_DENIED);
+                }
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    std::process::exit(EXIT_ERROR);
+                }
+            }
+        }
+    }
+}
+
+/// Handle Solana subcommands.
+///
+/// # Arguments
+///
+/// * `command` - The Solana subcommand to execute.
+///
+/// # Returns
+///
+/// `Ok(())` on success, or an error message string on failure.
+///
+/// # Exit Codes
+///
+/// This function may call `std::process::exit` directly for policy denial:
+/// - Exit code 1: Policy denied (for sign command)
+/// - Exit code 2: Other error
+fn handle_solana(command: SolanaCommands) -> Result<(), String> {
+    match command {
+        SolanaCommands::Address => {
+            let cmd = SolanaAddressCommand::new();
+            cmd.run().map_err(|e| e.to_string())
+        }
+        SolanaCommands::Sign {
+            transaction,
+            format,
+        } => {
+            let cmd = SolanaSignCommand::new(transaction, format);
+            match cmd.run() {
+                Ok(()) => Ok(()),
+                Err(SolanaSignCommandError::PolicyDenied { rule, reason }) => {
+                    eprintln!("Policy denied: {rule} - {reason}");
+                    std::process::exit(EXIT_POLICY_DENIED);
+                }
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    std::process::exit(EXIT_ERROR);
+                }
+            }
+        }
+    }
+}
+
 /// Handle Key management subcommands.
 ///
 /// # Arguments
@@ -164,7 +256,7 @@ fn handle_key(command: KeyCommands) -> Result<(), String> {
             cmd.run().map_err(|e| e.to_string())
         }
         KeyCommands::Import(args) => {
-            let cmd = ImportCommand::new(args.key, args.name);
+            let cmd = ImportCommand::new(args.key, args.name, args.curve);
             cmd.run().map_err(|e| e.to_string())
         }
         KeyCommands::Export(args) => {

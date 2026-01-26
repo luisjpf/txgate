@@ -1,15 +1,15 @@
-//! # Ethereum Sign Command
+//! # Bitcoin Sign Command
 //!
-//! Implementation of the `sello ethereum sign` command that signs
-//! Ethereum transactions using the default signing key.
+//! Implementation of the `sello bitcoin sign` command that signs
+//! Bitcoin transactions using the default signing key.
 //!
 //! ## Usage
 //!
 //! ```no_run
-//! use sello::cli::commands::ethereum::SignCommand;
+//! use sello::cli::commands::bitcoin::SignCommand;
 //! use sello::cli::args::OutputFormat;
 //!
-//! let cmd = SignCommand::new("0xf86c...", OutputFormat::Hex);
+//! let cmd = SignCommand::new("0x0100000001...", OutputFormat::Hex);
 //! match cmd.run() {
 //!     Ok(()) => println!("Transaction signed successfully"),
 //!     Err(e) => eprintln!("Error: {}", e),
@@ -31,7 +31,7 @@
 //!   "transaction_hash": "0x...",
 //!   "signature": "0x...",
 //!   "signed_transaction": "0x...",
-//!   "signer": "0x..."
+//!   "signer": "bc1q..."
 //! }
 //! ```
 //!
@@ -45,7 +45,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use sello_chain::ethereum::EthereumParser;
+use sello_chain::bitcoin::BitcoinParser;
 use sello_chain::Chain;
 use sello_core::config_loader::ConfigLoader;
 use sello_core::error::StoreError;
@@ -79,7 +79,7 @@ const DEFAULT_KEY_NAME: &str = "default";
 // SignCommandError
 // ============================================================================
 
-/// Errors that can occur when signing an Ethereum transaction.
+/// Errors that can occur when signing a Bitcoin transaction.
 #[derive(Debug, thiserror::Error)]
 pub enum SignCommandError {
     /// Sello is not initialized.
@@ -153,7 +153,16 @@ impl From<StoreError> for SignCommandError {
             StoreError::KeyNotFound { .. } => Self::KeyNotFound,
             StoreError::DecryptionFailed => Self::InvalidPassphrase,
             StoreError::IoError(e) => Self::Io(e),
-            other => Self::SigningFailed(other.to_string()),
+            StoreError::EncryptionFailed => {
+                Self::SigningFailed("Key encryption failed".to_string())
+            }
+            StoreError::KeyExists { name } => {
+                Self::SigningFailed(format!("Key already exists: {name}"))
+            }
+            StoreError::InvalidFormat => Self::SigningFailed("Invalid key file format".to_string()),
+            StoreError::PermissionDenied => {
+                Self::SigningFailed("Permission denied accessing key file".to_string())
+            }
         }
     }
 }
@@ -162,18 +171,18 @@ impl From<StoreError> for SignCommandError {
 // SignCommand
 // ============================================================================
 
-/// The `sello ethereum sign` command handler.
+/// The `sello bitcoin sign` command handler.
 ///
-/// This command signs an Ethereum transaction using the default signing key,
+/// This command signs a Bitcoin transaction using the default signing key,
 /// after checking that the transaction passes policy rules.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use sello::cli::commands::ethereum::SignCommand;
+/// use sello::cli::commands::bitcoin::SignCommand;
 /// use sello::cli::args::OutputFormat;
 ///
-/// let cmd = SignCommand::new("0xf86c...", OutputFormat::Hex);
+/// let cmd = SignCommand::new("0x0100000001...", OutputFormat::Hex);
 /// match cmd.run() {
 ///     Ok(()) => println!("Success"),
 ///     Err(e) => {
@@ -272,11 +281,11 @@ impl SignCommand {
 
         let signer = Secp256k1Signer::new(keypair);
         let signer_address = signer
-            .address(SignerChain::Ethereum)
+            .address(SignerChain::Bitcoin)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
         // 8. Parse the transaction
-        let parser = EthereumParser::new();
+        let parser = BitcoinParser::mainnet();
         let parsed_tx = parser
             .parse(&tx_bytes)
             .map_err(|e| SignCommandError::InvalidTransaction(e.to_string()))?;
@@ -294,6 +303,7 @@ impl SignCommand {
             .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         // 10. Handle policy result
+        // Note: PolicyResult is marked #[non_exhaustive], so we need a catch-all
         match policy_result {
             PolicyResult::Allowed => {
                 // Continue with signing
@@ -378,11 +388,11 @@ impl SignCommand {
 
         let signer = Secp256k1Signer::new(keypair);
         let signer_address = signer
-            .address(SignerChain::Ethereum)
+            .address(SignerChain::Bitcoin)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
         // 7. Parse the transaction
-        let parser = EthereumParser::new();
+        let parser = BitcoinParser::mainnet();
         let parsed_tx = parser
             .parse(&tx_bytes)
             .map_err(|e| SignCommandError::InvalidTransaction(e.to_string()))?;
@@ -401,6 +411,7 @@ impl SignCommand {
             .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         // 9. Handle policy result
+        // Note: PolicyResult is marked #[non_exhaustive], so we need a catch-all
         match policy_result {
             PolicyResult::Allowed => {
                 // Continue with signing
@@ -528,45 +539,6 @@ fn format_json_output(
         .map_err(|e| SignCommandError::SigningFailed(format!("JSON serialization failed: {e}")))
 }
 
-/// Format an amount with decimals for display.
-///
-/// # Arguments
-///
-/// * `amount` - The amount as a string (in wei/smallest unit)
-/// * `decimals` - The number of decimal places
-///
-/// # Returns
-///
-/// A formatted string with the decimal point in the correct position.
-#[must_use]
-pub fn format_amount_with_decimals(amount: &str, decimals: u8) -> String {
-    let decimals = decimals as usize;
-
-    // Handle zero
-    if amount == "0" {
-        return "0".to_string();
-    }
-
-    // Pad with leading zeros if needed
-    let padded = if amount.len() <= decimals {
-        format!("{:0>width$}", amount, width = decimals + 1)
-    } else {
-        amount.to_string()
-    };
-
-    // Insert decimal point
-    let (integer_part, decimal_part) = padded.split_at(padded.len() - decimals);
-
-    // Remove trailing zeros from decimal part
-    let decimal_trimmed = decimal_part.trim_end_matches('0');
-
-    if decimal_trimmed.is_empty() {
-        integer_part.to_string()
-    } else {
-        format!("{integer_part}.{decimal_trimmed}")
-    }
-}
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -591,6 +563,7 @@ mod tests {
     )]
 
     use super::*;
+    use sello_core::types::ParsedTx;
     use sello_crypto::keys::SecretKey;
     use std::fs;
     use tempfile::TempDir;
@@ -732,6 +705,102 @@ blacklist = []
         let store_err = StoreError::InvalidFormat;
         let sign_err: SignCommandError = store_err.into();
         assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+
+        let store_err = StoreError::EncryptionFailed;
+        let sign_err: SignCommandError = store_err.into();
+        assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+
+        let store_err = StoreError::KeyExists {
+            name: "test".to_string(),
+        };
+        let sign_err: SignCommandError = store_err.into();
+        assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+
+        let store_err = StoreError::PermissionDenied;
+        let sign_err: SignCommandError = store_err.into();
+        assert!(matches!(sign_err, SignCommandError::SigningFailed(_)));
+    }
+
+    #[test]
+    fn test_passphrase_input_failed_error_display() {
+        let err = SignCommandError::PassphraseInputFailed("test error".to_string());
+        assert_eq!(err.to_string(), "Failed to read passphrase: test error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_policy_error_display() {
+        let err = SignCommandError::PolicyError("test policy error".to_string());
+        assert_eq!(err.to_string(), "Policy error: test policy error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        let err = SignCommandError::ConfigError("config parse error".to_string());
+        assert_eq!(err.to_string(), "Configuration error: config parse error");
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_io_error_display() {
+        let io_err = io::Error::other("test io error");
+        let err: SignCommandError = io_err.into();
+        assert!(err.to_string().contains("IO error"));
+        assert_eq!(err.exit_code(), EXIT_ERROR);
+    }
+
+    #[test]
+    fn test_format_json_output() {
+        use std::collections::HashMap;
+        let parsed_tx = ParsedTx {
+            chain: "bitcoin".to_string(),
+            hash: [0x12; 32],
+            tx_type: sello_core::types::TxType::Transfer,
+            recipient: Some("bc1qtest".to_string()),
+            amount: None,
+            token: None,
+            token_address: None,
+            nonce: None,
+            chain_id: None,
+            metadata: HashMap::new(),
+        };
+        let signature = vec![0xab, 0xcd];
+        let tx_bytes = vec![0xde, 0xad];
+        let signer_address = "bc1qsigner";
+
+        let result = format_json_output(&parsed_tx, &signature, &tx_bytes, signer_address);
+        assert!(result.is_ok());
+        let json = result.unwrap();
+        assert!(json.contains("transaction_hash"));
+        assert!(json.contains("0xabcd"));
+        assert!(json.contains("bc1qsigner"));
+    }
+
+    #[test]
+    fn test_sign_output_debug() {
+        let output = SignOutput {
+            transaction_hash: "0x1234".to_string(),
+            signature: "0x5678".to_string(),
+            signed_transaction: "0x9abc".to_string(),
+            signer: "bc1qtest".to_string(),
+        };
+        let debug_str = format!("{:?}", output);
+        assert!(debug_str.contains("SignOutput"));
+        assert!(debug_str.contains("transaction_hash"));
+    }
+
+    #[test]
+    fn test_sign_output_clone() {
+        let output = SignOutput {
+            transaction_hash: "0x1234".to_string(),
+            signature: "0x5678".to_string(),
+            signed_transaction: "0x9abc".to_string(),
+            signer: "bc1qtest".to_string(),
+        };
+        let cloned = output.clone();
+        assert_eq!(cloned.transaction_hash, output.transaction_hash);
+        assert_eq!(cloned.signature, output.signature);
     }
 
     // ------------------------------------------------------------------------
@@ -779,15 +848,6 @@ blacklist = []
         ));
     }
 
-    #[test]
-    fn test_decode_hex_input_odd_length() {
-        let result = decode_hex_input("0xabc");
-        assert!(matches!(
-            result,
-            Err(SignCommandError::InvalidTransaction(_))
-        ));
-    }
-
     // ------------------------------------------------------------------------
     // Output Formatting Tests
     // ------------------------------------------------------------------------
@@ -802,41 +862,6 @@ blacklist = []
     fn test_format_hex_output_empty() {
         let bytes: Vec<u8> = vec![];
         assert_eq!(format_hex_output(&bytes), "0x");
-    }
-
-    #[test]
-    fn test_format_amount_with_decimals_zero() {
-        assert_eq!(format_amount_with_decimals("0", 18), "0");
-    }
-
-    #[test]
-    fn test_format_amount_with_decimals_wei() {
-        // 1 wei = 0.000000000000000001 ETH
-        assert_eq!(format_amount_with_decimals("1", 18), "0.000000000000000001");
-    }
-
-    #[test]
-    fn test_format_amount_with_decimals_one_eth() {
-        // 1 ETH = 1000000000000000000 wei
-        assert_eq!(format_amount_with_decimals("1000000000000000000", 18), "1");
-    }
-
-    #[test]
-    fn test_format_amount_with_decimals_fractional() {
-        // 1.5 ETH = 1500000000000000000 wei
-        assert_eq!(
-            format_amount_with_decimals("1500000000000000000", 18),
-            "1.5"
-        );
-    }
-
-    #[test]
-    fn test_format_amount_with_decimals_usdc() {
-        // USDC has 6 decimals
-        // 1 USDC = 1000000
-        assert_eq!(format_amount_with_decimals("1000000", 6), "1");
-        // 1.50 USDC
-        assert_eq!(format_amount_with_decimals("1500000", 6), "1.5");
     }
 
     // ------------------------------------------------------------------------
@@ -946,67 +971,8 @@ whitelist_enabled = false
     }
 
     // ------------------------------------------------------------------------
-    // Additional Coverage Tests - Phase 3
+    // SignOutput Tests
     // ------------------------------------------------------------------------
-
-    #[test]
-    fn test_sign_command_invalid_transaction_parsing() {
-        // Test with data that passes hex decoding but fails transaction parsing
-        let temp_dir = create_test_dir();
-        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
-
-        // Valid hex but not a valid Ethereum transaction
-        let cmd = SignCommand::new("0xdeadbeef", OutputFormat::Hex);
-        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
-
-        // Should fail at transaction parsing stage
-        assert!(matches!(
-            result,
-            Err(SignCommandError::InvalidTransaction(_))
-        ));
-    }
-
-    #[test]
-    fn test_sign_command_successful_signing() {
-        let temp_dir = create_test_dir();
-        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
-
-        // A valid legacy Ethereum transaction (to 0x0..01 with 1 wei)
-        // This is a minimal valid RLP-encoded transaction
-        let valid_tx = "0xf86c808504a817c80082520894000000000000000000000000000000000000000101808025a0b8e4e9d39e3e7b5d3a1e3d1c5c3b5a3e2d1c0b9a8f7e6d5c4b3a2918273645500fa05f6e7d8c9b0a1f2e3d4c5b6a7980918273645566778899aabbccddeeff00112233";
-
-        let cmd = SignCommand::new(valid_tx, OutputFormat::Hex);
-        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
-
-        // This may fail due to chain ID mismatch or other parsing issues
-        // but it tests more code paths
-        match result {
-            Ok(output) => {
-                assert!(output.signature.starts_with("0x"));
-                assert!(output.transaction_hash.starts_with("0x"));
-                assert!(output.signer.starts_with("0x"));
-            }
-            Err(SignCommandError::InvalidTransaction(_)) => {
-                // Expected if transaction format doesn't match our parser
-            }
-            Err(other) => {
-                panic!("Unexpected error: {other}");
-            }
-        }
-    }
-
-    #[test]
-    fn test_sign_command_with_json_format() {
-        let temp_dir = create_test_dir();
-        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
-
-        // Test JSON output format
-        let cmd = SignCommand::new("0xdeadbeef", OutputFormat::Json);
-
-        // This will fail at parsing, but tests the OutputFormat::Json path
-        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
-        assert!(result.is_err());
-    }
 
     #[test]
     fn test_sign_output_serialization() {
@@ -1014,7 +980,7 @@ whitelist_enabled = false
             transaction_hash: "0x1234".to_string(),
             signature: "0x5678".to_string(),
             signed_transaction: "0x9abc".to_string(),
-            signer: "0xdef0".to_string(),
+            signer: "bc1qtest".to_string(),
         };
 
         let json = serde_json::to_string(&output).expect("serialization should succeed");
@@ -1022,55 +988,6 @@ whitelist_enabled = false
         assert!(json.contains("signature"));
         assert!(json.contains("signed_transaction"));
         assert!(json.contains("signer"));
-    }
-
-    #[test]
-    fn test_sign_command_error_io() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
-        let sign_err = SignCommandError::Io(io_err);
-        assert!(sign_err.to_string().contains("IO error"));
-        assert_eq!(sign_err.exit_code(), EXIT_ERROR);
-    }
-
-    #[test]
-    fn test_sign_command_error_config() {
-        let err = SignCommandError::ConfigError("invalid config".to_string());
-        assert!(err.to_string().contains("Configuration error"));
-        assert_eq!(err.exit_code(), EXIT_ERROR);
-    }
-
-    #[test]
-    fn test_sign_command_error_policy() {
-        let err = SignCommandError::PolicyError("policy failed".to_string());
-        assert!(err.to_string().contains("Policy error"));
-        assert_eq!(err.exit_code(), EXIT_ERROR);
-    }
-
-    #[test]
-    fn test_passphrase_input_failed_error() {
-        let err = SignCommandError::PassphraseInputFailed("terminal error".to_string());
-        assert_eq!(err.to_string(), "Failed to read passphrase: terminal error");
-        assert_eq!(err.exit_code(), EXIT_ERROR);
-    }
-
-    #[test]
-    fn test_format_amount_with_decimals_edge_cases() {
-        // Large amount
-        assert_eq!(
-            format_amount_with_decimals("123456789012345678901234567890", 18),
-            "123456789012.34567890123456789"
-        );
-
-        // Amount with all zeros in decimal part
-        assert_eq!(
-            format_amount_with_decimals("100000000000000000000", 18),
-            "100"
-        );
-
-        // Very small decimals
-        assert_eq!(format_amount_with_decimals("10", 0), "10");
-        assert_eq!(format_amount_with_decimals("10", 1), "1");
-        assert_eq!(format_amount_with_decimals("100", 2), "1");
     }
 
     #[test]
@@ -1089,92 +1006,140 @@ whitelist_enabled = false
         assert!(matches!(cloned.format, OutputFormat::Json));
     }
 
-    #[test]
-    fn test_decode_hex_uppercase() {
-        let result = decode_hex_input("0xDEADBEEF");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), vec![0xde, 0xad, 0xbe, 0xef]);
-    }
+    // ------------------------------------------------------------------------
+    // Config Error Tests
+    // ------------------------------------------------------------------------
 
     #[test]
-    fn test_decode_hex_mixed_case() {
-        let result = decode_hex_input("0xDeAdBeEf");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), vec![0xde, 0xad, 0xbe, 0xef]);
-    }
-
-    #[test]
-    fn test_sign_command_with_policy_blacklist() {
+    fn test_sign_command_invalid_config() {
         let temp_dir = create_test_dir();
         let base_dir = temp_dir.path().to_path_buf();
         let keys_dir = base_dir.join(KEYS_DIR_NAME);
-        let passphrase = "test-passphrase-123";
 
         // Create directory structure
         fs::create_dir_all(&keys_dir).expect("failed to create keys dir");
 
-        // Create config with blacklist
-        let config_content = r#"
-[server]
-socket_path = "~/.sello/sello.sock"
-timeout_secs = 30
+        // Create INVALID config file (missing required fields)
+        let invalid_config = "this is not valid toml [[[";
+        fs::write(base_dir.join(CONFIG_FILE_NAME), invalid_config).expect("failed to write config");
 
-[keys]
-directory = "~/.sello/keys"
-default_key = "default"
-
-[policy]
-whitelist_enabled = false
-whitelist = []
-blacklist = ["0x0000000000000000000000000000000000000001"]
-"#;
-        fs::write(base_dir.join(CONFIG_FILE_NAME), config_content).expect("failed to write config");
-
-        // Generate and store a key
+        // Store a key
         let secret_key = SecretKey::generate();
         let store = FileKeyStore::with_path(keys_dir).expect("failed to create key store");
         store
-            .store(DEFAULT_KEY_NAME, &secret_key, passphrase)
+            .store(DEFAULT_KEY_NAME, &secret_key, "test-passphrase")
             .expect("failed to store key");
 
-        // Valid hex but transaction parsing will fail
         let cmd = SignCommand::new("0xdeadbeef", OutputFormat::Hex);
-        let result = cmd.run_with_passphrase(&base_dir, passphrase);
+        let result = cmd.run_with_base_dir(&base_dir);
 
-        // Should fail at transaction parsing, testing config loading path
-        assert!(result.is_err());
+        // Should fail with ConfigError because config is invalid TOML
+        assert!(matches!(result, Err(SignCommandError::ConfigError(_))));
+    }
+
+    // ------------------------------------------------------------------------
+    // Invalid Transaction Parsing Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_invalid_bitcoin_transaction() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use valid hex that decodes but isn't a valid Bitcoin transaction
+        // (just 32 random bytes)
+        let invalid_tx_hex = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+
+        let cmd = SignCommand::new(invalid_tx_hex, OutputFormat::Hex);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        // Should fail with InvalidTransaction because the bytes aren't a valid Bitcoin tx
+        assert!(
+            matches!(result, Err(SignCommandError::InvalidTransaction(_))),
+            "Expected InvalidTransaction, got: {:?}",
+            result
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // JSON Output Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_json_output_format() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use a valid Bitcoin transaction hex
+        let valid_tx_hex = "0100000001000000000000000000000000000000000000000000000000\
+            0000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a\
+            0100000043410496b538e853519c726a2c91e61ec11600ae1390813a62\
+            7c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166\
+            bf621e73a82cbf2342c858eeac00000000";
+
+        let cmd = SignCommand::new(valid_tx_hex, OutputFormat::Json);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        // Should succeed with JSON output
+        assert!(result.is_ok(), "Expected success, got: {:?}", result.err());
+
+        let output = result.unwrap();
+        assert!(!output.signature.is_empty());
+        assert!(!output.transaction_hash.is_empty());
+        assert!(!output.signer.is_empty());
+        assert!(output.signer.starts_with("bc1")); // Bitcoin bech32 address
     }
 
     #[test]
-    fn test_format_json_output_valid() {
-        use std::collections::HashMap;
+    fn test_sign_command_hex_output_format() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
 
-        let parsed_tx = ParsedTx {
-            hash: [
-                0x12, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00,
-            ],
-            chain: "ethereum".to_string(),
-            tx_type: sello_core::types::TxType::Transfer,
-            recipient: Some("0xabc".to_string()),
-            amount: Some(sello_core::U256::from(100_u64)),
-            token_address: None,
-            token: Some("ETH".to_string()),
-            nonce: Some(1),
-            chain_id: Some(1),
-            metadata: HashMap::new(),
-        };
-        let signature = vec![0x56, 0x78];
-        let tx_bytes = vec![0x9a, 0xbc];
-        let signer_address = "0xdef0";
+        // Use a valid Bitcoin transaction hex
+        let valid_tx_hex = "0100000001000000000000000000000000000000000000000000000000\
+            0000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a\
+            0100000043410496b538e853519c726a2c91e61ec11600ae1390813a62\
+            7c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166\
+            bf621e73a82cbf2342c858eeac00000000";
 
-        let result = format_json_output(&parsed_tx, &signature, &tx_bytes, signer_address);
-        assert!(result.is_ok());
+        let cmd = SignCommand::new(valid_tx_hex, OutputFormat::Hex);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
 
-        let json = result.unwrap();
-        assert!(json.contains("transaction_hash"));
-        assert!(json.contains("0x5678"));
-        assert!(json.contains("0xdef0"));
+        // Should succeed with hex output
+        assert!(result.is_ok(), "Expected success, got: {:?}", result.err());
+
+        let output = result.unwrap();
+        assert!(output.signature.starts_with("0x"));
+        assert!(output.transaction_hash.starts_with("0x"));
+    }
+
+    // ------------------------------------------------------------------------
+    // End-to-end Flow Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sign_command_full_signing_flow() {
+        let temp_dir = create_test_dir();
+        let (base_dir, passphrase) = setup_initialized_env(&temp_dir);
+
+        // Use a valid Bitcoin transaction hex
+        let valid_tx_hex = "0100000001000000000000000000000000000000000000000000000000\
+            0000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a\
+            0100000043410496b538e853519c726a2c91e61ec11600ae1390813a62\
+            7c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166\
+            bf621e73a82cbf2342c858eeac00000000";
+
+        let cmd = SignCommand::new(valid_tx_hex, OutputFormat::Json);
+        let result = cmd.run_with_passphrase(&base_dir, &passphrase);
+
+        assert!(result.is_ok(), "Failed: {:?}", result.err());
+
+        let output = result.unwrap();
+
+        // Verify output structure
+        assert!(output.transaction_hash.starts_with("0x"));
+        assert!(output.signature.starts_with("0x"));
+        assert!(output.signed_transaction.starts_with("0x"));
+        assert!(output.signer.starts_with("bc1")); // Bitcoin address
     }
 }

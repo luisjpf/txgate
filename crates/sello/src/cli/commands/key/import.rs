@@ -6,14 +6,21 @@
 //!
 //! ```no_run
 //! use sello::cli::commands::key::ImportCommand;
+//! use sello::cli::args::CurveArg;
 //!
-//! let cmd = ImportCommand::new("0xabc123...".to_string(), Some("my-key".to_string()));
+//! // Import a secp256k1 key (for Ethereum/Bitcoin)
+//! let cmd = ImportCommand::new("0xabc123...".to_string(), Some("my-key".to_string()), CurveArg::Secp256k1);
 //! cmd.run().expect("import failed");
+//!
+//! // Import an ed25519 key (for Solana)
+//! let cmd = ImportCommand::new("0xdef456...".to_string(), Some("my-key".to_string()), CurveArg::Ed25519);
+//! cmd.run().expect("import failed");
+//! // Key will be stored as "my-key-ed25519"
 //! ```
 //!
 //! ## Security
 //!
-//! - Keys are validated as valid secp256k1 scalars before storage
+//! - Keys are validated as valid scalars for the specified curve before storage
 //! - Keys are encrypted with a passphrase before storing
 //! - Passphrase must be at least 8 characters and confirmed
 //! - Intermediate key bytes are zeroized after use to prevent memory leaks
@@ -23,10 +30,12 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use sello_crypto::keypair::{KeyPair, Secp256k1KeyPair};
+use sello_crypto::keypair::{Ed25519KeyPair, KeyPair, Secp256k1KeyPair};
 use sello_crypto::keys::SecretKey;
 use sello_crypto::store::{FileKeyStore, KeyStore};
 use zeroize::Zeroize;
+
+use crate::cli::args::CurveArg;
 
 // ============================================================================
 // Constants
@@ -43,6 +52,12 @@ const SECRET_KEY_LEN: usize = 32;
 
 /// Minimum passphrase length.
 const MIN_PASSPHRASE_LENGTH: usize = 8;
+
+/// Maximum key name length.
+const MAX_KEY_NAME_LENGTH: usize = 64;
+
+/// Ed25519 key suffix.
+const ED25519_KEY_SUFFIX: &str = "-ed25519";
 
 // ============================================================================
 // ImportError
@@ -63,7 +78,7 @@ pub enum ImportError {
     #[error("Invalid key length: expected 32 bytes, got {0}")]
     InvalidKeyLength(usize),
 
-    /// Invalid private key (not a valid secp256k1 scalar).
+    /// Invalid private key (not a valid scalar for the specified curve).
     #[error("Invalid private key: {0}")]
     InvalidKey(String),
 
@@ -102,6 +117,10 @@ pub enum ImportError {
     /// Storage error.
     #[error("Storage error: {0}")]
     Store(String),
+
+    /// Invalid key name.
+    #[error("Invalid key name: {0}")]
+    InvalidKeyName(String),
 }
 
 // ============================================================================
@@ -119,6 +138,9 @@ pub struct ImportCommand {
 
     /// Optional name for the key.
     pub name: Option<String>,
+
+    /// The elliptic curve type of the key.
+    pub curve: CurveArg,
 }
 
 impl std::fmt::Debug for ImportCommand {
@@ -126,6 +148,7 @@ impl std::fmt::Debug for ImportCommand {
         f.debug_struct("ImportCommand")
             .field("key_hex", &"[REDACTED]")
             .field("name", &self.name)
+            .field("curve", &self.curve)
             .finish()
     }
 }
@@ -133,8 +156,12 @@ impl std::fmt::Debug for ImportCommand {
 impl ImportCommand {
     /// Create a new import command.
     #[must_use]
-    pub const fn new(key_hex: String, name: Option<String>) -> Self {
-        Self { key_hex, name }
+    pub const fn new(key_hex: String, name: Option<String>, curve: CurveArg) -> Self {
+        Self {
+            key_hex,
+            name,
+            curve,
+        }
     }
 
     /// Execute the import command.
@@ -161,7 +188,7 @@ impl ImportCommand {
     ///
     /// Returns an error if:
     /// - Sello is not initialized
-    /// - The hex key is invalid or not a valid secp256k1 scalar
+    /// - The hex key is invalid or not a valid scalar for the specified curve
     /// - A key with the same name already exists
     /// - No key name was provided
     /// - I/O or storage errors occur
@@ -185,16 +212,42 @@ impl ImportCommand {
         // Zeroize the intermediate key bytes now that SecretKey has a copy
         key_bytes.zeroize();
 
-        // Verify it's a valid secp256k1 key by trying to create a keypair
-        let keypair = Secp256k1KeyPair::from_secret_key(&secret_key)
-            .map_err(|e| ImportError::InvalidKey(e.to_string()))?;
+        // Determine key name based on curve type
+        let base_name = self.name.as_ref().ok_or(ImportError::NameRequired)?.clone();
 
-        // Get the Ethereum address for display
-        let eth_address = keypair.public_key().ethereum_address();
-        let eth_address_hex = format!("0x{}", hex::encode(eth_address));
+        // Validate the key name for security
+        validate_key_name(&base_name)?;
 
-        // Determine key name
-        let name = self.name.as_ref().ok_or(ImportError::NameRequired)?.clone();
+        let (name, address_display, curve_display) = match self.curve {
+            CurveArg::Secp256k1 => {
+                // Verify it's a valid secp256k1 key by trying to create a keypair
+                let keypair = Secp256k1KeyPair::from_secret_key(&secret_key)
+                    .map_err(|e| ImportError::InvalidKey(e.to_string()))?;
+
+                // Get the Ethereum address for display
+                let eth_address = keypair.public_key().ethereum_address();
+                let address_hex = format!("0x{}", hex::encode(eth_address));
+
+                (base_name, address_hex, "secp256k1 (Ethereum/Bitcoin)")
+            }
+            CurveArg::Ed25519 => {
+                // Verify it's a valid ed25519 key by trying to create a keypair
+                let keypair = Ed25519KeyPair::from_secret_key(&secret_key)
+                    .map_err(|e| ImportError::InvalidKey(e.to_string()))?;
+
+                // Get the Solana address for display
+                let solana_address = keypair.public_key().solana_address();
+
+                // For ed25519 keys, append -ed25519 to the name if not already present
+                let name = if base_name.ends_with(ED25519_KEY_SUFFIX) {
+                    base_name
+                } else {
+                    format!("{base_name}{ED25519_KEY_SUFFIX}")
+                };
+
+                (name, solana_address, "ed25519 (Solana)")
+            }
+        };
 
         // Create key store
         let key_store =
@@ -213,7 +266,8 @@ impl ImportCommand {
         println!("Key imported successfully!");
         println!();
         println!("  Name:     {name}");
-        println!("  Address:  {eth_address_hex}");
+        println!("  Curve:    {curve_display}");
+        println!("  Address:  {address_display}");
 
         Ok(())
     }
@@ -228,6 +282,46 @@ fn get_base_dir() -> Result<PathBuf, ImportError> {
     dirs::home_dir()
         .map(|home| home.join(BASE_DIR_NAME))
         .ok_or(ImportError::NoHomeDirectory)
+}
+
+/// Validate a key name for security and filesystem safety.
+///
+/// Rejects names that:
+/// - Are empty
+/// - Exceed the maximum length
+/// - Contain path traversal sequences (`..`, `/`, `\`)
+/// - Contain null bytes
+/// - Contain only whitespace
+fn validate_key_name(name: &str) -> Result<(), ImportError> {
+    // Check for empty or whitespace-only names
+    if name.trim().is_empty() {
+        return Err(ImportError::InvalidKeyName(
+            "name cannot be empty or whitespace only".to_string(),
+        ));
+    }
+
+    // Check length (account for potential suffix)
+    if name.len() > MAX_KEY_NAME_LENGTH {
+        return Err(ImportError::InvalidKeyName(format!(
+            "name exceeds maximum length of {MAX_KEY_NAME_LENGTH} characters"
+        )));
+    }
+
+    // Check for null bytes
+    if name.contains('\0') {
+        return Err(ImportError::InvalidKeyName(
+            "name cannot contain null bytes".to_string(),
+        ));
+    }
+
+    // Check for path traversal
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err(ImportError::InvalidKeyName(
+            "name cannot contain path separators or '..'".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// Parse a hex string into a 32-byte key.
@@ -377,16 +471,24 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         // Don't create keys directory
 
-        let cmd = ImportCommand::new(test_key_hex(), Some("test".to_string()));
+        let cmd = ImportCommand::new(
+            test_key_hex(),
+            Some("test".to_string()),
+            CurveArg::Secp256k1,
+        );
         let result = cmd.run_with_base_dir_and_passphrase(temp_dir.path(), "password123");
         assert!(matches!(result, Err(ImportError::NotInitialized)));
     }
 
     #[test]
-    fn test_import_success() {
+    fn test_import_success_secp256k1() {
         let temp_dir = setup_test_env();
 
-        let cmd = ImportCommand::new(test_key_hex(), Some("my-key".to_string()));
+        let cmd = ImportCommand::new(
+            test_key_hex(),
+            Some("my-key".to_string()),
+            CurveArg::Secp256k1,
+        );
         let result = cmd.run_with_base_dir_and_passphrase(temp_dir.path(), "password123");
         assert!(result.is_ok());
 
@@ -396,12 +498,56 @@ mod tests {
     }
 
     #[test]
+    fn test_import_success_ed25519() {
+        let temp_dir = setup_test_env();
+
+        let cmd = ImportCommand::new(
+            test_key_hex(),
+            Some("my-key".to_string()),
+            CurveArg::Ed25519,
+        );
+        let result = cmd.run_with_base_dir_and_passphrase(temp_dir.path(), "password123");
+        assert!(result.is_ok());
+
+        // Verify the key file exists with -ed25519 suffix
+        let key_file = temp_dir
+            .path()
+            .join(KEYS_DIR_NAME)
+            .join("my-key-ed25519.enc");
+        assert!(key_file.exists());
+    }
+
+    #[test]
+    fn test_import_ed25519_already_has_suffix() {
+        let temp_dir = setup_test_env();
+
+        let cmd = ImportCommand::new(
+            test_key_hex(),
+            Some("my-key-ed25519".to_string()),
+            CurveArg::Ed25519,
+        );
+        let result = cmd.run_with_base_dir_and_passphrase(temp_dir.path(), "password123");
+        assert!(result.is_ok());
+
+        // Verify the key file exists without doubling the suffix
+        let key_file = temp_dir
+            .path()
+            .join(KEYS_DIR_NAME)
+            .join("my-key-ed25519.enc");
+        assert!(key_file.exists());
+    }
+
+    #[test]
     fn test_import_duplicate_name() {
         let temp_dir = setup_test_env();
         let _keys_dir = temp_dir.path().join(KEYS_DIR_NAME);
 
         // Import first key
-        let cmd = ImportCommand::new(test_key_hex(), Some("my-key".to_string()));
+        let cmd = ImportCommand::new(
+            test_key_hex(),
+            Some("my-key".to_string()),
+            CurveArg::Secp256k1,
+        );
         cmd.run_with_base_dir_and_passphrase(temp_dir.path(), "password123")
             .expect("First import failed");
 
@@ -409,6 +555,7 @@ mod tests {
         let cmd2 = ImportCommand::new(
             "0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210".to_string(),
             Some("my-key".to_string()),
+            CurveArg::Secp256k1,
         );
         let result = cmd2.run_with_base_dir_and_passphrase(temp_dir.path(), "password456");
         assert!(matches!(result, Err(ImportError::KeyExists(_))));
@@ -418,7 +565,7 @@ mod tests {
     fn test_import_no_name() {
         let temp_dir = setup_test_env();
 
-        let cmd = ImportCommand::new(test_key_hex(), None);
+        let cmd = ImportCommand::new(test_key_hex(), None, CurveArg::Secp256k1);
         let result = cmd.run_with_base_dir_and_passphrase(temp_dir.path(), "password123");
         assert!(matches!(result, Err(ImportError::NameRequired)));
     }

@@ -20,8 +20,9 @@
 //!
 //! ```no_run
 //! use sello::cli::commands::key::ImportCommand;
+//! use sello::cli::args::CurveArg;
 //!
-//! let cmd = ImportCommand::new("0xabc123...".to_string(), Some("my-key".to_string()));
+//! let cmd = ImportCommand::new("0xabc123...".to_string(), Some("my-key".to_string()), CurveArg::Secp256k1);
 //! cmd.run().expect("import failed");
 //! ```
 

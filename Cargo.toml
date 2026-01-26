@@ -48,7 +48,7 @@ toml = "0.8"
 
 # Cryptography
 k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
-ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+ed25519-dalek = { version = "2.1", features = ["rand_core", "zeroize"] }
 chacha20poly1305 = "0.10"
 argon2 = "0.5"
 zeroize = { version = "1.8", features = ["derive"] }
@@ -91,6 +91,7 @@ tracing-appender = "0.2"
 # Encoding
 hex = "0.4"
 base64 = "0.22"
+bs58 = "0.5"
 
 # Hashing (for audit logging)
 hmac = "0.12"

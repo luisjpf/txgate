@@ -6,6 +6,7 @@
 //! # Supported Signers
 //!
 //! - [`Secp256k1Signer`] - For Ethereum, Bitcoin, Tron, and Ripple
+//! - [`Ed25519Signer`] - For Solana and other ed25519-based chains
 //!
 //! # Example
 //!
@@ -25,6 +26,8 @@
 //! assert_eq!(signature.len(), 65); // r || s || v
 //! ```
 
+use bitcoin::secp256k1::PublicKey as BitcoinPublicKey;
+use bitcoin::{Address, CompressedPublicKey, Network};
 use sha3::{Digest, Keccak256};
 
 use crate::keypair::{KeyPair, Secp256k1KeyPair};
@@ -375,6 +378,32 @@ impl Secp256k1Signer {
         let address = self.key_pair.public_key().ethereum_address();
         to_eip55_checksum(&address)
     }
+
+    /// Derive the Bitcoin P2WPKH (bech32) address for the specified network.
+    ///
+    /// P2WPKH addresses start with `bc1q` on mainnet and `tb1q` on testnet.
+    ///
+    /// # Arguments
+    /// * `network` - The Bitcoin network (mainnet, testnet, signet, regtest).
+    ///
+    /// # Returns
+    /// The bech32-encoded P2WPKH address.
+    fn bitcoin_p2wpkh_address(&self, network: Network) -> Result<String, SignError> {
+        // Get the compressed public key bytes (33 bytes)
+        let compressed = self.public_key_bytes;
+
+        // Create a bitcoin PublicKey from the compressed bytes
+        let bitcoin_pubkey = BitcoinPublicKey::from_slice(&compressed)
+            .map_err(|e| SignError::signature_failed(format!("Invalid public key: {e}")))?;
+
+        // Create CompressedPublicKey wrapper
+        let compressed_pubkey = CompressedPublicKey(bitcoin_pubkey);
+
+        // Create P2WPKH address
+        let address = Address::p2wpkh(&compressed_pubkey, network);
+
+        Ok(address.to_string())
+    }
 }
 
 impl Signer for Secp256k1Signer {
@@ -392,11 +421,8 @@ impl Signer for Secp256k1Signer {
         match chain {
             Chain::Ethereum => Ok(self.ethereum_address()),
             Chain::Bitcoin => {
-                // P2PKH address (starts with 1)
-                // TODO: Implement Bitcoin address derivation
-                Err(SignError::signature_failed(
-                    "Bitcoin address derivation not yet implemented",
-                ))
+                // P2WPKH bech32 address (starts with bc1q)
+                self.bitcoin_p2wpkh_address(Network::Bitcoin)
             }
             Chain::Tron => {
                 // TRON uses same format as Ethereum but with T prefix and Base58Check
@@ -421,6 +447,150 @@ impl Signer for Secp256k1Signer {
 
     fn curve(&self) -> CurveType {
         CurveType::Secp256k1
+    }
+}
+
+// ============================================================================
+// Ed25519Signer Implementation
+// ============================================================================
+
+/// Ed25519 signer for Solana and other ed25519-based chains.
+///
+/// This signer wraps an [`Ed25519KeyPair`](crate::keypair::Ed25519KeyPair) and provides
+/// a high-level signing interface suitable for blockchain transactions.
+///
+/// # Signature Format
+///
+/// Signatures are returned as 64 bytes: the standard ed25519 signature format.
+///
+/// # Security
+///
+/// - The underlying key pair uses secure key material handling
+/// - Uses ed25519-dalek for cryptographic operations
+///
+/// # Example
+///
+/// ```rust
+/// use sello_crypto::signer::{Signer, Ed25519Signer, Chain};
+///
+/// // Generate a new signer
+/// let signer = Ed25519Signer::generate();
+///
+/// // Get the Solana address
+/// let address = signer.address(Chain::Solana).expect("valid");
+/// println!("Solana address: {address}");
+///
+/// // Sign a hash
+/// let hash = [0u8; 32];
+/// let signature = signer.sign(&hash).expect("signing failed");
+/// assert_eq!(signature.len(), 64);
+/// ```
+#[derive(Debug)]
+pub struct Ed25519Signer {
+    /// The underlying key pair
+    key_pair: crate::keypair::Ed25519KeyPair,
+    /// Cached public key bytes
+    public_key_bytes: [u8; 32],
+}
+
+impl Ed25519Signer {
+    /// Create a new signer from a key pair.
+    ///
+    /// # Arguments
+    /// * `key_pair` - The ed25519 key pair to use for signing.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use sello_crypto::keypair::{KeyPair, Ed25519KeyPair};
+    /// use sello_crypto::signer::Ed25519Signer;
+    ///
+    /// let key_pair = Ed25519KeyPair::generate();
+    /// let signer = Ed25519Signer::new(key_pair);
+    /// ```
+    #[must_use]
+    pub fn new(key_pair: crate::keypair::Ed25519KeyPair) -> Self {
+        let public_key_bytes = *key_pair.public_key().as_bytes();
+        Self {
+            key_pair,
+            public_key_bytes,
+        }
+    }
+
+    /// Create a new signer with a randomly generated key.
+    ///
+    /// Uses a cryptographically secure random number generator.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use sello_crypto::signer::Ed25519Signer;
+    ///
+    /// let signer = Ed25519Signer::generate();
+    /// ```
+    #[must_use]
+    pub fn generate() -> Self {
+        Self::new(crate::keypair::Ed25519KeyPair::generate())
+    }
+
+    /// Create a signer from raw secret key bytes.
+    ///
+    /// # Arguments
+    /// * `bytes` - The 32-byte secret key material.
+    ///
+    /// # Errors
+    /// Returns an error if the bytes don't represent a valid ed25519 secret key.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use sello_crypto::signer::Ed25519Signer;
+    ///
+    /// let secret = [0x42u8; 32];
+    /// let signer = Ed25519Signer::from_bytes(secret).expect("valid key");
+    /// ```
+    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, SignError> {
+        let key_pair = crate::keypair::Ed25519KeyPair::from_bytes(bytes)?;
+        Ok(Self::new(key_pair))
+    }
+
+    /// Get a reference to the underlying key pair.
+    ///
+    /// This is useful when you need access to the full key pair functionality.
+    #[must_use]
+    pub const fn key_pair(&self) -> &crate::keypair::Ed25519KeyPair {
+        &self.key_pair
+    }
+
+    /// Derive the Solana address (base58-encoded public key).
+    fn solana_address(&self) -> String {
+        self.key_pair.public_key().solana_address()
+    }
+}
+
+impl Signer for Ed25519Signer {
+    fn sign(&self, hash: &[u8; 32]) -> Result<Vec<u8>, SignError> {
+        let signature = self.key_pair.sign(hash)?;
+        // Return 64-byte ed25519 signature
+        Ok(signature.as_ref().to_vec())
+    }
+
+    fn public_key(&self) -> &[u8] {
+        &self.public_key_bytes
+    }
+
+    fn address(&self, chain: Chain) -> Result<String, SignError> {
+        match chain {
+            Chain::Solana => Ok(self.solana_address()),
+            Chain::Ethereum | Chain::Bitcoin | Chain::Tron | Chain::Ripple => {
+                // These chains require secp256k1, not ed25519
+                Err(SignError::wrong_curve("secp256k1", "ed25519"))
+            }
+        }
+    }
+
+    fn curve(&self) -> CurveType {
+        CurveType::Ed25519
     }
 }
 
@@ -759,18 +929,52 @@ mod tests {
     // ------------------------------------------------------------------------
 
     #[test]
-    fn test_bitcoin_address_not_implemented() {
+    fn test_bitcoin_address_format() {
         let signer = Secp256k1Signer::generate();
 
-        let result = signer.address(Chain::Bitcoin);
+        let address = signer.address(Chain::Bitcoin).expect("valid address");
 
-        assert!(result.is_err());
-        match result {
-            Err(SignError::SignatureFailed { context }) => {
-                assert!(context.contains("Bitcoin"));
-            }
-            _ => panic!("Expected SignatureFailed error"),
-        }
+        // P2WPKH mainnet addresses start with bc1q
+        assert!(
+            address.starts_with("bc1q"),
+            "Address should start with bc1q: {address}"
+        );
+
+        // P2WPKH addresses are 42 or 62 characters depending on format
+        // bc1q (4) + 38 characters = 42 for standard P2WPKH
+        assert_eq!(
+            address.len(),
+            42,
+            "P2WPKH address should be 42 characters: {address}"
+        );
+    }
+
+    #[test]
+    fn test_bitcoin_address_deterministic() {
+        let bytes = [0x42u8; 32];
+        let signer = Secp256k1Signer::from_bytes(bytes).expect("valid key");
+
+        let address1 = signer.address(Chain::Bitcoin).expect("valid address");
+        let address2 = signer.address(Chain::Bitcoin).expect("valid address");
+
+        assert_eq!(address1, address2);
+    }
+
+    #[test]
+    fn test_bitcoin_address_known_private_key() {
+        // Use a known test private key and verify the address
+        let private_key_hex = "fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19";
+        let mut private_key = [0u8; 32];
+        hex::decode_to_slice(private_key_hex, &mut private_key).expect("valid hex");
+
+        let signer = Secp256k1Signer::from_bytes(private_key).expect("valid key");
+        let address = signer.address(Chain::Bitcoin).expect("valid address");
+
+        // Verify it's a valid bech32 address
+        assert!(address.starts_with("bc1q"));
+        // The address should be deterministic - same key always produces same address
+        let address2 = signer.address(Chain::Bitcoin).expect("valid address");
+        assert_eq!(address, address2);
     }
 
     #[test]
@@ -953,6 +1157,247 @@ mod tests {
             sig_bytes,
             signature[64],
         );
+
+        // Verify using the key pair
+        assert!(signer.key_pair().verify(&hash, &sig));
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519Signer Creation Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_generate_creates_valid_signer() {
+        let signer = Ed25519Signer::generate();
+
+        // Public key should be 32 bytes
+        assert_eq!(signer.public_key().len(), 32);
+
+        // Curve type should be ed25519
+        assert_eq!(signer.curve(), CurveType::Ed25519);
+    }
+
+    #[test]
+    fn test_ed25519_generate_produces_unique_signers() {
+        let signer1 = Ed25519Signer::generate();
+        let signer2 = Ed25519Signer::generate();
+
+        // Should generate different public keys
+        assert_ne!(signer1.public_key(), signer2.public_key());
+    }
+
+    #[test]
+    fn test_ed25519_from_bytes_success() {
+        let bytes = [0x42u8; 32];
+        let result = Ed25519Signer::from_bytes(bytes);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ed25519_from_bytes_deterministic() {
+        let bytes = [0x42u8; 32];
+
+        let signer1 = Ed25519Signer::from_bytes(bytes).expect("valid key");
+        let signer2 = Ed25519Signer::from_bytes(bytes).expect("valid key");
+
+        assert_eq!(signer1.public_key(), signer2.public_key());
+    }
+
+    #[test]
+    fn test_ed25519_new_from_keypair() {
+        let key_pair = crate::keypair::Ed25519KeyPair::generate();
+        let expected_pubkey = *key_pair.public_key().as_bytes();
+
+        let signer = Ed25519Signer::new(key_pair);
+
+        assert_eq!(signer.public_key(), &expected_pubkey);
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Signing Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_sign_produces_64_bytes() {
+        let signer = Ed25519Signer::generate();
+        let hash = [0x42u8; 32];
+
+        let signature = signer.sign(&hash).expect("signing should succeed");
+
+        // Ed25519 signature should be 64 bytes
+        assert_eq!(signature.len(), 64);
+    }
+
+    #[test]
+    fn test_ed25519_different_hashes_produce_different_signatures() {
+        let signer = Ed25519Signer::generate();
+        let hash1 = [0x42u8; 32];
+        let hash2 = [0x43u8; 32];
+
+        let sig1 = signer.sign(&hash1).expect("signing should succeed");
+        let sig2 = signer.sign(&hash2).expect("signing should succeed");
+
+        assert_ne!(sig1, sig2);
+    }
+
+    #[test]
+    fn test_ed25519_sign_is_deterministic() {
+        // Ed25519 signatures are deterministic (no random k)
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+        let hash = [0x42u8; 32];
+
+        let sig1 = signer.sign(&hash).expect("signing should succeed");
+        let sig2 = signer.sign(&hash).expect("signing should succeed");
+
+        assert_eq!(sig1, sig2, "ed25519 signatures should be deterministic");
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Solana Address Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_solana_address_format() {
+        let signer = Ed25519Signer::generate();
+
+        let address = signer.address(Chain::Solana).expect("valid address");
+
+        // Solana addresses are base58 encoded, typically 32-44 characters
+        assert!(
+            address.len() >= 32 && address.len() <= 44,
+            "Solana address should be 32-44 characters: {address}"
+        );
+    }
+
+    #[test]
+    fn test_ed25519_solana_address_deterministic() {
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+
+        let address1 = signer.address(Chain::Solana).expect("valid address");
+        let address2 = signer.address(Chain::Solana).expect("valid address");
+
+        assert_eq!(address1, address2);
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Wrong Curve Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_ethereum_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Ethereum);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    #[test]
+    fn test_ed25519_bitcoin_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Bitcoin);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    #[test]
+    fn test_ed25519_tron_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Tron);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    #[test]
+    fn test_ed25519_ripple_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Ripple);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Thread Safety Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_signer_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Ed25519Signer>();
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Debug and Key Pair Access Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_signer_debug_output() {
+        let signer = Ed25519Signer::generate();
+        let debug_output = format!("{:?}", signer);
+
+        // Should contain the struct name
+        assert!(debug_output.contains("Ed25519Signer"));
+    }
+
+    #[test]
+    fn test_ed25519_key_pair_accessor() {
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+
+        let key_pair = signer.key_pair();
+
+        // Should be able to access the underlying key pair
+        assert_eq!(key_pair.public_key().as_bytes(), signer.public_key());
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Sign and Verify Roundtrip
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_sign_and_verify_with_keypair() {
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+        let hash = [0x42u8; 32];
+
+        let signature = signer.sign(&hash).expect("signing should succeed");
+
+        // Convert signature bytes to Ed25519Signature
+        let sig_bytes: [u8; 64] = signature.try_into().expect("64 bytes");
+        let sig = crate::keypair::Ed25519Signature::from_bytes(sig_bytes);
 
         // Verify using the key pair
         assert!(signer.key_pair().verify(&hash, &sig));

@@ -169,17 +169,19 @@ fn test_signature_r_s_components_correctness() {
 // ============================================================================
 
 #[test]
-fn test_bitcoin_error_message_content() {
+fn test_bitcoin_address_derivation() {
     let signer = Secp256k1Signer::generate();
     let result = signer.address(Chain::Bitcoin);
 
-    match result {
-        Err(SignError::SignatureFailed { context }) => {
-            assert!(context.contains("Bitcoin"));
-            assert!(context.contains("not yet implemented"));
-        }
-        _ => panic!("Expected SignatureFailed error"),
-    }
+    // Bitcoin P2WPKH address derivation is now implemented
+    assert!(result.is_ok());
+    let address = result.unwrap();
+    // P2WPKH mainnet addresses start with "bc1q"
+    assert!(
+        address.starts_with("bc1q"),
+        "Expected P2WPKH address starting with 'bc1q', got: {}",
+        address
+    );
 }
 
 #[test]
