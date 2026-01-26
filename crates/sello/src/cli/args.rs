@@ -405,6 +405,15 @@ impl std::fmt::Display for CurveArg {
     }
 }
 
+impl From<CurveArg> for sello_crypto::signer::CurveType {
+    fn from(curve: CurveArg) -> Self {
+        match curve {
+            CurveArg::Secp256k1 => Self::Secp256k1,
+            CurveArg::Ed25519 => Self::Ed25519,
+        }
+    }
+}
+
 /// Output format for command results.
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
 pub enum OutputFormat {

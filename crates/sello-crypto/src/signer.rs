@@ -1161,6 +1161,247 @@ mod tests {
         // Verify using the key pair
         assert!(signer.key_pair().verify(&hash, &sig));
     }
+
+    // ------------------------------------------------------------------------
+    // Ed25519Signer Creation Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_generate_creates_valid_signer() {
+        let signer = Ed25519Signer::generate();
+
+        // Public key should be 32 bytes
+        assert_eq!(signer.public_key().len(), 32);
+
+        // Curve type should be ed25519
+        assert_eq!(signer.curve(), CurveType::Ed25519);
+    }
+
+    #[test]
+    fn test_ed25519_generate_produces_unique_signers() {
+        let signer1 = Ed25519Signer::generate();
+        let signer2 = Ed25519Signer::generate();
+
+        // Should generate different public keys
+        assert_ne!(signer1.public_key(), signer2.public_key());
+    }
+
+    #[test]
+    fn test_ed25519_from_bytes_success() {
+        let bytes = [0x42u8; 32];
+        let result = Ed25519Signer::from_bytes(bytes);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ed25519_from_bytes_deterministic() {
+        let bytes = [0x42u8; 32];
+
+        let signer1 = Ed25519Signer::from_bytes(bytes).expect("valid key");
+        let signer2 = Ed25519Signer::from_bytes(bytes).expect("valid key");
+
+        assert_eq!(signer1.public_key(), signer2.public_key());
+    }
+
+    #[test]
+    fn test_ed25519_new_from_keypair() {
+        let key_pair = crate::keypair::Ed25519KeyPair::generate();
+        let expected_pubkey = *key_pair.public_key().as_bytes();
+
+        let signer = Ed25519Signer::new(key_pair);
+
+        assert_eq!(signer.public_key(), &expected_pubkey);
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Signing Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_sign_produces_64_bytes() {
+        let signer = Ed25519Signer::generate();
+        let hash = [0x42u8; 32];
+
+        let signature = signer.sign(&hash).expect("signing should succeed");
+
+        // Ed25519 signature should be 64 bytes
+        assert_eq!(signature.len(), 64);
+    }
+
+    #[test]
+    fn test_ed25519_different_hashes_produce_different_signatures() {
+        let signer = Ed25519Signer::generate();
+        let hash1 = [0x42u8; 32];
+        let hash2 = [0x43u8; 32];
+
+        let sig1 = signer.sign(&hash1).expect("signing should succeed");
+        let sig2 = signer.sign(&hash2).expect("signing should succeed");
+
+        assert_ne!(sig1, sig2);
+    }
+
+    #[test]
+    fn test_ed25519_sign_is_deterministic() {
+        // Ed25519 signatures are deterministic (no random k)
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+        let hash = [0x42u8; 32];
+
+        let sig1 = signer.sign(&hash).expect("signing should succeed");
+        let sig2 = signer.sign(&hash).expect("signing should succeed");
+
+        assert_eq!(sig1, sig2, "ed25519 signatures should be deterministic");
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Solana Address Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_solana_address_format() {
+        let signer = Ed25519Signer::generate();
+
+        let address = signer.address(Chain::Solana).expect("valid address");
+
+        // Solana addresses are base58 encoded, typically 32-44 characters
+        assert!(
+            address.len() >= 32 && address.len() <= 44,
+            "Solana address should be 32-44 characters: {address}"
+        );
+    }
+
+    #[test]
+    fn test_ed25519_solana_address_deterministic() {
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+
+        let address1 = signer.address(Chain::Solana).expect("valid address");
+        let address2 = signer.address(Chain::Solana).expect("valid address");
+
+        assert_eq!(address1, address2);
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Wrong Curve Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_ethereum_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Ethereum);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    #[test]
+    fn test_ed25519_bitcoin_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Bitcoin);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    #[test]
+    fn test_ed25519_tron_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Tron);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    #[test]
+    fn test_ed25519_ripple_address_wrong_curve() {
+        let signer = Ed25519Signer::generate();
+
+        let result = signer.address(Chain::Ripple);
+
+        assert!(result.is_err());
+        match result {
+            Err(SignError::WrongCurve { expected, actual }) => {
+                assert_eq!(expected, "secp256k1");
+                assert_eq!(actual, "ed25519");
+            }
+            _ => panic!("Expected WrongCurve error"),
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Thread Safety Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_signer_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Ed25519Signer>();
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Debug and Key Pair Access Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_signer_debug_output() {
+        let signer = Ed25519Signer::generate();
+        let debug_output = format!("{:?}", signer);
+
+        // Should contain the struct name
+        assert!(debug_output.contains("Ed25519Signer"));
+    }
+
+    #[test]
+    fn test_ed25519_key_pair_accessor() {
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+
+        let key_pair = signer.key_pair();
+
+        // Should be able to access the underlying key pair
+        assert_eq!(key_pair.public_key().as_bytes(), signer.public_key());
+    }
+
+    // ------------------------------------------------------------------------
+    // Ed25519 Sign and Verify Roundtrip
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ed25519_sign_and_verify_with_keypair() {
+        let bytes = [0x42u8; 32];
+        let signer = Ed25519Signer::from_bytes(bytes).expect("valid key");
+        let hash = [0x42u8; 32];
+
+        let signature = signer.sign(&hash).expect("signing should succeed");
+
+        // Convert signature bytes to Ed25519Signature
+        let sig_bytes: [u8; 64] = signature.try_into().expect("64 bytes");
+        let sig = crate::keypair::Ed25519Signature::from_bytes(sig_bytes);
+
+        // Verify using the key pair
+        assert!(signer.key_pair().verify(&hash, &sig));
+    }
 }
 
 #[cfg(test)]

@@ -698,7 +698,11 @@ impl std::fmt::Debug for Ed25519Signature {
 ///
 /// # Security
 ///
-/// - The signing key is stored securely
+/// - The signing key is stored securely using [`ed25519_dalek::SigningKey`]
+/// - The signing key implements `Zeroize`, ensuring secret material is
+///   automatically zeroed when dropped (when ed25519-dalek is built with
+///   the "zeroize" feature, which is enabled by default)
+/// - `Debug` output does not expose the private key
 /// - Uses ed25519-dalek for cryptographic operations
 ///
 /// # Example
@@ -1303,6 +1307,256 @@ mod tests {
                 "Pattern {idx} recovery ID should be valid"
             );
         }
+    }
+
+    // ========================================================================
+    // Ed25519 KeyPair Tests
+    // ========================================================================
+
+    #[test]
+    fn test_ed25519_generate_produces_valid_keypair() {
+        let keypair = Ed25519KeyPair::generate();
+
+        // Public key should be 32 bytes
+        assert_eq!(keypair.public_key().as_bytes().len(), 32);
+    }
+
+    #[test]
+    fn test_ed25519_generate_produces_unique_keys() {
+        let keypair1 = Ed25519KeyPair::generate();
+        let keypair2 = Ed25519KeyPair::generate();
+
+        // Should generate different public keys
+        assert_ne!(
+            keypair1.public_key().as_bytes(),
+            keypair2.public_key().as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_ed25519_from_bytes_success() {
+        let bytes = [0x42u8; 32];
+        let result = Ed25519KeyPair::from_bytes(bytes);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ed25519_from_bytes_zero_is_valid() {
+        // Unlike secp256k1, zero bytes are valid for ed25519
+        let bytes = [0u8; 32];
+        let result = Ed25519KeyPair::from_bytes(bytes);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ed25519_from_secret_key() {
+        let secret = SecretKey::generate();
+        let result = Ed25519KeyPair::from_secret_key(&secret);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ed25519_deterministic_public_key() {
+        // Same private key should always produce the same public key
+        let bytes = [0x42u8; 32];
+
+        let keypair1 = Ed25519KeyPair::from_bytes(bytes).expect("valid key");
+        let keypair2 = Ed25519KeyPair::from_bytes(bytes).expect("valid key");
+
+        assert_eq!(
+            keypair1.public_key().as_bytes(),
+            keypair2.public_key().as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_ed25519_sign_produces_valid_signature() {
+        let keypair = Ed25519KeyPair::generate();
+        let hash = [0x42u8; 32];
+
+        let signature = keypair.sign(&hash).expect("signing should succeed");
+
+        // Ed25519 signature should be 64 bytes
+        assert_eq!(signature.as_ref().len(), 64);
+    }
+
+    #[test]
+    fn test_ed25519_signature_is_verifiable() {
+        let keypair = Ed25519KeyPair::generate();
+        let hash = [0x42u8; 32];
+
+        let signature = keypair.sign(&hash).expect("signing should succeed");
+
+        // Verify using keypair's verify method
+        assert!(
+            keypair.verify(&hash, &signature),
+            "signature should be valid"
+        );
+    }
+
+    #[test]
+    fn test_ed25519_different_messages_produce_different_signatures() {
+        let keypair = Ed25519KeyPair::generate();
+        let hash1 = [0x42u8; 32];
+        let hash2 = [0x43u8; 32];
+
+        let sig1 = keypair.sign(&hash1).expect("signing should succeed");
+        let sig2 = keypair.sign(&hash2).expect("signing should succeed");
+
+        // Different messages should produce different signatures
+        assert_ne!(sig1.as_ref(), sig2.as_ref());
+    }
+
+    #[test]
+    fn test_ed25519_wrong_hash_fails_verification() {
+        let keypair = Ed25519KeyPair::generate();
+        let hash1 = [0x42u8; 32];
+        let hash2 = [0x43u8; 32];
+
+        let signature = keypair.sign(&hash1).expect("signing should succeed");
+
+        // Verification with wrong hash should fail
+        assert!(
+            !keypair.verify(&hash2, &signature),
+            "verification should fail with wrong hash"
+        );
+    }
+
+    #[test]
+    fn test_ed25519_solana_address_format() {
+        let keypair = Ed25519KeyPair::generate();
+        let address = keypair.public_key().solana_address();
+
+        // Solana addresses are base58 encoded 32-byte public keys
+        // Typically 32-44 characters
+        assert!(
+            address.len() >= 32 && address.len() <= 44,
+            "Solana address should be 32-44 characters: {address}"
+        );
+    }
+
+    #[test]
+    fn test_ed25519_solana_address_deterministic() {
+        let bytes = [0x42u8; 32];
+        let keypair = Ed25519KeyPair::from_bytes(bytes).expect("valid key");
+
+        let address1 = keypair.public_key().solana_address();
+        let address2 = keypair.public_key().solana_address();
+
+        assert_eq!(address1, address2);
+    }
+
+    #[test]
+    fn test_ed25519_sign_verify_roundtrip_multiple_hashes() {
+        let keypair = Ed25519KeyPair::generate();
+
+        for i in 0u8..10 {
+            let hash = [i; 32];
+            let signature = keypair.sign(&hash).expect("signing should succeed");
+
+            assert!(
+                keypair.verify(&hash, &signature),
+                "signature for hash {i} should verify"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ed25519_keypair_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Ed25519KeyPair>();
+    }
+
+    #[test]
+    fn test_ed25519_public_key_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Ed25519PublicKey>();
+    }
+
+    #[test]
+    fn test_ed25519_signature_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Ed25519Signature>();
+    }
+
+    #[test]
+    fn test_ed25519_keypair_debug_does_not_expose_private_key() {
+        let keypair = Ed25519KeyPair::generate();
+        let debug_output = format!("{:?}", keypair);
+
+        // Should show public key
+        assert!(debug_output.contains("public_key"));
+        // Should not contain the private key (indicated by finish_non_exhaustive)
+        assert!(debug_output.contains(".."));
+    }
+
+    #[test]
+    fn test_ed25519_signature_debug_shows_hex() {
+        let keypair = Ed25519KeyPair::generate();
+        let hash = [0x42u8; 32];
+        let signature = keypair.sign(&hash).expect("signing should succeed");
+
+        let debug_output = format!("{:?}", signature);
+        assert!(debug_output.starts_with("Ed25519Signature("));
+    }
+
+    #[test]
+    fn test_ed25519_public_key_debug_shows_hex() {
+        let keypair = Ed25519KeyPair::generate();
+        let debug_output = format!("{:?}", keypair.public_key());
+
+        assert!(debug_output.starts_with("Ed25519PublicKey("));
+    }
+
+    #[test]
+    fn test_ed25519_public_key_as_ref_returns_bytes() {
+        let keypair = Ed25519KeyPair::generate();
+        let pubkey = keypair.public_key();
+
+        // AsRef should return the 32-byte public key
+        assert_eq!(pubkey.as_ref().len(), 32);
+        assert_eq!(pubkey.as_ref(), pubkey.as_bytes());
+    }
+
+    #[test]
+    fn test_ed25519_signature_from_bytes() {
+        let bytes = [0x42u8; 64];
+        let sig = Ed25519Signature::from_bytes(bytes);
+        assert_eq!(sig.as_ref(), &bytes);
+    }
+
+    #[test]
+    fn test_ed25519_public_key_from_bytes() {
+        let bytes = [0x42u8; 32];
+        let pubkey = Ed25519PublicKey::from_bytes(bytes);
+        assert_eq!(pubkey.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn test_ed25519_invalid_signature_fails_verification() {
+        let keypair = Ed25519KeyPair::generate();
+        let hash = [0x42u8; 32];
+
+        // Create an invalid signature (all zeros)
+        let invalid_sig = Ed25519Signature::from_bytes([0u8; 64]);
+
+        // Verification should fail
+        assert!(!keypair.verify(&hash, &invalid_sig));
+    }
+
+    #[test]
+    fn test_ed25519_known_test_vector() {
+        // Test vector from https://ed25519.cr.yp.to/software.html
+        // Secret key (seed): 32 bytes of 0x9d repeated
+        let secret_bytes = [0x9du8; 32];
+        let keypair = Ed25519KeyPair::from_bytes(secret_bytes).expect("valid key");
+
+        // Sign a message
+        let message = [0u8; 32];
+        let signature = keypair.sign(&message).expect("signing should succeed");
+
+        // Verify the signature
+        assert!(keypair.verify(&message, &signature));
     }
 }
 

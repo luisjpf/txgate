@@ -131,6 +131,10 @@ pub enum SignCommandError {
     #[error("Passphrase input cancelled")]
     Cancelled,
 
+    /// Passphrase input failed.
+    #[error("Failed to read passphrase: {0}")]
+    PassphraseInputFailed(String),
+
     /// Home directory could not be determined.
     #[error("Could not determine home directory")]
     NoHomeDirectory,
@@ -161,7 +165,16 @@ impl From<StoreError> for SignCommandError {
             StoreError::KeyNotFound { .. } => Self::KeyNotFound,
             StoreError::DecryptionFailed => Self::InvalidPassphrase,
             StoreError::IoError(e) => Self::Io(e),
-            other => Self::SigningFailed(other.to_string()),
+            StoreError::EncryptionFailed => {
+                Self::SigningFailed("Key encryption failed".to_string())
+            }
+            StoreError::KeyExists { name } => {
+                Self::SigningFailed(format!("Key already exists: {name}"))
+            }
+            StoreError::InvalidFormat => Self::SigningFailed("Invalid key file format".to_string()),
+            StoreError::PermissionDenied => {
+                Self::SigningFailed("Permission denied accessing key file".to_string())
+            }
         }
     }
 }
@@ -302,6 +315,7 @@ impl SignCommand {
             .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         // 10. Handle policy result
+        // Note: PolicyResult is marked #[non_exhaustive], so we need a catch-all
         match policy_result {
             PolicyResult::Allowed => {
                 // Continue with signing
@@ -311,7 +325,7 @@ impl SignCommand {
             }
             _ => {
                 return Err(SignCommandError::PolicyError(
-                    "Unknown policy result".to_string(),
+                    "Unexpected policy result".to_string(),
                 ));
             }
         }
@@ -409,6 +423,7 @@ impl SignCommand {
             .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         // 9. Handle policy result
+        // Note: PolicyResult is marked #[non_exhaustive], so we need a catch-all
         match policy_result {
             PolicyResult::Allowed => {
                 // Continue with signing
@@ -418,7 +433,7 @@ impl SignCommand {
             }
             _ => {
                 return Err(SignCommandError::PolicyError(
-                    "Unknown policy result".to_string(),
+                    "Unexpected policy result".to_string(),
                 ));
             }
         }
@@ -483,7 +498,8 @@ fn is_initialized(base_dir: &Path) -> bool {
 /// Uses `rpassword` for secure hidden input.
 fn prompt_passphrase() -> Result<String, SignCommandError> {
     println!("Enter passphrase to unlock key:");
-    let passphrase = rpassword::read_password().map_err(|_| SignCommandError::Cancelled)?;
+    let passphrase = rpassword::read_password()
+        .map_err(|e| SignCommandError::PassphraseInputFailed(e.to_string()))?;
 
     if passphrase.is_empty() {
         return Err(SignCommandError::Cancelled);
