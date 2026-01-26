@@ -487,4 +487,441 @@ mod tests {
         assert!(debug_str.contains("BitcoinParser"));
         assert!(debug_str.contains("Bitcoin"));
     }
+
+    // ========================================================================
+    // SegWit Transaction Tests
+    // ========================================================================
+
+    /// Create a SegWit P2WPKH transaction for testing.
+    /// This is a real-format SegWit transaction with witness data.
+    fn create_segwit_tx() -> Vec<u8> {
+        // SegWit transaction format:
+        // [version][marker=0x00][flag=0x01][inputs][outputs][witness][locktime]
+        //
+        // Real SegWit P2WPKH spending transaction (simplified)
+        // From testnet transaction
+
+        let mut tx = Vec::new();
+
+        // Version (4 bytes, little-endian) - version 2 for BIP68
+        tx.extend_from_slice(&[0x02, 0x00, 0x00, 0x00]);
+
+        // Marker (1 byte) - indicates SegWit
+        tx.push(0x00);
+
+        // Flag (1 byte) - must be 0x01 for witness
+        tx.push(0x01);
+
+        // Input count (varint)
+        tx.push(0x01);
+
+        // Input 1:
+        // Previous txid (32 bytes, little-endian)
+        tx.extend_from_slice(&[
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb,
+            0xcc, 0xdd, 0xee, 0xff,
+        ]);
+
+        // Previous output index (4 bytes)
+        tx.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        // ScriptSig length (0 for native SegWit)
+        tx.push(0x00);
+
+        // Sequence (4 bytes)
+        tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]);
+
+        // Output count (varint)
+        tx.push(0x01);
+
+        // Output 1: P2WPKH output
+        // Value: 100000 satoshis (8 bytes, little-endian)
+        tx.extend_from_slice(&[0xa0, 0x86, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+        // Script length: 22 bytes (P2WPKH: OP_0 <20-byte-hash>)
+        tx.push(0x16);
+
+        // P2WPKH script: OP_0 OP_PUSHBYTES_20 <pubkey-hash>
+        tx.push(0x00); // OP_0 (witness version 0)
+        tx.push(0x14); // OP_PUSHBYTES_20
+        tx.extend_from_slice(&[0xab; 20]); // 20-byte pubkey hash (dummy)
+
+        // Witness data for input 1:
+        // Stack items count
+        tx.push(0x02); // 2 items: signature and pubkey
+
+        // Item 1: Signature (71-73 bytes typically, using 71)
+        tx.push(0x47); // 71 bytes
+        tx.extend_from_slice(&[0x30; 71]); // Dummy DER signature
+
+        // Item 2: Public key (33 bytes compressed)
+        tx.push(0x21); // 33 bytes
+        tx.extend_from_slice(&[0x02; 33]); // Dummy compressed pubkey
+
+        // Locktime (4 bytes)
+        tx.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        tx
+    }
+
+    #[test]
+    fn test_bitcoin_parser_segwit_transaction() {
+        let parser = BitcoinParser::mainnet();
+        let tx_bytes = create_segwit_tx();
+
+        let result = parser.parse(&tx_bytes);
+        assert!(
+            result.is_ok(),
+            "Failed to parse SegWit tx: {:?}",
+            result.err()
+        );
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain, "bitcoin");
+        assert_eq!(parsed.token, Some("BTC".to_string()));
+
+        // Check SegWit metadata
+        let segwit = parsed.metadata.get("segwit");
+        assert!(segwit.is_some(), "Missing segwit metadata");
+        assert_eq!(segwit.unwrap(), &serde_json::Value::Bool(true));
+
+        // Should not be Taproot
+        let taproot = parsed.metadata.get("taproot");
+        assert!(taproot.is_some(), "Missing taproot metadata");
+        assert_eq!(taproot.unwrap(), &serde_json::Value::Bool(false));
+
+        // Check version is 2 (BIP68)
+        let version = parsed.metadata.get("version");
+        assert!(version.is_some());
+        assert_eq!(version.unwrap(), &serde_json::Value::Number(2.into()));
+    }
+
+    #[test]
+    fn test_is_segwit_helper() {
+        // Parse a SegWit transaction and verify the helper function
+        let tx_bytes = create_segwit_tx();
+        let mut cursor = Cursor::new(&tx_bytes);
+        let tx = Transaction::consensus_decode(&mut cursor).unwrap();
+
+        assert!(
+            BitcoinParser::is_segwit(&tx),
+            "is_segwit should return true for SegWit transaction"
+        );
+        assert!(
+            !BitcoinParser::is_taproot(&tx),
+            "is_taproot should return false for non-Taproot SegWit transaction"
+        );
+    }
+
+    #[test]
+    fn test_is_segwit_false_for_legacy() {
+        // Parse a legacy transaction and verify is_segwit returns false
+        let tx_bytes = create_sample_legacy_tx();
+        let mut cursor = Cursor::new(&tx_bytes);
+        let tx = Transaction::consensus_decode(&mut cursor).unwrap();
+
+        assert!(
+            !BitcoinParser::is_segwit(&tx),
+            "is_segwit should return false for legacy transaction"
+        );
+        assert!(
+            !BitcoinParser::is_taproot(&tx),
+            "is_taproot should return false for legacy transaction"
+        );
+    }
+
+    // ========================================================================
+    // Taproot Transaction Tests
+    // ========================================================================
+
+    /// Create a Taproot (P2TR) transaction for testing.
+    /// Uses witness version 1 with 32-byte program.
+    fn create_taproot_tx() -> Vec<u8> {
+        let mut tx = Vec::new();
+
+        // Version (4 bytes)
+        tx.extend_from_slice(&[0x02, 0x00, 0x00, 0x00]);
+
+        // Marker and flag for SegWit
+        tx.push(0x00);
+        tx.push(0x01);
+
+        // Input count
+        tx.push(0x01);
+
+        // Input: Previous txid
+        tx.extend_from_slice(&[0xab; 32]);
+
+        // Previous output index
+        tx.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        // Empty scriptSig for Taproot
+        tx.push(0x00);
+
+        // Sequence
+        tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]);
+
+        // Output count
+        tx.push(0x01);
+
+        // Output: P2TR (Taproot) output
+        // Value: 50000 satoshis
+        tx.extend_from_slice(&[0x50, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+        // Script length: 34 bytes (P2TR: OP_1 <32-byte-x-only-pubkey>)
+        tx.push(0x22);
+
+        // P2TR script: OP_1 OP_PUSHBYTES_32 <x-only-pubkey>
+        tx.push(0x51); // OP_1 (witness version 1 = Taproot)
+        tx.push(0x20); // OP_PUSHBYTES_32
+        tx.extend_from_slice(&[0xcd; 32]); // 32-byte x-only pubkey (dummy)
+
+        // Witness data for Taproot key-path spend
+        // Stack items count: 1 (just the Schnorr signature)
+        tx.push(0x01);
+
+        // Schnorr signature (64 bytes)
+        tx.push(0x40); // 64 bytes
+        tx.extend_from_slice(&[0x88; 64]);
+
+        // Locktime
+        tx.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        tx
+    }
+
+    #[test]
+    fn test_bitcoin_parser_taproot_transaction() {
+        let parser = BitcoinParser::mainnet();
+        let tx_bytes = create_taproot_tx();
+
+        let result = parser.parse(&tx_bytes);
+        assert!(
+            result.is_ok(),
+            "Failed to parse Taproot tx: {:?}",
+            result.err()
+        );
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain, "bitcoin");
+        assert_eq!(parsed.token, Some("BTC".to_string()));
+
+        // Should be both SegWit and Taproot
+        let segwit = parsed.metadata.get("segwit");
+        assert!(segwit.is_some(), "Missing segwit metadata");
+        assert_eq!(
+            segwit.unwrap(),
+            &serde_json::Value::Bool(true),
+            "Taproot transaction should also be SegWit"
+        );
+
+        let taproot = parsed.metadata.get("taproot");
+        assert!(taproot.is_some(), "Missing taproot metadata");
+        assert_eq!(
+            taproot.unwrap(),
+            &serde_json::Value::Bool(true),
+            "Should be identified as Taproot"
+        );
+    }
+
+    #[test]
+    fn test_is_taproot_helper() {
+        // Parse a Taproot transaction and verify the helper
+        let tx_bytes = create_taproot_tx();
+        let mut cursor = Cursor::new(&tx_bytes);
+        let tx = Transaction::consensus_decode(&mut cursor).unwrap();
+
+        assert!(
+            BitcoinParser::is_segwit(&tx),
+            "Taproot transactions are also SegWit"
+        );
+        assert!(
+            BitcoinParser::is_taproot(&tx),
+            "is_taproot should return true for P2TR transaction"
+        );
+    }
+
+    // ========================================================================
+    // Transaction Type Detection Tests
+    // ========================================================================
+
+    /// Create a transaction with OP_RETURN output (data carrier).
+    fn create_op_return_tx() -> Vec<u8> {
+        let mut tx = Vec::new();
+
+        // Version
+        tx.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
+
+        // Input count
+        tx.push(0x01);
+
+        // Input: coinbase-style for simplicity
+        tx.extend_from_slice(&[0x00; 32]); // txid
+        tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]); // vout
+        tx.push(0x07); // script length
+        tx.extend_from_slice(&[0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04]); // coinbase script
+        tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]); // sequence
+
+        // Output count: 2 outputs (one P2PKH, one OP_RETURN)
+        tx.push(0x02);
+
+        // Output 1: Regular P2PKH
+        tx.extend_from_slice(&[0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00]); // 1 BTC
+        tx.push(0x19); // 25 bytes
+        tx.push(0x76); // OP_DUP
+        tx.push(0xa9); // OP_HASH160
+        tx.push(0x14); // Push 20 bytes
+        tx.extend_from_slice(&[0xbc; 20]); // pubkey hash
+        tx.push(0x88); // OP_EQUALVERIFY
+        tx.push(0xac); // OP_CHECKSIG
+
+        // Output 2: OP_RETURN with data
+        tx.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]); // 0 value
+        tx.push(0x0d); // 13 bytes
+        tx.push(0x6a); // OP_RETURN
+        tx.push(0x0b); // Push 11 bytes
+        tx.extend_from_slice(b"hello world"); // data payload
+
+        // Locktime
+        tx.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+        tx
+    }
+
+    #[test]
+    fn test_bitcoin_parser_op_return_transaction() {
+        let parser = BitcoinParser::mainnet();
+        let tx_bytes = create_op_return_tx();
+
+        let result = parser.parse(&tx_bytes);
+        assert!(
+            result.is_ok(),
+            "Failed to parse OP_RETURN tx: {:?}",
+            result.err()
+        );
+
+        let parsed = result.unwrap();
+
+        // OP_RETURN transactions should be TxType::Other
+        assert_eq!(
+            parsed.tx_type,
+            TxType::Other,
+            "OP_RETURN transaction should be TxType::Other"
+        );
+
+        // The amount should only include non-OP_RETURN outputs
+        // Output 1 has 1 BTC = 100_000_000 satoshis
+        assert!(parsed.amount.is_some());
+        assert_eq!(parsed.amount.unwrap(), U256::from(100_000_000u64));
+
+        // Recipient should be from the non-OP_RETURN output
+        assert!(parsed.recipient.is_some());
+    }
+
+    #[test]
+    fn test_determine_tx_type_helper() {
+        // Test with OP_RETURN
+        let tx_bytes = create_op_return_tx();
+        let mut cursor = Cursor::new(&tx_bytes);
+        let tx = Transaction::consensus_decode(&mut cursor).unwrap();
+        assert_eq!(
+            BitcoinParser::determine_tx_type(&tx),
+            TxType::Other,
+            "OP_RETURN should be TxType::Other"
+        );
+
+        // Test with regular transfer
+        let tx_bytes = create_sample_legacy_tx();
+        let mut cursor = Cursor::new(&tx_bytes);
+        let tx = Transaction::consensus_decode(&mut cursor).unwrap();
+        assert_eq!(
+            BitcoinParser::determine_tx_type(&tx),
+            TxType::Transfer,
+            "Regular transaction should be TxType::Transfer"
+        );
+    }
+
+    // ========================================================================
+    // Address Extraction Tests
+    // ========================================================================
+
+    #[test]
+    fn test_bitcoin_parser_p2wpkh_address_extraction() {
+        let parser = BitcoinParser::mainnet();
+        let tx_bytes = create_segwit_tx();
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+
+        // Check that output_addresses contains a bech32 address
+        let addresses = parsed.metadata.get("output_addresses");
+        assert!(addresses.is_some());
+
+        if let serde_json::Value::Array(addrs) = addresses.unwrap() {
+            assert!(!addrs.is_empty(), "Should have at least one address");
+            if let serde_json::Value::String(addr) = &addrs[0] {
+                assert!(
+                    addr.starts_with("bc1q"),
+                    "P2WPKH address should start with bc1q, got: {}",
+                    addr
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_bitcoin_parser_p2tr_address_extraction() {
+        let parser = BitcoinParser::mainnet();
+        let tx_bytes = create_taproot_tx();
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+
+        // Check that output_addresses contains a Taproot bech32m address
+        let addresses = parsed.metadata.get("output_addresses");
+        assert!(addresses.is_some());
+
+        if let serde_json::Value::Array(addrs) = addresses.unwrap() {
+            assert!(!addrs.is_empty(), "Should have at least one address");
+            if let serde_json::Value::String(addr) = &addrs[0] {
+                assert!(
+                    addr.starts_with("bc1p"),
+                    "P2TR address should start with bc1p, got: {}",
+                    addr
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_bitcoin_parser_testnet_addresses() {
+        let parser = BitcoinParser::testnet();
+        let tx_bytes = create_segwit_tx();
+
+        let result = parser.parse(&tx_bytes);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+
+        let addresses = parsed.metadata.get("output_addresses");
+        assert!(addresses.is_some());
+
+        if let serde_json::Value::Array(addrs) = addresses.unwrap() {
+            if !addrs.is_empty() {
+                if let serde_json::Value::String(addr) = &addrs[0] {
+                    // Testnet P2WPKH should start with tb1q
+                    assert!(
+                        addr.starts_with("tb1q"),
+                        "Testnet P2WPKH should start with tb1q, got: {}",
+                        addr
+                    );
+                }
+            }
+        }
+    }
 }

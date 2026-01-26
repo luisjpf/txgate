@@ -1,6 +1,9 @@
 # Sello
 
 [![CI](https://github.com/sello-project/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/sello-project/sello/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/sello.svg)](https://crates.io/crates/sello)
+[![Documentation](https://img.shields.io/badge/docs-user_guide-blue)](docs/USER_GUIDE.md)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 
 Multi-chain transaction signing service with policy engine.
 

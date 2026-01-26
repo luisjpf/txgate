@@ -72,7 +72,7 @@ use chacha20poly1305::{
 };
 use rand::RngCore;
 use sello_core::error::StoreError;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::keys::SecretKey;
 
@@ -403,19 +403,22 @@ pub fn decrypt_key(encrypted: &EncryptedKey, passphrase: &str) -> Result<SecretK
         .map_err(|_| StoreError::DecryptionFailed)?;
     let nonce = Nonce::from_slice(&encrypted.nonce);
 
-    let plaintext = cipher
-        .decrypt(nonce, encrypted.ciphertext.as_ref())
-        .map_err(|_| StoreError::DecryptionFailed)?;
+    // Use Zeroizing wrapper to ensure automatic cleanup on drop
+    let plaintext = Zeroizing::new(
+        cipher
+            .decrypt(nonce, encrypted.ciphertext.as_ref())
+            .map_err(|_| StoreError::DecryptionFailed)?,
+    );
 
     // 5. Zeroize the encryption key immediately
     encryption_key.zeroize();
 
-    // 6. Convert to SecretKey
-    let bytes: [u8; 32] = plaintext
+    // 6. Convert to SecretKey (plaintext is automatically zeroized when dropped)
+    plaintext
+        .as_slice()
         .try_into()
-        .map_err(|_| StoreError::InvalidFormat)?;
-
-    Ok(SecretKey::new(bytes))
+        .map_err(|_| StoreError::InvalidFormat)
+        .map(SecretKey::new)
 }
 
 // ============================================================================
