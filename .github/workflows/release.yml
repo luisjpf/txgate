@@ -8,10 +8,10 @@
 #   - Linux x86_64 (glibc)
 #   - macOS x86_64 (Intel)
 #   - macOS arm64 (Apple Silicon)
-#   - Windows x86_64
 #
-# Note: Linux arm64 (Raspberry Pi/AWS Graviton) is not currently supported due to
-# OpenSSL cross-compilation issues with solana-sdk dependencies.
+# Not supported:
+#   - Windows: Sello uses Unix sockets for the server which aren't available on Windows
+#   - Linux arm64: OpenSSL cross-compilation issues with solana-sdk dependencies
 #
 # Usage:
 #   git tag v0.1.0
@@ -58,89 +58,37 @@ jobs:
             asset_name: sello-macos-aarch64
             cross: false
 
-          # Windows x86_64 (native)
-          - name: Windows-x86_64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            asset_name: sello-windows-x86_64
-            cross: false
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install OpenSSL on Windows (required by solana-sdk)
-      - name: Install OpenSSL (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          vcpkg install openssl:x64-windows-static-md
-          echo "OPENSSL_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static-md" >> $env:GITHUB_ENV
-          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
-
-      # Use actions-rust-cross for cross-compilation (handles OpenSSL)
-      - name: Build with cross
-        if: matrix.cross
-        uses: houseabsolute/actions-rust-cross@v1
-        with:
-          command: build
-          target: ${{ matrix.target }}
-          args: "--locked --release --package sello"
-          strip: true
-
-      # Native builds use standard cargo
-      - name: Install Rust toolchain (native)
-        if: ${{ !matrix.cross }}
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache cargo registry and build (native)
-        if: ${{ !matrix.cross }}
+      - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
-      - name: Build release binary (native)
-        if: ${{ !matrix.cross }}
+      - name: Build release binary
         run: cargo build --locked --release --target ${{ matrix.target }} --package sello
 
-      # Prepare Unix binaries
-      - name: Prepare binary (Unix)
-        if: runner.os != 'Windows'
+      - name: Prepare binary
         run: |
           cd target/${{ matrix.target }}/release
           strip sello || true
           tar -czvf ${{ matrix.asset_name }}.tar.gz sello
           shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
 
-      # Prepare Windows binaries
-      - name: Prepare binary (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd target/${{ matrix.target }}/release
-          Compress-Archive -Path sello.exe -DestinationPath ${{ matrix.asset_name }}.zip
-          $hash = (Get-FileHash -Algorithm SHA256 ${{ matrix.asset_name }}.zip).Hash.ToLower()
-          "$hash  ${{ matrix.asset_name }}.zip" | Out-File -Encoding utf8 ${{ matrix.asset_name }}.zip.sha256
-
-      - name: Upload artifact (Unix)
-        if: runner.os != 'Windows'
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: |
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz.sha256
-          retention-days: 1
-
-      - name: Upload artifact (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset_name }}
-          path: |
-            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip
-            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip.sha256
           retention-days: 1
 
   # Create GitHub Release with all binaries
@@ -163,7 +111,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
           echo "Release assets:"
           ls -la release-assets/
 
@@ -187,7 +135,6 @@ jobs:
           | Linux | x86_64 | [sello-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-linux-x86_64.tar.gz) |
           | macOS | Intel | [sello-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-x86_64.tar.gz) |
           | macOS | Apple Silicon | [sello-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-aarch64.tar.gz) |
-          | Windows | x86_64 | [sello-windows-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-windows-x86_64.zip) |
 
           ### Install from crates.io
 
@@ -200,11 +147,7 @@ jobs:
           Each binary has a corresponding `.sha256` file for verification:
 
           ```bash
-          # Linux/macOS
           shasum -a 256 -c sello-linux-x86_64.tar.gz.sha256
-
-          # Windows (PowerShell)
-          (Get-FileHash sello-windows-x86_64.zip -Algorithm SHA256).Hash -eq (Get-Content sello-windows-x86_64.zip.sha256).Split()[0]
           ```
 
           ## Quick Start
