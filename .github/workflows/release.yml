@@ -51,7 +51,7 @@ jobs:
 
           # macOS Intel (native on Intel runner)
           - name: macOS-x86_64
-            os: macos-13-large
+            os: macos-15-intel
             target: x86_64-apple-darwin
             asset_name: sello-macos-x86_64
             cross: false
