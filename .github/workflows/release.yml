@@ -6,10 +6,12 @@
 #
 # Supported platforms:
 #   - Linux x86_64 (glibc)
-#   - Linux arm64 (glibc) - Raspberry Pi 4+, AWS Graviton
 #   - macOS x86_64 (Intel)
 #   - macOS arm64 (Apple Silicon)
 #   - Windows x86_64
+#
+# Note: Linux arm64 (Raspberry Pi/AWS Graviton) is not currently supported due to
+# OpenSSL cross-compilation issues with solana-sdk dependencies.
 #
 # Usage:
 #   git tag v0.1.0
@@ -41,13 +43,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
             asset_name: sello-linux-x86_64
             cross: false
-
-          # Linux arm64 (cross-compile for Raspberry Pi 4+, AWS Graviton)
-          - name: Linux-arm64
-            os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            asset_name: sello-linux-aarch64
-            cross: true
 
           # macOS Intel (native on Intel runner)
           - name: macOS-x86_64
@@ -182,7 +177,6 @@ jobs:
           | Platform | Architecture | Download |
           |----------|--------------|----------|
           | Linux | x86_64 | [sello-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-linux-x86_64.tar.gz) |
-          | Linux | arm64 | [sello-linux-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-linux-aarch64.tar.gz) |
           | macOS | Intel | [sello-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-x86_64.tar.gz) |
           | macOS | Apple Silicon | [sello-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-aarch64.tar.gz) |
           | Windows | x86_64 | [sello-windows-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-windows-x86_64.zip) |
