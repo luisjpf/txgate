@@ -5627,7 +5627,7 @@ dependencies = [
 
 [[package]]
 name = "txgate"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "alloy-primitives",
  "axum",
@@ -5660,7 +5660,7 @@ dependencies = [
 
 [[package]]
 name = "txgate-bench"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -5674,7 +5674,7 @@ dependencies = [
 
 [[package]]
 name = "txgate-chain"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -5694,7 +5694,7 @@ dependencies = [
 
 [[package]]
 name = "txgate-core"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "alloy-primitives",
  "dirs",
@@ -5710,7 +5710,7 @@ dependencies = [
 
 [[package]]
 name = "txgate-crypto"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "argon2",
  "bitcoin",
@@ -5732,7 +5732,7 @@ dependencies = [
 
 [[package]]
 name = "txgate-policy"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "alloy-primitives",
  "hex",
