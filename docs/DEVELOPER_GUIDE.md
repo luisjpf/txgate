@@ -1,6 +1,6 @@
-# Sello Developer Guide
+# TxGate Developer Guide
 
-This guide covers everything you need to know to develop, build, and extend Sello.
+This guide covers everything you need to know to develop, build, and extend TxGate.
 
 ## Table of Contents
 
@@ -35,8 +35,8 @@ Optional but recommended:
 1. **Clone the repository**:
 
 ```bash
-git clone https://github.com/sello-project/sello.git
-cd sello
+git clone https://github.com/txgate-project/txgate.git
+cd txgate
 ```
 
 2. **Install Rust** (if not already installed):
@@ -119,11 +119,11 @@ Install the **Rust** plugin and enable:
 cargo build
 
 # Build a specific crate
-cargo build -p sello-core
-cargo build -p sello-crypto
-cargo build -p sello-chain
-cargo build -p sello-policy
-cargo build -p sello
+cargo build -p txgate-core
+cargo build -p txgate-crypto
+cargo build -p txgate-chain
+cargo build -p txgate-policy
+cargo build -p txgate
 ```
 
 ### Release Build
@@ -132,7 +132,7 @@ cargo build -p sello
 # Optimized build
 cargo build --release
 
-# The binary is at target/release/sello
+# The binary is at target/release/txgate
 ```
 
 ### Build with Features
@@ -141,8 +141,8 @@ cargo build --release
 # Build with all features
 cargo build --all-features
 
-# Build sello-chain with mock feature (for testing)
-cargo build -p sello-chain --features mock
+# Build txgate-chain with mock feature (for testing)
+cargo build -p txgate-chain --features mock
 ```
 
 ### Check Without Building
@@ -165,7 +165,7 @@ cargo watch -x build
 cargo watch -x test
 
 # Watch specific crate
-cargo watch -x 'test -p sello-crypto'
+cargo watch -x 'test -p txgate-crypto'
 ```
 
 ---
@@ -185,10 +185,10 @@ cargo test -- --nocapture
 cargo test test_parse_eip1559
 
 # Run tests for a specific crate
-cargo test -p sello-core
-cargo test -p sello-crypto
-cargo test -p sello-chain
-cargo test -p sello-policy
+cargo test -p txgate-core
+cargo test -p txgate-crypto
+cargo test -p txgate-chain
+cargo test -p txgate-policy
 
 # Run integration tests only
 cargo test --test integration
@@ -210,7 +210,7 @@ cargo llvm-cov --html
 cargo llvm-cov
 
 # Coverage for specific crate
-cargo llvm-cov -p sello-crypto --html
+cargo llvm-cov -p txgate-crypto --html
 
 # Generate LCOV format for CI
 cargo llvm-cov --lcov --output-path lcov.info
@@ -220,11 +220,11 @@ cargo llvm-cov --lcov --output-path lcov.info
 
 | Crate | Target |
 |-------|--------|
-| sello-crypto | 100% |
-| sello-chain | 100% |
-| sello-policy | 100% |
-| sello-core | 90%+ |
-| sello | 80%+ |
+| txgate-crypto | 100% |
+| txgate-chain | 100% |
+| txgate-policy | 100% |
+| txgate-core | 90%+ |
+| txgate | 80%+ |
 
 ### Property Testing
 
@@ -277,7 +277,7 @@ chmod +x .git/hooks/pre-commit
 ### Workspace Structure
 
 ```
-sello/
+txgate/
 +-- Cargo.toml           # Workspace manifest
 +-- Cargo.lock           # Dependency lock file
 +-- rustfmt.toml         # Formatting configuration
@@ -286,11 +286,11 @@ sello/
 +-- README.md
 |
 +-- crates/
-|   +-- sello-core/      # Core types and errors
-|   +-- sello-crypto/    # Cryptographic operations
-|   +-- sello-chain/     # Chain parsers
-|   +-- sello-policy/    # Policy engine
-|   +-- sello/           # CLI and server
+|   +-- txgate-core/      # Core types and errors
+|   +-- txgate-crypto/    # Cryptographic operations
+|   +-- txgate-chain/     # Chain parsers
+|   +-- txgate-policy/    # Policy engine
+|   +-- txgate/           # CLI and server
 |
 +-- docs/
 |   +-- ARCHITECTURE.md  # Architecture overview
@@ -313,7 +313,7 @@ sello/
 Each crate follows this structure:
 
 ```
-crates/sello-xxx/
+crates/txgate-xxx/
 +-- Cargo.toml           # Crate manifest
 +-- src/
     +-- lib.rs           # Public API and re-exports
@@ -335,7 +335,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // Internal crates
-use sello_core::{ParsedTx, SelloError};
+use txgate_core::{ParsedTx, TxGateError};
 
 // Current crate modules
 use crate::module_a::TypeA;
@@ -349,15 +349,15 @@ This section walks through adding support for a new blockchain.
 
 ### Step 1: Create the Parser Module
 
-Create a new file in `crates/sello-chain/src/`:
+Create a new file in `crates/txgate-chain/src/`:
 
 ```rust
-// crates/sello-chain/src/solana.rs
+// crates/txgate-chain/src/solana.rs
 
 use crate::chain::Chain;
-use sello_core::{ParsedTx, TxType};
-use sello_core::error::ParseError;
-use sello_crypto::CurveType;
+use txgate_core::{ParsedTx, TxType};
+use txgate_core::error::ParseError;
+use txgate_crypto::CurveType;
 
 /// Parser for Solana transactions
 pub struct SolanaParser;
@@ -436,7 +436,7 @@ mod tests {
 
 ### Step 2: Export from lib.rs
 
-Update `crates/sello-chain/src/lib.rs`:
+Update `crates/txgate-chain/src/lib.rs`:
 
 ```rust
 pub mod solana;
@@ -447,7 +447,7 @@ pub use solana::SolanaParser;
 
 ### Step 3: Register in ChainRegistry
 
-Update `crates/sello-chain/src/registry.rs`:
+Update `crates/txgate-chain/src/registry.rs`:
 
 ```rust
 use crate::solana::SolanaParser;
@@ -507,10 +507,10 @@ fn test_solana_transfer_parsing() {
 
 ### Step 6: Add CLI Support (Optional)
 
-If needed, add CLI commands in `crates/sello/src/cli/commands/`:
+If needed, add CLI commands in `crates/txgate/src/cli/commands/`:
 
 ```rust
-// crates/sello/src/cli/commands/solana/mod.rs
+// crates/txgate/src/cli/commands/solana/mod.rs
 pub mod address;
 pub mod sign;
 ```
@@ -521,7 +521,7 @@ pub mod sign;
 
 ### Step 1: Define the Command in args.rs
 
-Update `crates/sello/src/cli/args.rs`:
+Update `crates/txgate/src/cli/args.rs`:
 
 ```rust
 #[derive(Subcommand, Debug)]
@@ -539,14 +539,14 @@ pub enum Commands {
 
 ### Step 2: Create Command Handler
 
-Create `crates/sello/src/cli/commands/new_command.rs`:
+Create `crates/txgate/src/cli/commands/new_command.rs`:
 
 ```rust
 use crate::cli::args::Commands;
-use sello_core::SelloError;
+use txgate_core::TxGateError;
 
 /// Execute the new command
-pub fn run(option: Option<String>) -> Result<(), SelloError> {
+pub fn run(option: Option<String>) -> Result<(), TxGateError> {
     // Implementation here
     println!("Running new command with option: {:?}", option);
     Ok(())
@@ -555,7 +555,7 @@ pub fn run(option: Option<String>) -> Result<(), SelloError> {
 
 ### Step 3: Export from commands/mod.rs
 
-Update `crates/sello/src/cli/commands/mod.rs`:
+Update `crates/txgate/src/cli/commands/mod.rs`:
 
 ```rust
 pub mod new_command;
@@ -563,7 +563,7 @@ pub mod new_command;
 
 ### Step 4: Handle in main.rs
 
-Update `crates/sello/src/main.rs`:
+Update `crates/txgate/src/main.rs`:
 
 ```rust
 match cli.command {
@@ -586,7 +586,7 @@ match cli.command {
 RUST_LOG=debug cargo run -- status
 
 # More granular control
-RUST_LOG=sello=debug,sello_crypto=trace cargo run -- status
+RUST_LOG=txgate=debug,txgate_crypto=trace cargo run -- status
 ```
 
 ### Use cargo expand
@@ -595,7 +595,7 @@ See macro expansions:
 
 ```bash
 cargo install cargo-expand
-cargo expand -p sello-core types
+cargo expand -p txgate-core types
 ```
 
 ### Debug with LLDB/GDB
@@ -605,10 +605,10 @@ cargo expand -p sello-core types
 cargo build
 
 # Run under LLDB (macOS)
-lldb -- ./target/debug/sello status
+lldb -- ./target/debug/txgate status
 
 # Run under GDB (Linux)
-gdb --args ./target/debug/sello status
+gdb --args ./target/debug/txgate status
 ```
 
 ### VS Code Debugging
@@ -622,11 +622,11 @@ Add to `.vscode/launch.json`:
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug sello",
+            "name": "Debug txgate",
             "cargo": {
-                "args": ["build", "--bin=sello", "--package=sello"],
+                "args": ["build", "--bin=txgate", "--package=txgate"],
                 "filter": {
-                    "name": "sello",
+                    "name": "txgate",
                     "kind": "bin"
                 }
             },
@@ -726,12 +726,12 @@ Use `perf` (Linux) or Instruments (macOS):
 ```bash
 # Linux with perf
 cargo build --release
-perf record -g ./target/release/sello sign ...
+perf record -g ./target/release/txgate sign ...
 perf report
 
 # macOS with Instruments
 cargo build --release
-instruments -t "Time Profiler" ./target/release/sello sign ...
+instruments -t "Time Profiler" ./target/release/txgate sign ...
 ```
 
 ### Memory Profiling
@@ -741,7 +741,7 @@ Use `valgrind` (Linux) or Instruments (macOS):
 ```bash
 # Linux with valgrind
 cargo build --release
-valgrind --tool=massif ./target/release/sello status
+valgrind --tool=massif ./target/release/txgate status
 ms_print massif.out.*
 ```
 

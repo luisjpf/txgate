@@ -1,4 +1,4 @@
-//! Performance benchmarks for sello-chain transaction parsing.
+//! Performance benchmarks for txgate-chain transaction parsing.
 //!
 //! This module benchmarks transaction parsing for all supported transaction types:
 //! - Legacy (Type 0) transactions
@@ -12,7 +12,7 @@
 
 use alloy_primitives::{Address, Bytes, U256};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use sello_chain::{Chain, EthereumParser};
+use txgate_chain::{Chain, EthereumParser};
 
 /// Helper to create a fake signature for transaction encoding.
 fn fake_signature() -> alloy_primitives::Signature {

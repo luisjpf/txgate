@@ -1,4 +1,4 @@
-# Sello Fuzz Testing Pipeline
+# TxGate Fuzz Testing Pipeline
 #
 # This workflow runs cargo-fuzz against security-critical code to find
 # potential crashes, panics, or unexpected behavior. Fuzzing runs on a
@@ -38,7 +38,7 @@ jobs:
     name: Fuzz Testing
     runs-on: ubuntu-latest
     # Don't run on forks (they may not have the necessary secrets/permissions)
-    if: github.repository == 'sello-project/sello'
+    if: github.repository == 'luisjpf/txgate'
 
     steps:
       - name: Checkout repository

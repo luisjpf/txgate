@@ -1,12 +1,12 @@
 # Fuzz Testing Guide
 
-This document describes how to run fuzz tests for the Sello project using [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz).
+This document describes how to run fuzz tests for the TxGate project using [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz).
 
 ## Overview
 
 Fuzz testing (or fuzzing) is an automated testing technique that provides random, unexpected, or malformed data as input to a program. It's particularly valuable for security-critical code like transaction parsers and policy engines.
 
-Sello uses [libFuzzer](https://llvm.org/docs/LibFuzzer.html) via `cargo-fuzz` for coverage-guided fuzzing. This means the fuzzer learns from previous inputs to discover new code paths and edge cases.
+TxGate uses [libFuzzer](https://llvm.org/docs/LibFuzzer.html) via `cargo-fuzz` for coverage-guided fuzzing. This means the fuzzer learns from previous inputs to discover new code paths and edge cases.
 
 ## Prerequisites
 

@@ -10,8 +10,8 @@
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-If you discover a security vulnerability in Sello, please report it by emailing
-**security@sello-project.org**. You should receive a response within 48 hours.
+If you discover a security vulnerability in TxGate, please report it by emailing
+**security@txgate-project.org**. You should receive a response within 48 hours.
 
 Please include the following information in your report:
 
@@ -24,7 +24,7 @@ Please include the following information in your report:
 
 ## Security Model
 
-Sello is a transaction signing server with the following security boundaries:
+TxGate is a transaction signing server with the following security boundaries:
 
 ### Trust Boundaries
 
@@ -33,7 +33,7 @@ Sello is a transaction signing server with the following security boundaries:
 3. **Policy Enforcement**: All transactions must pass policy checks before signing
 4. **Access Control**: Unix socket with filesystem permissions (0600)
 
-### What Sello Protects Against
+### What TxGate Protects Against
 
 - Unauthorized transaction signing (via policy engine)
 - Key material exposure in memory dumps (via zeroization)
@@ -41,7 +41,7 @@ Sello is a transaction signing server with the following security boundaries:
 - Excessive spending (via transaction and daily limits)
 - Transfers to blacklisted addresses
 
-### What Sello Does NOT Protect Against
+### What TxGate Does NOT Protect Against
 
 - Compromise of the host system
 - Physical access to the server
@@ -55,16 +55,16 @@ The following modules require extra scrutiny for any changes:
 
 | Module | Path | Concern |
 |--------|------|---------|
-| SecretKey | `crates/sello-crypto/src/keys.rs` | Memory zeroization |
-| Encryption | `crates/sello-crypto/src/encryption.rs` | Key derivation, AEAD |
-| Ethereum Parser | `crates/sello-chain/src/ethereum.rs` | Transaction parsing correctness |
-| ERC-20 Detection | `crates/sello-chain/src/erc20.rs` | Token operation detection |
-| Policy Engine | `crates/sello-policy/src/engine.rs` | Policy enforcement |
-| Audit Logging | `crates/sello/src/audit.rs` | Tamper-evident logging |
-| Key Import | `crates/sello/src/cli/commands/key/import.rs` | Secret key handling, zeroization |
-| Key Export | `crates/sello/src/cli/commands/key/export.rs` | Passphrase handling, re-encryption |
-| Key Delete | `crates/sello/src/cli/commands/key/delete.rs` | Confirmation bypass prevention |
-| CLI Args | `crates/sello/src/cli/args.rs` | Secret redaction in Debug |
+| SecretKey | `crates/txgate-crypto/src/keys.rs` | Memory zeroization |
+| Encryption | `crates/txgate-crypto/src/encryption.rs` | Key derivation, AEAD |
+| Ethereum Parser | `crates/txgate-chain/src/ethereum.rs` | Transaction parsing correctness |
+| ERC-20 Detection | `crates/txgate-chain/src/erc20.rs` | Token operation detection |
+| Policy Engine | `crates/txgate-policy/src/engine.rs` | Policy enforcement |
+| Audit Logging | `crates/txgate/src/audit.rs` | Tamper-evident logging |
+| Key Import | `crates/txgate/src/cli/commands/key/import.rs` | Secret key handling, zeroization |
+| Key Export | `crates/txgate/src/cli/commands/key/export.rs` | Passphrase handling, re-encryption |
+| Key Delete | `crates/txgate/src/cli/commands/key/delete.rs` | Confirmation bypass prevention |
+| CLI Args | `crates/txgate/src/cli/args.rs` | Secret redaction in Debug |
 
 ## Security Testing
 

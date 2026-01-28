@@ -1,6 +1,6 @@
-# Sello Configuration Reference
+# TxGate Configuration Reference
 
-This document provides a complete reference for all Sello configuration options.
+This document provides a complete reference for all TxGate configuration options.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ This document provides a complete reference for all Sello configuration options.
 The default configuration file is located at:
 
 ```
-~/.sello/config.toml
+~/.txgate/config.toml
 ```
 
 ### Custom Location
@@ -28,19 +28,19 @@ The default configuration file is located at:
 Use the `-c` or `--config` flag to specify an alternative location:
 
 ```bash
-sello -c /etc/sello/config.toml serve
+txgate -c /etc/txgate/config.toml serve
 ```
 
 ### View Location
 
 ```bash
-sello config path
+txgate config path
 ```
 
 ### Edit Configuration
 
 ```bash
-sello config edit
+txgate config edit
 ```
 
 Opens the configuration file in your default editor (`$EDITOR` or `$VISUAL`).
@@ -49,7 +49,7 @@ Opens the configuration file in your default editor (`$EDITOR` or `$VISUAL`).
 
 ## Configuration File Format
 
-Sello uses TOML format for configuration. The file contains three main sections:
+TxGate uses TOML format for configuration. The file contains three main sections:
 
 ```toml
 [server]
@@ -75,12 +75,12 @@ Path to the Unix domain socket for IPC communication.
 | Property | Value |
 |----------|-------|
 | Type | String |
-| Default | `~/.sello/sello.sock` |
+| Default | `~/.txgate/txgate.sock` |
 | Required | No |
 
 ```toml
 [server]
-socket_path = "~/.sello/sello.sock"
+socket_path = "~/.txgate/txgate.sock"
 ```
 
 Notes:
@@ -122,12 +122,12 @@ Directory where encrypted key files are stored.
 | Property | Value |
 |----------|-------|
 | Type | String |
-| Default | `~/.sello/keys` |
+| Default | `~/.txgate/keys` |
 | Required | No |
 
 ```toml
 [keys]
-directory = "~/.sello/keys"
+directory = "~/.txgate/keys"
 ```
 
 Notes:
@@ -290,7 +290,7 @@ Notes:
 Logging is configured via environment variables (see below). Audit logs are written to:
 
 ```
-~/.sello/logs/audit.jsonl
+~/.txgate/logs/audit.jsonl
 ```
 
 Each line is a JSON object containing:
@@ -308,7 +308,7 @@ Here is a complete configuration file with all options:
 
 ```toml
 # =============================================================================
-# Sello Configuration
+# TxGate Configuration
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -316,7 +316,7 @@ Here is a complete configuration file with all options:
 # -----------------------------------------------------------------------------
 [server]
 # Path to the Unix socket for client connections
-socket_path = "~/.sello/sello.sock"
+socket_path = "~/.txgate/txgate.sock"
 
 # Request timeout in seconds
 timeout_secs = 30
@@ -326,7 +326,7 @@ timeout_secs = 30
 # -----------------------------------------------------------------------------
 [keys]
 # Directory containing encrypted key files
-directory = "~/.sello/keys"
+directory = "~/.txgate/keys"
 
 # Name of the default signing key
 default_key = "default"
@@ -389,25 +389,25 @@ ETH = "20000000000000000000"
 
 ### RUST_LOG
 
-Controls log verbosity. Sello uses the `tracing` framework.
+Controls log verbosity. TxGate uses the `tracing` framework.
 
 ```bash
 # Show info and above
 export RUST_LOG=info
 
-# Show debug messages for sello
-export RUST_LOG=sello=debug
+# Show debug messages for txgate
+export RUST_LOG=txgate=debug
 
 # Show all trace messages
 export RUST_LOG=trace
 
 # Combination
-export RUST_LOG=warn,sello=debug,sello_policy=trace
+export RUST_LOG=warn,txgate=debug,txgate_policy=trace
 ```
 
 ### EDITOR / VISUAL
 
-Used by `sello config edit` to determine the text editor.
+Used by `txgate config edit` to determine the text editor.
 
 ```bash
 export EDITOR=vim
@@ -447,7 +447,7 @@ When configuring limits, amounts must be in the token's smallest unit.
 
 ## Validation Rules
 
-Sello validates the configuration on startup. Invalid configurations will cause startup to fail.
+TxGate validates the configuration on startup. Invalid configurations will cause startup to fail.
 
 ### Validation Checks
 
@@ -464,7 +464,7 @@ Sello validates the configuration on startup. Invalid configurations will cause 
 Validate your configuration by running:
 
 ```bash
-sello status
+txgate status
 ```
 
 If the configuration is valid, status information will be displayed. If invalid, an error message will indicate the problem.
@@ -473,15 +473,15 @@ If the configuration is valid, status information will be displayed. If invalid,
 
 ## Default Configuration
 
-When you run `sello init`, the following default configuration is created:
+When you run `txgate init`, the following default configuration is created:
 
 ```toml
 [server]
-socket_path = "~/.sello/sello.sock"
+socket_path = "~/.txgate/txgate.sock"
 timeout_secs = 30
 
 [keys]
-directory = "~/.sello/keys"
+directory = "~/.txgate/keys"
 default_key = "default"
 
 [policy]
@@ -542,7 +542,7 @@ blacklist = [
 Periodically review your configuration:
 
 ```bash
-sello config
+txgate config
 ```
 
 Remove addresses you no longer need and update limits based on actual usage.

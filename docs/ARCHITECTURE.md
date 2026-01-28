@@ -1,6 +1,6 @@
-# Sello Architecture
+# TxGate Architecture
 
-This document provides an architectural overview of Sello for developers who want to understand the system design, extend functionality, or contribute to the codebase.
+This document provides an architectural overview of TxGate for developers who want to understand the system design, extend functionality, or contribute to the codebase.
 
 ## Table of Contents
 
@@ -15,10 +15,10 @@ This document provides an architectural overview of Sello for developers who wan
 
 ## High-Level Architecture
 
-Sello is a self-hosted, chain-agnostic transaction signing server. Unlike hash-signing solutions that blindly sign whatever clients submit, Sello **parses raw transactions** to extract recipients, amounts, and tokens, then enforces configurable policies before signing.
+TxGate is a self-hosted, chain-agnostic transaction signing server. Unlike hash-signing solutions that blindly sign whatever clients submit, TxGate **parses raw transactions** to extract recipients, amounts, and tokens, then enforces configurable policies before signing.
 
 ```
-                                    SELLO ARCHITECTURE
+                                    TXGATE ARCHITECTURE
 +-----------------------------------------------------------------------------+
 |                                                                             |
 |   +-------------+        +-------------+                                    |
@@ -64,7 +64,7 @@ Sello is a self-hosted, chain-agnostic transaction signing server. Unlike hash-s
 |               v                                                             |
 |       +---------------+                                                     |
 |       |   Key Store   |<---- Argon2id + ChaCha20-Poly1305                   |
-|       | (~/.sello/    |      encrypted key files                            |
+|       | (~/.txgate/    |      encrypted key files                            |
 |       |   keys/*.enc) |                                                     |
 |       +---------------+                                                     |
 |                                                                             |
@@ -89,39 +89,39 @@ All three chains (Ethereum, Bitcoin, Solana) are fully implemented.
 
 ## Crate Responsibilities
 
-Sello is organized as a Cargo workspace with 5 crates:
+TxGate is organized as a Cargo workspace with 5 crates:
 
 ```
-sello/
+txgate/
 +-- crates/
-    +-- sello-core/      # Foundation layer
-    +-- sello-crypto/    # Cryptographic operations
-    +-- sello-chain/     # Blockchain transaction parsing
-    +-- sello-policy/    # Policy evaluation engine
-    +-- sello/           # Binary (CLI + Server)
+    +-- txgate-core/      # Foundation layer
+    +-- txgate-crypto/    # Cryptographic operations
+    +-- txgate-chain/     # Blockchain transaction parsing
+    +-- txgate-policy/    # Policy evaluation engine
+    +-- txgate/           # Binary (CLI + Server)
 ```
 
 ### Dependency Graph
 
 ```
                     +---------------+
-                    |     sello     |  (binary)
+                    |     txgate     |  (binary)
                     +-------+-------+
                             |
         +-------------------+-------------------+
         |                   |                   |
         v                   v                   v
 +---------------+   +---------------+   +---------------+
-| sello-chain   |   | sello-policy  |   | sello-crypto  |
+| txgate-chain   |   | txgate-policy  |   | txgate-crypto  |
 +-------+-------+   +-------+-------+   +-------+-------+
         |                   |                   |
         |                   v                   |
         |           +---------------+           |
-        +---------->|  sello-core   |<----------+
+        +---------->|  txgate-core   |<----------+
                     +---------------+
 ```
 
-### sello-core
+### txgate-core
 
 **Purpose**: Core types, traits, error definitions, and configuration loading.
 
@@ -129,13 +129,13 @@ sello/
 - `ParsedTx` - Unified transaction representation across all chains
 - `TxType` - Transaction type classification (Transfer, TokenTransfer, etc.)
 - `PolicyResult` - Policy evaluation outcome (Allowed/Denied)
-- `SelloError`, `ParseError`, `SignError`, `PolicyError` - Error types
+- `TxGateError`, `ParseError`, `SignError`, `PolicyError` - Error types
 - `Config`, `ConfigBuilder` - Configuration management
 - `SigningService` - High-level signing orchestration trait
 
 **Modules**:
 ```
-sello-core/src/
+txgate-core/src/
 +-- lib.rs           # Public API and re-exports
 +-- types.rs         # ParsedTx, TxType, PolicyResult
 +-- error.rs         # Error types with thiserror
@@ -144,7 +144,7 @@ sello-core/src/
 +-- signing.rs       # SigningService trait and abstractions
 ```
 
-### sello-crypto
+### txgate-crypto
 
 **Purpose**: All cryptographic operations including key management, signing, and encryption.
 
@@ -157,7 +157,7 @@ sello-core/src/
 
 **Modules**:
 ```
-sello-crypto/src/
+txgate-crypto/src/
 +-- lib.rs        # Public API and re-exports
 +-- keys.rs       # SecretKey with zeroization
 +-- keypair.rs    # KeyPair generation and handling
@@ -172,7 +172,7 @@ sello-crypto/src/
 - Constant-time operations for cryptographic comparisons
 - Argon2id with 64 MiB memory, 3 iterations, 4 lanes
 
-### sello-chain
+### txgate-chain
 
 **Purpose**: Multi-chain transaction parsing and token detection.
 
@@ -185,7 +185,7 @@ sello-crypto/src/
 
 **Modules**:
 ```
-sello-chain/src/
+txgate-chain/src/
 +-- lib.rs        # Public API and re-exports
 +-- chain.rs      # Chain trait definition
 +-- registry.rs   # ChainRegistry for runtime lookup
@@ -216,7 +216,7 @@ sello-chain/src/
 - System Program transfers
 - SPL Token transfers (Token and Token-2022)
 
-### sello-policy
+### txgate-policy
 
 **Purpose**: Policy engine for transaction approval rules and history tracking.
 
@@ -228,7 +228,7 @@ sello-chain/src/
 
 **Modules**:
 ```
-sello-policy/src/
+txgate-policy/src/
 +-- lib.rs      # Public API and re-exports
 +-- config.rs   # Policy configuration types
 +-- engine.rs   # DefaultPolicyEngine implementation
@@ -241,7 +241,7 @@ sello-policy/src/
 3. **Transaction Limit** - Deny if amount exceeds per-transaction limit
 4. **Daily Limit** - Deny if cumulative 24h amount would exceed limit
 
-### sello (binary)
+### txgate (binary)
 
 **Purpose**: CLI application and server implementation.
 
@@ -252,7 +252,7 @@ sello-policy/src/
 
 **Modules**:
 ```
-sello/src/
+txgate/src/
 +-- main.rs          # Entry point
 +-- lib.rs           # Library exports
 +-- cli/
@@ -396,10 +396,10 @@ pub struct ParsedTx {
 
 | Path | Permission | Purpose |
 |------|------------|---------|
-| `~/.sello/` | 0700 | Configuration directory |
-| `~/.sello/keys/*.enc` | 0600 | Encrypted key files |
-| `~/.sello/sello.sock` | 0600 | Unix socket |
-| `~/.sello/audit/*.jsonl` | 0600 | Audit logs |
+| `~/.txgate/` | 0700 | Configuration directory |
+| `~/.txgate/keys/*.enc` | 0600 | Encrypted key files |
+| `~/.txgate/txgate.sock` | 0600 | Unix socket |
+| `~/.txgate/audit/*.jsonl` | 0600 | Audit logs |
 
 ---
 
@@ -496,7 +496,7 @@ Traditional signers accept a hash and sign it blindly. This is dangerous because
 2. Client claims recipient is "treasury" but hash sends to attacker
 3. No audit trail of what was actually signed
 
-Sello parses the raw transaction to verify claims and enforce policies.
+TxGate parses the raw transaction to verify claims and enforce policies.
 
 ### Why Trait Objects for Chains?
 

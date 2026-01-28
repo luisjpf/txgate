@@ -1,4 +1,4 @@
-# Contributing to Sello
+# Contributing to TxGate
 
 Thanks for taking the time to contribute. This guide covers the essentials and
 links to the full contributor documentation.
@@ -11,7 +11,7 @@ By participating, you agree to follow the Code of Conduct in
 ## Security Issues
 
 Please do not report security vulnerabilities in public issues. Email
-security@sello-project.org with a detailed report.
+security@txgate-project.org with a detailed report.
 
 ## Getting Started
 

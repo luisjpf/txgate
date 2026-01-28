@@ -1,7 +1,7 @@
-# Sello
+# TxGate
 
-[![CI](https://github.com/luisjpf/sello/actions/workflows/ci.yml/badge.svg)](https://github.com/luisjpf/sello/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/sello.svg)](https://crates.io/crates/sello)
+[![CI](https://github.com/luisjpf/txgate/actions/workflows/ci.yml/badge.svg)](https://github.com/luisjpf/txgate/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/txgate.svg)](https://crates.io/crates/txgate)
 [![Documentation](https://img.shields.io/badge/docs-user_guide-blue)](docs/USER_GUIDE.md)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 
@@ -9,7 +9,7 @@ Multi-chain transaction signing service with policy engine.
 
 ## Overview
 
-Sello is a secure, high-performance transaction signing service designed for blockchain applications. It provides:
+TxGate is a secure, high-performance transaction signing service designed for blockchain applications. It provides:
 
 - **Multi-chain support**: Sign transactions for Ethereum, Bitcoin, and Solana
 - **Policy engine**: Define and enforce signing policies (amount limits, address allowlists, etc.)
@@ -19,13 +19,13 @@ Sello is a secure, high-performance transaction signing service designed for blo
 ## Project Structure
 
 ```
-sello/
+txgate/
 ├── crates/
-│   ├── sello-core/      # Core types, traits, and error definitions
-│   ├── sello-crypto/    # Cryptographic operations (signing, verification)
-│   ├── sello-chain/     # Multi-chain transaction parsing
-│   ├── sello-policy/    # Policy engine for signing rules
-│   └── sello/           # Binary crate (CLI + Server)
+│   ├── txgate-core/      # Core types, traits, and error definitions
+│   ├── txgate-crypto/    # Cryptographic operations (signing, verification)
+│   ├── txgate-chain/     # Multi-chain transaction parsing
+│   ├── txgate-policy/    # Policy engine for signing rules
+│   └── txgate/           # Binary crate (CLI + Server)
 ├── tests/
 │   ├── integration/     # Integration tests
 │   └── fixtures/        # Test data files
@@ -36,41 +36,41 @@ sello/
 
 ### From GitHub Releases (Recommended)
 
-Download the latest pre-built binary for your platform from the [Releases](https://github.com/luisjpf/sello/releases) page.
+Download the latest pre-built binary for your platform from the [Releases](https://github.com/luisjpf/txgate/releases) page.
 
 **Linux (x86_64)**
 ```bash
-curl -LO https://github.com/luisjpf/sello/releases/latest/download/sello-linux-x86_64.tar.gz
-tar -xzf sello-linux-x86_64.tar.gz
-sudo mv sello /usr/local/bin/
+curl -LO https://github.com/luisjpf/txgate/releases/latest/download/txgate-linux-x86_64.tar.gz
+tar -xzf txgate-linux-x86_64.tar.gz
+sudo mv txgate /usr/local/bin/
 ```
 
 **macOS (Apple Silicon)**
 ```bash
-curl -LO https://github.com/luisjpf/sello/releases/latest/download/sello-macos-aarch64.tar.gz
-tar -xzf sello-macos-aarch64.tar.gz
-sudo mv sello /usr/local/bin/
+curl -LO https://github.com/luisjpf/txgate/releases/latest/download/txgate-macos-aarch64.tar.gz
+tar -xzf txgate-macos-aarch64.tar.gz
+sudo mv txgate /usr/local/bin/
 ```
 
 **macOS (Intel)**
 ```bash
-curl -LO https://github.com/luisjpf/sello/releases/latest/download/sello-macos-x86_64.tar.gz
-tar -xzf sello-macos-x86_64.tar.gz
-sudo mv sello /usr/local/bin/
+curl -LO https://github.com/luisjpf/txgate/releases/latest/download/txgate-macos-x86_64.tar.gz
+tar -xzf txgate-macos-x86_64.tar.gz
+sudo mv txgate /usr/local/bin/
 ```
 
 ### Verify Installation
 
 After installation, verify the binary works:
 ```bash
-sello --version
-sello --help
+txgate --version
+txgate --help
 ```
 
 ### From crates.io
 
 ```bash
-cargo install sello
+cargo install txgate
 ```
 
 ### From Source
@@ -84,8 +84,8 @@ cargo install sello
 
 ```bash
 # Clone the repository
-git clone https://github.com/luisjpf/sello.git
-cd sello
+git clone https://github.com/luisjpf/txgate.git
+cd txgate
 
 # Build all crates
 cargo build
@@ -104,7 +104,7 @@ cargo run -- --help
 
 ```bash
 # Start the signing server
-sello serve
+txgate serve
 ```
 
 ## Configuration
@@ -121,7 +121,7 @@ Configuration is done via TOML files. See `config.example.toml` and
 
 ## Security
 
-Sello is designed with security as a top priority:
+TxGate is designed with security as a top priority:
 
 - No unsafe code (`#![forbid(unsafe_code)]`)
 - Comprehensive input validation

@@ -15,6 +15,6 @@
     "description": "Transfers 1 ETH to a test address on Ethereum mainnet",
     "value_eth": "1.0",
     "gas_price_gwei": "20",
-    "source": "Generated for Sello testing - follows EIP-155 replay protection"
+    "source": "Generated for TxGate testing - follows EIP-155 replay protection"
   }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "sello-fuzz"
+name = "txgate-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2021"
@@ -9,9 +9,9 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-sello-chain = { path = "../crates/sello-chain" }
-sello-policy = { path = "../crates/sello-policy" }
-sello-core = { path = "../crates/sello-core" }
+txgate-chain = { path = "../crates/txgate-chain" }
+txgate-policy = { path = "../crates/txgate-policy" }
+txgate-core = { path = "../crates/txgate-core" }
 arbitrary = { version = "1", features = ["derive"] }
 
 # Re-export alloy types for fuzzing Ethereum transactions

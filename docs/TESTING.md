@@ -1,6 +1,6 @@
-# Testing Guide for Sello
+# Testing Guide for TxGate
 
-This document describes the testing infrastructure, conventions, and procedures for the Sello project.
+This document describes the testing infrastructure, conventions, and procedures for the TxGate project.
 
 ## Test Organization
 
@@ -17,11 +17,11 @@ tests/
         └── erc20_transfer.json     # ERC-20 token transfers
 
 crates/
-├── sello-core/src/       # Unit tests with #[cfg(test)] modules
-├── sello-crypto/src/     # Unit tests (100% coverage required)
-├── sello-chain/src/      # Unit tests (100% coverage required)
-├── sello-policy/src/     # Unit tests (100% coverage required)
-└── sello/src/            # Unit tests
+├── txgate-core/src/       # Unit tests with #[cfg(test)] modules
+├── txgate-crypto/src/     # Unit tests (100% coverage required)
+├── txgate-chain/src/      # Unit tests (100% coverage required)
+├── txgate-policy/src/     # Unit tests (100% coverage required)
+└── txgate/src/            # Unit tests
 
 fuzz/                     # Fuzz tests (cargo-fuzz)
 ```
@@ -41,10 +41,10 @@ cargo test -- --nocapture
 cargo test test_name
 
 # Run tests for a specific crate
-cargo test -p sello-core
-cargo test -p sello-crypto
-cargo test -p sello-chain
-cargo test -p sello-policy
+cargo test -p txgate-core
+cargo test -p txgate-crypto
+cargo test -p txgate-chain
+cargo test -p txgate-policy
 
 # Run only integration tests
 cargo test --test integration
@@ -99,7 +99,7 @@ cargo llvm-cov --json --output-path coverage.json
 cargo llvm-cov --lcov --output-path lcov.info
 
 # Coverage for specific crate
-cargo llvm-cov -p sello-crypto --html
+cargo llvm-cov -p txgate-crypto --html
 
 # Coverage with all features
 cargo llvm-cov --all-features --html
@@ -112,11 +112,11 @@ cargo llvm-cov --html --ignore-filename-regex 'tests/.*'
 
 | Crate | Target Coverage |
 |-------|----------------|
-| sello-crypto | 100% |
-| sello-chain | 100% |
-| sello-policy | 100% |
-| sello-core | 90%+ |
-| sello (binary) | 80%+ |
+| txgate-crypto | 100% |
+| txgate-chain | 100% |
+| txgate-policy | 100% |
+| txgate-core | 90%+ |
+| txgate (binary) | 80%+ |
 
 ## Property-Based Testing
 
@@ -271,7 +271,7 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Parse the data - should not panic
-    let _ = sello_chain::evm::parse_transaction(data);
+    let _ = txgate_chain::evm::parse_transaction(data);
 });
 ```
 

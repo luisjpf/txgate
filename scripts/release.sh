@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Sello Release Script
+# TxGate Release Script
 #
 # This script automates local release preparation:
 # - Validates the codebase is ready for release
@@ -101,11 +101,11 @@ info "Updating version to $VERSION in all crates..."
 
 CRATES=(
     "Cargo.toml"
-    "crates/sello-core/Cargo.toml"
-    "crates/sello-crypto/Cargo.toml"
-    "crates/sello-chain/Cargo.toml"
-    "crates/sello-policy/Cargo.toml"
-    "crates/sello/Cargo.toml"
+    "crates/txgate-core/Cargo.toml"
+    "crates/txgate-crypto/Cargo.toml"
+    "crates/txgate-chain/Cargo.toml"
+    "crates/txgate-policy/Cargo.toml"
+    "crates/txgate/Cargo.toml"
 )
 
 for CRATE in "${CRATES[@]}"; do

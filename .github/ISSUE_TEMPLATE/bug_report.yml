@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in Sello
+description: Report a bug in TxGate
 labels: [bug]
 body:
   - type: markdown
@@ -32,8 +32,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Sello version
-      description: Output of `sello --version`.
+      label: TxGate version
+      description: Output of `txgate --version`.
     validations:
       required: true
   - type: input

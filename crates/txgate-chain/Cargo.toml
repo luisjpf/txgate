@@ -1,0 +1,40 @@
+[package]
+name = "txgate-chain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+description = "Multi-chain transaction parsing and construction for TxGate"
+keywords = ["txgate", "blockchain", "transaction", "parser"]
+categories = ["cryptography", "parser-implementations"]
+# Note: This is an internal crate with unstable API.
+# Published to crates.io only as a dependency of the `txgate` binary.
+# Do not depend on this crate directly - use `txgate` instead.
+
+[lints]
+workspace = true
+
+[dependencies]
+txgate-core = { version = "0.1.0", path = "../txgate-core" }
+txgate-crypto = { version = "0.1.0", path = "../txgate-crypto" }
+alloy-consensus = { workspace = true }
+alloy-primitives = { workspace = true }
+alloy-rlp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bitcoin = { workspace = true }
+solana-sdk = { workspace = true }
+bincode = { workspace = true }
+hex = { workspace = true }
+
+[features]
+default = []
+mock = []  # Enable MockChain for use in other crates' tests
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

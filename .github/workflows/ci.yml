@@ -1,4 +1,4 @@
-# Sello CI Pipeline
+# TxGate CI Pipeline
 # This workflow runs on every push and pull request to ensure code quality.
 
 name: CI
@@ -190,10 +190,10 @@ jobs:
 
           echo "$AUDIT_OUTPUT"
 
-          # Check for vulnerabilities in OUR crates (sello-*)
+          # Check for vulnerabilities in OUR crates (txgate-*)
           # These are the only ones we can directly fix
           # Vulnerabilities in transitive deps from solana-sdk, bitcoin, etc. we can only warn about
-          DIRECT_VULNS=$(echo "$AUDIT_OUTPUT" | grep -B20 "Solution:" | grep -E "sello(-|_)" | wc -l || echo "0")
+          DIRECT_VULNS=$(echo "$AUDIT_OUTPUT" | grep -B20 "Solution:" | grep -E "txgate(-|_)" | wc -l || echo "0")
           
           # Total vulnerabilities with solutions (includes transitive)
           TOTAL_VULNS=$(echo "$AUDIT_OUTPUT" | grep -c "Solution:" || echo "0")

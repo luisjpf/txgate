@@ -1,13 +1,13 @@
-# Sello Development Tasks
+# TxGate Development Tasks
 
-This document provides a comprehensive task breakdown for implementing Sello v0.1.0 - Foundation.
+This document provides a comprehensive task breakdown for implementing TxGate v0.1.0 - Foundation.
 
 ## Critical Path
 
 The critical path for v0.1.0 is:
 
 ```
-SELLO-001 → SELLO-002 → SELLO-005 → SELLO-007 → SELLO-008 → SELLO-010 → SELLO-011 → SELLO-012 → SELLO-012.5 → SELLO-014 → SELLO-018 → SELLO-026 → SELLO-028 → SELLO-029 → SELLO-032
+TXGATE-001 → TXGATE-002 → TXGATE-005 → TXGATE-007 → TXGATE-008 → TXGATE-010 → TXGATE-011 → TXGATE-012 → TXGATE-012.5 → TXGATE-014 → TXGATE-018 → TXGATE-026 → TXGATE-028 → TXGATE-029 → TXGATE-032
 ```
 
 This represents: Project Setup → Dependencies → Core Types → SecretKey → KeyPair → Key Encryption → KeyStore → Chain Trait → ChainRegistry → Ethereum Parser → Policy Engine → Signing Flow → JSON-RPC Protocol → Socket Server → Integration Tests
@@ -18,13 +18,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ### Epic 1: Project Infrastructure
 
-#### SELLO-001: Initialize Rust project structure
+#### TXGATE-001: Initialize Rust project structure
 
 **Description**: Create the initial Rust project with cargo workspace configuration, directory structure, and basic configuration files.
 
 **Acceptance Criteria**:
 - [ ] Cargo workspace created with proper structure
-- [ ] All crates defined: `sello-core`, `sello-crypto`, `sello-chain`, `sello-policy`, `sello` (binary)
+- [ ] All crates defined: `txgate-core`, `txgate-crypto`, `txgate-chain`, `txgate-policy`, `txgate` (binary)
 - [ ] Directory structure matches architecture specification
 - [ ] `.gitignore` configured for Rust projects
 - [ ] Basic `README.md` created
@@ -41,11 +41,11 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 **Files**:
 - Create: `Cargo.toml` (workspace root)
-- Create: `crates/sello-core/Cargo.toml`
-- Create: `crates/sello-crypto/Cargo.toml`
-- Create: `crates/sello-chain/Cargo.toml`
-- Create: `crates/sello-policy/Cargo.toml`
-- Create: `crates/sello/Cargo.toml` (binary crate with CLI and server modules)
+- Create: `crates/txgate-core/Cargo.toml`
+- Create: `crates/txgate-crypto/Cargo.toml`
+- Create: `crates/txgate-chain/Cargo.toml`
+- Create: `crates/txgate-policy/Cargo.toml`
+- Create: `crates/txgate/Cargo.toml` (binary crate with CLI and server modules)
 - Create: `.gitignore`
 - Create: `LICENSE-MIT`
 - Create: `LICENSE-APACHE`
@@ -53,7 +53,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-002: Add core dependencies
+#### TXGATE-002: Add core dependencies
 
 **Description**: Add all required dependencies to workspace and crate manifests as specified in the architecture document.
 
@@ -68,7 +68,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] All dependency versions match specification
 - [ ] Feature flags properly configured
 
-**Dependencies**: SELLO-001
+**Dependencies**: TXGATE-001
 
 **Complexity**: S
 
@@ -83,7 +83,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-003: Set up testing infrastructure
+#### TXGATE-003: Set up testing infrastructure
 
 **Description**: Create the testing directory structure, test fixtures, and testing utilities for unit, integration, and property-based tests.
 
@@ -95,7 +95,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Test runner scripts created
 - [ ] Property-based testing framework integrated (proptest)
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -112,7 +112,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-003.5: Set up fuzzing infrastructure
+#### TXGATE-003.5: Set up fuzzing infrastructure
 
 **Description**: Configure cargo-fuzz for fuzzing transaction parsers and policy rules. Fuzzing is critical for finding edge cases in parsing code.
 
@@ -124,7 +124,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Corpus directory for storing interesting inputs
 - [ ] Documentation for running fuzz tests locally
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -141,7 +141,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-004: Configure linting and formatting
+#### TXGATE-004: Configure linting and formatting
 
 **Description**: Set up clippy rules, rustfmt configuration, and pre-commit hooks to enforce code quality standards.
 
@@ -153,7 +153,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] CI workflow includes linting step
 - [ ] All clippy lints pass
 
-**Dependencies**: SELLO-001
+**Dependencies**: TXGATE-001
 
 **Complexity**: S
 
@@ -171,7 +171,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ### Epic 2: Core Types and Errors
 
-#### SELLO-005: Implement core types module
+#### TXGATE-005: Implement core types module
 
 **Description**: Create the core types module with `ParsedTx`, `TxType`, `PolicyResult`, and other shared data structures.
 
@@ -185,7 +185,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Documentation comments added for all public types
 - [ ] Field validation logic included where appropriate
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -195,13 +195,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Property tests for invariants (e.g., amounts are non-negative)
 
 **Files**:
-- Create: `crates/sello-core/src/lib.rs`
-- Create: `crates/sello-core/src/types.rs`
-- Create: `crates/sello-core/src/types_test.rs`
+- Create: `crates/txgate-core/src/lib.rs`
+- Create: `crates/txgate-core/src/types.rs`
+- Create: `crates/txgate-core/src/types_test.rs`
 
 ---
 
-#### SELLO-006: Implement error types
+#### TXGATE-006: Implement error types
 
 **Description**: Define comprehensive error types for all modules using thiserror, with proper error propagation and context.
 
@@ -214,7 +214,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Error messages are clear and actionable
 - [ ] Errors include context where appropriate
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -224,14 +224,14 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Test error conversion paths
 
 **Files**:
-- Create: `crates/sello-core/src/error.rs`
-- Create: `crates/sello-core/src/error_test.rs`
+- Create: `crates/txgate-core/src/error.rs`
+- Create: `crates/txgate-core/src/error_test.rs`
 
 ---
 
 ### Epic 3: Cryptography
 
-#### SELLO-007: Implement SecretKey type with zeroization
+#### TXGATE-007: Implement SecretKey type with zeroization
 
 **Description**: Create a memory-safe SecretKey type that zeroizes on drop, preventing key material from remaining in memory.
 
@@ -245,7 +245,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Const-time operations where applicable
 - [ ] Documentation warns about security implications
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -255,13 +255,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit test for serialization is disabled
 
 **Files**:
-- Create: `crates/sello-crypto/src/lib.rs`
-- Create: `crates/sello-crypto/src/keys.rs`
-- Create: `crates/sello-crypto/src/keys_test.rs`
+- Create: `crates/txgate-crypto/src/lib.rs`
+- Create: `crates/txgate-crypto/src/keys.rs`
+- Create: `crates/txgate-crypto/src/keys_test.rs`
 
 ---
 
-#### SELLO-008: Implement KeyPair trait and secp256k1 implementation
+#### TXGATE-008: Implement KeyPair trait and secp256k1 implementation
 
 **Description**: Define the KeyPair trait and implement it for secp256k1 (used by Ethereum, Bitcoin, Tron, Ripple).
 
@@ -273,7 +273,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Public key derivation tested against known vectors
 - [ ] Trait is `Send + Sync` for multi-threading
 
-**Dependencies**: SELLO-007
+**Dependencies**: TXGATE-007
 
 **Complexity**: L
 
@@ -285,13 +285,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Property tests for sign/verify round-trip
 
 **Files**:
-- Modify: `crates/sello-crypto/src/keys.rs`
-- Create: `crates/sello-crypto/src/secp256k1.rs`
-- Create: `crates/sello-crypto/src/secp256k1_test.rs`
+- Modify: `crates/txgate-crypto/src/keys.rs`
+- Create: `crates/txgate-crypto/src/secp256k1.rs`
+- Create: `crates/txgate-crypto/src/secp256k1_test.rs`
 
 ---
 
-#### SELLO-009: Implement Signer trait and implementation
+#### TXGATE-009: Implement Signer trait and implementation
 
 **Description**: Create the Signer trait for signing message hashes and implement it for secp256k1.
 
@@ -303,7 +303,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Trait is `Send + Sync`
 - [ ] Clear documentation on signature format
 
-**Dependencies**: SELLO-008
+**Dependencies**: TXGATE-008
 
 **Complexity**: M
 
@@ -315,12 +315,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Mock implementation for testing
 
 **Files**:
-- Create: `crates/sello-crypto/src/signer.rs`
-- Create: `crates/sello-crypto/src/signer_test.rs`
+- Create: `crates/txgate-crypto/src/signer.rs`
+- Create: `crates/txgate-crypto/src/signer_test.rs`
 
 ---
 
-#### SELLO-010: Implement key encryption with ChaCha20-Poly1305
+#### TXGATE-010: Implement key encryption with ChaCha20-Poly1305
 
 **Description**: Implement AEAD encryption for key material at rest using ChaCha20-Poly1305 with Argon2id for key derivation.
 
@@ -335,7 +335,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Clear separation between encryption and decryption functions
 - [ ] Constant-time comparison where applicable
 
-**Dependencies**: SELLO-007
+**Dependencies**: TXGATE-007
 
 **Complexity**: L
 
@@ -347,25 +347,25 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Test with known Argon2id vectors
 
 **Files**:
-- Create: `crates/sello-crypto/src/encryption.rs`
-- Create: `crates/sello-crypto/src/encryption_test.rs`
+- Create: `crates/txgate-crypto/src/encryption.rs`
+- Create: `crates/txgate-crypto/src/encryption_test.rs`
 
 ---
 
-#### SELLO-011: Implement KeyStore trait and file-based implementation
+#### TXGATE-011: Implement KeyStore trait and file-based implementation
 
 **Description**: Create the KeyStore trait for persisting encrypted keys and implement a file-based storage backend.
 
 **Acceptance Criteria**:
 - [ ] `KeyStore` trait defined with methods: `store()`, `load()`, `list()`, `delete()`
 - [ ] `FileKeyStore` implements `KeyStore`
-- [ ] Keys stored in `~/.sello/keys/` directory
+- [ ] Keys stored in `~/.txgate/keys/` directory
 - [ ] Each key in separate file with `.enc` extension
 - [ ] File permissions set to 0600 (owner read/write only)
 - [ ] Atomic writes using temp files + rename
 - [ ] Trait is `Send + Sync`
 
-**Dependencies**: SELLO-010
+**Dependencies**: TXGATE-010
 
 **Complexity**: L
 
@@ -379,14 +379,14 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Mock implementation for testing
 
 **Files**:
-- Create: `crates/sello-crypto/src/store.rs`
-- Create: `crates/sello-crypto/src/store_test.rs`
+- Create: `crates/txgate-crypto/src/store.rs`
+- Create: `crates/txgate-crypto/src/store_test.rs`
 
 ---
 
 ### Epic 4: Ethereum Chain Parser
 
-#### SELLO-012: Implement Chain trait
+#### TXGATE-012: Implement Chain trait
 
 **Description**: Define the Chain trait that all blockchain parsers implement.
 
@@ -397,7 +397,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Clear documentation on parser responsibilities
 - [ ] Version handling strategy documented
 
-**Dependencies**: SELLO-005, SELLO-006
+**Dependencies**: TXGATE-005, TXGATE-006
 
 **Complexity**: S
 
@@ -406,12 +406,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Documentation tests compile
 
 **Files**:
-- Create: `crates/sello-chain/src/lib.rs`
-- Create: `crates/sello-chain/src/chain.rs`
+- Create: `crates/txgate-chain/src/lib.rs`
+- Create: `crates/txgate-chain/src/chain.rs`
 
 ---
 
-#### SELLO-012.5: Implement ChainRegistry
+#### TXGATE-012.5: Implement ChainRegistry
 
 **Description**: Create the ChainRegistry that holds all chain parsers and provides runtime chain lookup.
 
@@ -423,7 +423,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Thread-safe (uses Arc internally for cloning)
 - [ ] Default registry with Ethereum parser
 
-**Dependencies**: SELLO-012
+**Dependencies**: TXGATE-012
 
 **Complexity**: S
 
@@ -434,12 +434,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for supported chains listing
 
 **Files**:
-- Create: `crates/sello-chain/src/registry.rs`
-- Create: `crates/sello-chain/src/registry_test.rs`
+- Create: `crates/txgate-chain/src/registry.rs`
+- Create: `crates/txgate-chain/src/registry_test.rs`
 
 ---
 
-#### SELLO-013: Implement Ethereum RLP decoding utilities
+#### TXGATE-013: Implement Ethereum RLP decoding utilities
 
 **Description**: Create utilities for RLP (Recursive Length Prefix) decoding needed for Ethereum transaction parsing.
 
@@ -450,7 +450,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Uses alloy-primitives where possible
 - [ ] Helper functions for common patterns
 
-**Dependencies**: SELLO-012
+**Dependencies**: TXGATE-012
 
 **Complexity**: M
 
@@ -460,12 +460,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Fuzz testing for malformed input
 
 **Files**:
-- Create: `crates/sello-chain/src/rlp.rs`
-- Create: `crates/sello-chain/src/rlp_test.rs`
+- Create: `crates/txgate-chain/src/rlp.rs`
+- Create: `crates/txgate-chain/src/rlp_test.rs`
 
 ---
 
-#### SELLO-013.5: Implement Token Registry
+#### TXGATE-013.5: Implement Token Registry
 
 **Description**: Create a registry of known ERC-20 tokens with metadata (symbol, decimals, risk level) for policy enrichment.
 
@@ -478,7 +478,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Method to add custom tokens from config
 - [ ] JSON serialization for custom token lists
 
-**Dependencies**: SELLO-012
+**Dependencies**: TXGATE-012
 
 **Complexity**: S
 
@@ -489,13 +489,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for JSON serialization
 
 **Files**:
-- Create: `crates/sello-chain/src/tokens.rs`
-- Create: `crates/sello-chain/src/tokens_test.rs`
-- Create: `crates/sello-chain/src/tokens/builtin.json`
+- Create: `crates/txgate-chain/src/tokens.rs`
+- Create: `crates/txgate-chain/src/tokens_test.rs`
+- Create: `crates/txgate-chain/src/tokens/builtin.json`
 
 ---
 
-#### SELLO-014: Implement Ethereum parser for legacy and EIP-1559 transactions
+#### TXGATE-014: Implement Ethereum parser for legacy and EIP-1559 transactions
 
 **Description**: Parse Ethereum transactions (legacy, EIP-2930, EIP-1559) and extract recipient, amount, and token information.
 
@@ -511,7 +511,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Correctly calculates transaction hash for signing
 - [ ] Handles edge cases (0 value, contract creation)
 
-**Dependencies**: SELLO-013
+**Dependencies**: TXGATE-013
 
 **Complexity**: XL
 
@@ -524,14 +524,14 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Integration tests with real transaction data
 
 **Files**:
-- Create: `crates/sello-chain/src/ethereum.rs`
-- Create: `crates/sello-chain/src/ethereum_test.rs`
+- Create: `crates/txgate-chain/src/ethereum.rs`
+- Create: `crates/txgate-chain/src/ethereum_test.rs`
 - Create: `tests/fixtures/ethereum_legacy.json`
 - Create: `tests/fixtures/ethereum_eip1559.json`
 
 ---
 
-#### SELLO-015: Implement ERC-20 token operation detection
+#### TXGATE-015: Implement ERC-20 token operation detection
 
 **Description**: Detect and parse ERC-20 token operations by decoding `transfer`, `approve`, and `transferFrom` function calls.
 
@@ -549,7 +549,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Handles ABI encoding correctly
 - [ ] Validates calldata length (68 bytes for transfer/approve, 100 bytes for transferFrom)
 
-**Dependencies**: SELLO-014, SELLO-013.5
+**Dependencies**: TXGATE-014, TXGATE-013.5
 
 **Complexity**: L
 
@@ -563,7 +563,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Fuzz testing for malformed calldata
 
 **Files**:
-- Modify: `crates/sello-chain/src/ethereum.rs`
+- Modify: `crates/txgate-chain/src/ethereum.rs`
 - Create: `tests/fixtures/ethereum_erc20_transfer.json`
 - Create: `tests/fixtures/ethereum_erc20_approve.json`
 - Create: `tests/fixtures/ethereum_erc20_transfer_from.json`
@@ -572,7 +572,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ### Epic 5: Policy Engine
 
-#### SELLO-016: Implement policy configuration types
+#### TXGATE-016: Implement policy configuration types
 
 **Description**: Create data structures for policy configuration (whitelist, blacklist, transaction limits, daily limits).
 
@@ -586,7 +586,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Validation logic for config (e.g., no negative limits)
 - [ ] Default implementation with sensible defaults
 
-**Dependencies**: SELLO-005
+**Dependencies**: TXGATE-005
 
 **Complexity**: M
 
@@ -596,19 +596,19 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for defaults
 
 **Files**:
-- Create: `crates/sello-policy/src/lib.rs`
-- Create: `crates/sello-policy/src/config.rs`
-- Create: `crates/sello-policy/src/config_test.rs`
+- Create: `crates/txgate-policy/src/lib.rs`
+- Create: `crates/txgate-policy/src/config.rs`
+- Create: `crates/txgate-policy/src/config_test.rs`
 
 ---
 
-#### SELLO-017: Implement transaction history tracking with SQLite
+#### TXGATE-017: Implement transaction history tracking with SQLite
 
 **Description**: Create a transaction history module backed by SQLite to track daily spending for rate limiting. SQLite is required (not in-memory) because daily limits must survive server restarts.
 
 **Acceptance Criteria**:
 - [ ] `TransactionHistory` struct wraps SQLite connection
-- [ ] SQLite database file at `~/.sello/history.db`
+- [ ] SQLite database file at `~/.txgate/history.db`
 - [ ] Schema: `CREATE TABLE history (id INTEGER PRIMARY KEY, token TEXT, amount TEXT, timestamp INTEGER, tx_hash TEXT)`
 - [ ] Method to calculate daily total for a specific token (SQL aggregation)
 - [ ] Method to add a transaction to history
@@ -617,7 +617,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] LRU cache for frequently accessed totals
 - [ ] Database migrations support for schema evolution
 
-**Dependencies**: SELLO-005
+**Dependencies**: TXGATE-005
 
 **Complexity**: L
 
@@ -631,13 +631,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for persistence across restarts
 
 **Files**:
-- Create: `crates/sello-policy/src/history.rs`
-- Create: `crates/sello-policy/src/history_test.rs`
-- Create: `crates/sello-policy/src/migrations/`
+- Create: `crates/txgate-policy/src/history.rs`
+- Create: `crates/txgate-policy/src/history_test.rs`
+- Create: `crates/txgate-policy/src/migrations/`
 
 ---
 
-#### SELLO-018: Implement PolicyEngine trait and rule evaluation
+#### TXGATE-018: Implement PolicyEngine trait and rule evaluation
 
 **Description**: Create the PolicyEngine trait and implement the default policy engine with whitelist, blacklist, and limit enforcement.
 
@@ -654,7 +654,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Rule evaluation order matches specification
 - [ ] Trait is `Send + Sync`
 
-**Dependencies**: SELLO-016, SELLO-017
+**Dependencies**: TXGATE-016, TXGATE-017
 
 **Complexity**: L
 
@@ -667,16 +667,16 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Mock implementation for testing
 
 **Files**:
-- Create: `crates/sello-policy/src/engine.rs`
-- Create: `crates/sello-policy/src/engine_test.rs`
+- Create: `crates/txgate-policy/src/engine.rs`
+- Create: `crates/txgate-policy/src/engine_test.rs`
 
 ---
 
 ### Epic 6: Configuration Management
 
-#### SELLO-019: Implement configuration file structure
+#### TXGATE-019: Implement configuration file structure
 
-**Description**: Define the TOML configuration file structure and schema for `~/.sello/config.toml`.
+**Description**: Define the TOML configuration file structure and schema for `~/.txgate/config.toml`.
 
 **Acceptance Criteria**:
 - [ ] `Config` struct represents entire configuration
@@ -686,7 +686,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Schema validation
 - [ ] Default configuration template
 
-**Dependencies**: SELLO-016
+**Dependencies**: TXGATE-016
 
 **Complexity**: M
 
@@ -696,24 +696,24 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for default values
 
 **Files**:
-- Create: `crates/sello-core/src/config.rs`
-- Create: `crates/sello-core/src/config_test.rs`
+- Create: `crates/txgate-core/src/config.rs`
+- Create: `crates/txgate-core/src/config_test.rs`
 
 ---
 
-#### SELLO-020: Implement configuration loader
+#### TXGATE-020: Implement configuration loader
 
-**Description**: Create a configuration loader that reads from `~/.sello/config.toml` with proper error handling and defaults.
+**Description**: Create a configuration loader that reads from `~/.txgate/config.toml` with proper error handling and defaults.
 
 **Acceptance Criteria**:
-- [ ] Reads configuration from `~/.sello/config.toml`
+- [ ] Reads configuration from `~/.txgate/config.toml`
 - [ ] Falls back to defaults if file doesn't exist
 - [ ] Clear error messages for invalid TOML
 - [ ] Expands `~` in paths correctly
 - [ ] Validates configuration after loading
 - [ ] Function to write default config file
 
-**Dependencies**: SELLO-019
+**Dependencies**: TXGATE-019
 
 **Complexity**: M
 
@@ -724,14 +724,14 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for path expansion
 
 **Files**:
-- Create: `crates/sello-core/src/config_loader.rs`
-- Create: `crates/sello-core/src/config_loader_test.rs`
+- Create: `crates/txgate-core/src/config_loader.rs`
+- Create: `crates/txgate-core/src/config_loader_test.rs`
 
 ---
 
 ### Epic 7: CLI Interface
 
-#### SELLO-021: Implement CLI argument parsing structure
+#### TXGATE-021: Implement CLI argument parsing structure
 
 **Description**: Define the CLI command structure using clap with all subcommands for v0.1.0.
 
@@ -746,7 +746,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Help text for all commands
 - [ ] Version information included
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -756,13 +756,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Integration tests for command validation
 
 **Files**:
-- Create: `crates/sello/src/cli/mod.rs`
-- Create: `crates/sello/src/cli/args.rs`
-- Create: `crates/sello/src/cli/args_test.rs`
+- Create: `crates/txgate/src/cli/mod.rs`
+- Create: `crates/txgate/src/cli/args.rs`
+- Create: `crates/txgate/src/cli/args_test.rs`
 
 ---
 
-#### SELLO-021.5: Implement logging infrastructure
+#### TXGATE-021.5: Implement logging infrastructure
 
 **Description**: Set up structured logging with tracing crate for observability.
 
@@ -774,7 +774,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Log file rotation support
 - [ ] Sensitive data redaction (keys, passphrases)
 
-**Dependencies**: SELLO-002
+**Dependencies**: TXGATE-002
 
 **Complexity**: M
 
@@ -784,18 +784,18 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for log level configuration
 
 **Files**:
-- Create: `crates/sello/src/logging.rs`
-- Create: `crates/sello/src/logging_test.rs`
+- Create: `crates/txgate/src/logging.rs`
+- Create: `crates/txgate/src/logging_test.rs`
 
 ---
 
-#### SELLO-022: Implement `sello init` command
+#### TXGATE-022: Implement `txgate init` command
 
-**Description**: Implement the initialization command that creates `~/.sello` directory, generates default key, and creates config file.
+**Description**: Implement the initialization command that creates `~/.txgate` directory, generates default key, and creates config file.
 
 **Acceptance Criteria**:
 - [ ] Prompts for passphrase (with confirmation)
-- [ ] Creates `~/.sello` directory structure
+- [ ] Creates `~/.txgate` directory structure
 - [ ] Creates subdirectories: `keys/`, `logs/`
 - [ ] Generates default secp256k1 key pair
 - [ ] Encrypts and stores key as `default.enc`
@@ -804,7 +804,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Idempotent (doesn't overwrite existing installation)
 - [ ] Success message with next steps
 
-**Dependencies**: SELLO-011, SELLO-020, SELLO-021
+**Dependencies**: TXGATE-011, TXGATE-020, TXGATE-021
 
 **Complexity**: L
 
@@ -815,12 +815,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for error handling (permission denied, etc.)
 
 **Files**:
-- Create: `crates/sello/src/cli/commands/init.rs`
-- Create: `crates/sello/src/cli/commands/init_test.rs`
+- Create: `crates/txgate/src/cli/commands/init.rs`
+- Create: `crates/txgate/src/cli/commands/init_test.rs`
 
 ---
 
-#### SELLO-023: Implement `sello status` command
+#### TXGATE-023: Implement `txgate status` command
 
 **Description**: Display current status including key count, chains supported, policy summary, and transaction statistics.
 
@@ -832,7 +832,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Formatted output with sections
 - [ ] Handles missing configuration gracefully
 
-**Dependencies**: SELLO-011, SELLO-020, SELLO-021
+**Dependencies**: TXGATE-011, TXGATE-020, TXGATE-021
 
 **Complexity**: M
 
@@ -841,23 +841,23 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Integration tests with mock data
 
 **Files**:
-- Create: `crates/sello/src/cli/commands/status.rs`
-- Create: `crates/sello/src/cli/commands/status_test.rs`
+- Create: `crates/txgate/src/cli/commands/status.rs`
+- Create: `crates/txgate/src/cli/commands/status_test.rs`
 
 ---
 
-#### SELLO-024: Implement `sello config` command
+#### TXGATE-024: Implement `txgate config` command
 
 **Description**: View and edit configuration with subcommands for viewing and opening in editor.
 
 **Acceptance Criteria**:
-- [ ] `sello config` displays current configuration
-- [ ] `sello config edit` opens config in $EDITOR
+- [ ] `txgate config` displays current configuration
+- [ ] `txgate config edit` opens config in $EDITOR
 - [ ] Validates config after edit
 - [ ] Pretty-printed TOML output
 - [ ] Error handling for invalid editor
 
-**Dependencies**: SELLO-020, SELLO-021
+**Dependencies**: TXGATE-020, TXGATE-021
 
 **Complexity**: M
 
@@ -866,12 +866,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Integration tests for edit flow (with test editor)
 
 **Files**:
-- Create: `crates/sello/src/cli/commands/config.rs`
-- Create: `crates/sello/src/cli/commands/config_test.rs`
+- Create: `crates/txgate/src/cli/commands/config.rs`
+- Create: `crates/txgate/src/cli/commands/config_test.rs`
 
 ---
 
-#### SELLO-025: Implement `sello ethereum address` command
+#### TXGATE-025: Implement `txgate ethereum address` command
 
 **Description**: Display the Ethereum address derived from the default key.
 
@@ -882,7 +882,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] EIP-55 checksummed format
 - [ ] Clear error if key doesn't exist
 
-**Dependencies**: SELLO-009, SELLO-011, SELLO-021
+**Dependencies**: TXGATE-009, TXGATE-011, TXGATE-021
 
 **Complexity**: S
 
@@ -891,12 +891,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for error handling
 
 **Files**:
-- Create: `crates/sello/src/cli/commands/ethereum/address.rs`
-- Create: `crates/sello/src/cli/commands/ethereum/address_test.rs`
+- Create: `crates/txgate/src/cli/commands/ethereum/address.rs`
+- Create: `crates/txgate/src/cli/commands/ethereum/address_test.rs`
 
 ---
 
-#### SELLO-026: Implement signing flow orchestration
+#### TXGATE-026: Implement signing flow orchestration
 
 **Description**: Create the core signing flow that orchestrates parsing, policy checking, and signing.
 
@@ -910,7 +910,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Returns comprehensive result or error
 - [ ] Logs all operations
 
-**Dependencies**: SELLO-009, SELLO-014, SELLO-018
+**Dependencies**: TXGATE-009, TXGATE-014, TXGATE-018
 
 **Complexity**: L
 
@@ -921,12 +921,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Integration tests with real components
 
 **Files**:
-- Create: `crates/sello-core/src/signing.rs`
-- Create: `crates/sello-core/src/signing_test.rs`
+- Create: `crates/txgate-core/src/signing.rs`
+- Create: `crates/txgate-core/src/signing_test.rs`
 
 ---
 
-#### SELLO-027: Implement `sello ethereum sign` command
+#### TXGATE-027: Implement `txgate ethereum sign` command
 
 **Description**: Parse, validate policy, and sign Ethereum transactions from the CLI.
 
@@ -942,7 +942,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Clear error messages on failure
 - [ ] Exit codes: 0 (success), 1 (policy denied), 2 (other error)
 
-**Dependencies**: SELLO-015, SELLO-018, SELLO-021, SELLO-026
+**Dependencies**: TXGATE-015, TXGATE-018, TXGATE-021, TXGATE-026
 
 **Complexity**: L
 
@@ -953,14 +953,14 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for invalid input handling
 
 **Files**:
-- Create: `crates/sello/src/cli/commands/ethereum/sign.rs`
-- Create: `crates/sello/src/cli/commands/ethereum/sign_test.rs`
+- Create: `crates/txgate/src/cli/commands/ethereum/sign.rs`
+- Create: `crates/txgate/src/cli/commands/ethereum/sign_test.rs`
 
 ---
 
 ### Epic 8: Unix Socket Server
 
-#### SELLO-028: Implement JSON-RPC protocol types
+#### TXGATE-028: Implement JSON-RPC protocol types
 
 **Description**: Define request/response types for JSON-RPC protocol over Unix socket.
 
@@ -972,7 +972,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] All types implement serde
 - [ ] Protocol version included
 
-**Dependencies**: SELLO-005
+**Dependencies**: TXGATE-005
 
 **Complexity**: M
 
@@ -982,17 +982,17 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Unit tests for error responses
 
 **Files**:
-- Create: `crates/sello/src/server/protocol.rs`
-- Create: `crates/sello/src/server/protocol_test.rs`
+- Create: `crates/txgate/src/server/protocol.rs`
+- Create: `crates/txgate/src/server/protocol_test.rs`
 
 ---
 
-#### SELLO-029: Implement Unix socket server
+#### TXGATE-029: Implement Unix socket server
 
 **Description**: Create a Unix socket server that listens for signing requests and executes the signing flow.
 
 **Acceptance Criteria**:
-- [ ] Listens on `~/.sello/sello.sock`
+- [ ] Listens on `~/.txgate/txgate.sock`
 - [ ] Sets socket permissions to 0600
 - [ ] Accepts concurrent connections (tokio async)
 - [ ] Parses JSON-RPC requests
@@ -1001,7 +1001,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Graceful shutdown on SIGTERM/SIGINT
 - [ ] Logs all requests/responses
 
-**Dependencies**: SELLO-026, SELLO-028
+**Dependencies**: TXGATE-026, TXGATE-028
 
 **Complexity**: L
 
@@ -1012,12 +1012,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for graceful shutdown
 
 **Files**:
-- Create: `crates/sello/src/server/socket.rs`
-- Create: `crates/sello/src/server/socket_test.rs`
+- Create: `crates/txgate/src/server/socket.rs`
+- Create: `crates/txgate/src/server/socket_test.rs`
 
 ---
 
-#### SELLO-030: Implement `sello serve` command
+#### TXGATE-030: Implement `txgate serve` command
 
 **Description**: Start the Unix socket server as a long-running process.
 
@@ -1030,7 +1030,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Handles signals for graceful shutdown
 - [ ] Logs server events
 
-**Dependencies**: SELLO-021, SELLO-029
+**Dependencies**: TXGATE-021, TXGATE-029
 
 **Complexity**: M
 
@@ -1039,14 +1039,14 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for signal handling
 
 **Files**:
-- Create: `crates/sello/src/cli/commands/serve.rs`
-- Create: `crates/sello/src/cli/commands/serve_test.rs`
+- Create: `crates/txgate/src/cli/commands/serve.rs`
+- Create: `crates/txgate/src/cli/commands/serve_test.rs`
 
 ---
 
 ### Epic 9: Main Binary and Integration
 
-#### SELLO-031: Implement main binary entry point
+#### TXGATE-031: Implement main binary entry point
 
 **Description**: Create the main binary that dispatches to CLI commands.
 
@@ -1057,7 +1057,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Handles errors and exit codes
 - [ ] Version and help information
 
-**Dependencies**: SELLO-021
+**Dependencies**: TXGATE-021
 
 **Complexity**: S
 
@@ -1066,11 +1066,11 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for error handling
 
 **Files**:
-- Create: `crates/sello/src/main.rs`
+- Create: `crates/txgate/src/main.rs`
 
 ---
 
-#### SELLO-031.5: Implement audit logging with HMAC chain
+#### TXGATE-031.5: Implement audit logging with HMAC chain
 
 **Description**: Create tamper-evident audit logging with HMAC chain for security-critical events.
 
@@ -1085,7 +1085,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Log verification command to check HMAC chain integrity
 - [ ] Compressed rotation of old logs
 
-**Dependencies**: SELLO-021.5
+**Dependencies**: TXGATE-021.5
 
 **Complexity**: L
 
@@ -1097,12 +1097,12 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Tests for tamper detection
 
 **Files**:
-- Create: `crates/sello/src/audit.rs`
-- Create: `crates/sello/src/audit_test.rs`
+- Create: `crates/txgate/src/audit.rs`
+- Create: `crates/txgate/src/audit_test.rs`
 
 ---
 
-#### SELLO-032: Create end-to-end integration tests
+#### TXGATE-032: Create end-to-end integration tests
 
 **Description**: Comprehensive integration tests covering the full signing flow from CLI to signature.
 
@@ -1117,7 +1117,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Test all ERC-20 operations (transfer, approve, transferFrom)
 - [ ] Test nonce and chain_id validation
 
-**Dependencies**: SELLO-027, SELLO-030
+**Dependencies**: TXGATE-027, TXGATE-030
 
 **Complexity**: XL
 
@@ -1137,7 +1137,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ### Epic 10: Documentation and Polish
 
-#### SELLO-033: Write API documentation
+#### TXGATE-033: Write API documentation
 
 **Description**: Comprehensive rustdoc documentation for all public APIs.
 
@@ -1162,21 +1162,21 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-033.5: Implement coverage enforcement in CI
+#### TXGATE-033.5: Implement coverage enforcement in CI
 
 **Description**: Configure CI to enforce coverage requirements and block PRs that decrease coverage on critical modules.
 
 **Acceptance Criteria**:
 - [ ] cargo-llvm-cov configured (replacing tarpaulin)
 - [ ] Coverage thresholds defined per crate
-- [ ] CI fails if sello-crypto < 100%
-- [ ] CI fails if sello-chain < 100%
-- [ ] CI fails if sello-policy < 100%
+- [ ] CI fails if txgate-crypto < 100%
+- [ ] CI fails if txgate-chain < 100%
+- [ ] CI fails if txgate-policy < 100%
 - [ ] Coverage badge in README
 - [ ] Coverage trend tracking
 - [ ] PR comments with coverage diff
 
-**Dependencies**: SELLO-003
+**Dependencies**: TXGATE-003
 
 **Complexity**: M
 
@@ -1191,7 +1191,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-034: Create user guide
+#### TXGATE-034: Create user guide
 
 **Description**: User-facing documentation covering installation, quickstart, and common workflows.
 
@@ -1203,7 +1203,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Troubleshooting section
 - [ ] Security best practices
 
-**Dependencies**: SELLO-032
+**Dependencies**: TXGATE-032
 
 **Complexity**: M
 
@@ -1218,7 +1218,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-035: Create developer guide
+#### TXGATE-035: Create developer guide
 
 **Description**: Developer documentation covering architecture, contribution guidelines, and testing.
 
@@ -1230,7 +1230,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Code style guide
 - [ ] Security review checklist
 
-**Dependencies**: SELLO-032
+**Dependencies**: TXGATE-032
 
 **Complexity**: M
 
@@ -1245,21 +1245,21 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-036: Achieve 100% test coverage on critical modules
+#### TXGATE-036: Achieve 100% test coverage on critical modules
 
 **Description**: Ensure 100% line and branch coverage on crypto, chain parsers, and policy engine.
 
 **Security Note**: CRITICAL - These modules require exhaustive testing.
 
 **Acceptance Criteria**:
-- [ ] `sello-crypto` has 100% coverage
-- [ ] `sello-chain` has 100% coverage
-- [ ] `sello-policy` has 100% coverage
+- [ ] `txgate-crypto` has 100% coverage
+- [ ] `txgate-chain` has 100% coverage
+- [ ] `txgate-policy` has 100% coverage
 - [ ] Coverage report generated with cargo-llvm-cov
 - [ ] Coverage badge in README
-- [ ] CI enforces coverage requirements (SELLO-033.5)
+- [ ] CI enforces coverage requirements (TXGATE-033.5)
 
-**Dependencies**: All implementation tasks, SELLO-033.5
+**Dependencies**: All implementation tasks, TXGATE-033.5
 
 **Complexity**: L
 
@@ -1274,7 +1274,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-037: Security audit and review
+#### TXGATE-037: Security audit and review
 
 **Description**: Comprehensive security review of cryptographic code, key storage, and policy enforcement.
 
@@ -1289,7 +1289,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Security checklist completed
 - [ ] Known issues documented
 
-**Dependencies**: SELLO-036
+**Dependencies**: TXGATE-036
 
 **Complexity**: XL
 
@@ -1305,7 +1305,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-038: Performance benchmarking
+#### TXGATE-038: Performance benchmarking
 
 **Description**: Create benchmarks for critical paths (parsing, signing) and document performance characteristics.
 
@@ -1317,7 +1317,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Performance regression detection
 - [ ] Results documented
 
-**Dependencies**: SELLO-032
+**Dependencies**: TXGATE-032
 
 **Complexity**: M
 
@@ -1332,7 +1332,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-039: Create release automation
+#### TXGATE-039: Create release automation
 
 **Description**: Set up CI/CD pipeline for automated releases with GitHub Actions.
 
@@ -1344,7 +1344,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Version bumping workflow
 - [ ] Tag-based release triggers
 
-**Dependencies**: SELLO-037
+**Dependencies**: TXGATE-037
 
 **Complexity**: M
 
@@ -1358,7 +1358,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### SELLO-040: Prepare v0.1.0 release
+#### TXGATE-040: Prepare v0.1.0 release
 
 **Description**: Final preparations for v0.1.0 release including changelog, version updates, and release announcement.
 
@@ -1371,7 +1371,7 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] GitHub release created
 - [ ] Announcement prepared
 
-**Dependencies**: SELLO-039
+**Dependencies**: TXGATE-039
 
 **Complexity**: S
 
@@ -1389,64 +1389,64 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 ## Task Summary
 
 ### By Complexity
-- **Small (S)**: 7 tasks (SELLO-001, 002, 004, 012, 012.5, 013.5, 040)
+- **Small (S)**: 7 tasks (TXGATE-001, 002, 004, 012, 012.5, 013.5, 040)
 - **Medium (M)**: 18 tasks
-- **Large (L)**: 14 tasks (including SELLO-017, 031.5)
-- **Extra Large (XL)**: 7 tasks (SELLO-014, 032, 037)
+- **Large (L)**: 14 tasks (including TXGATE-017, 031.5)
+- **Extra Large (XL)**: 7 tasks (TXGATE-014, 032, 037)
 
 **Total**: 46 tasks (40 original + 6 new critical tasks)
 
 ### By Epic
-1. **Project Infrastructure**: 5 tasks (SELLO-001 to SELLO-004, SELLO-003.5)
-2. **Core Types and Errors**: 2 tasks (SELLO-005 to SELLO-006)
-3. **Cryptography**: 5 tasks (SELLO-007 to SELLO-011)
-4. **Ethereum Chain Parser**: 6 tasks (SELLO-012 to SELLO-015, SELLO-012.5, SELLO-013.5)
-5. **Policy Engine**: 3 tasks (SELLO-016 to SELLO-018)
-6. **Configuration Management**: 2 tasks (SELLO-019 to SELLO-020)
-7. **CLI Interface**: 8 tasks (SELLO-021 to SELLO-027, SELLO-021.5)
-8. **Unix Socket Server**: 3 tasks (SELLO-028 to SELLO-030)
-9. **Main Binary and Integration**: 3 tasks (SELLO-031 to SELLO-032, SELLO-031.5)
-10. **Documentation and Polish**: 9 tasks (SELLO-033 to SELLO-040, SELLO-033.5)
+1. **Project Infrastructure**: 5 tasks (TXGATE-001 to TXGATE-004, TXGATE-003.5)
+2. **Core Types and Errors**: 2 tasks (TXGATE-005 to TXGATE-006)
+3. **Cryptography**: 5 tasks (TXGATE-007 to TXGATE-011)
+4. **Ethereum Chain Parser**: 6 tasks (TXGATE-012 to TXGATE-015, TXGATE-012.5, TXGATE-013.5)
+5. **Policy Engine**: 3 tasks (TXGATE-016 to TXGATE-018)
+6. **Configuration Management**: 2 tasks (TXGATE-019 to TXGATE-020)
+7. **CLI Interface**: 8 tasks (TXGATE-021 to TXGATE-027, TXGATE-021.5)
+8. **Unix Socket Server**: 3 tasks (TXGATE-028 to TXGATE-030)
+9. **Main Binary and Integration**: 3 tasks (TXGATE-031 to TXGATE-032, TXGATE-031.5)
+10. **Documentation and Polish**: 9 tasks (TXGATE-033 to TXGATE-040, TXGATE-033.5)
 
 ### Critical Security Tasks
 The following tasks require extra scrutiny and human review:
-- **SELLO-007**: SecretKey zeroization
-- **SELLO-010**: Key encryption
-- **SELLO-014**: Ethereum parser
-- **SELLO-015**: ERC-20 token transfer detection
-- **SELLO-018**: Policy engine
-- **SELLO-031.5**: Audit logging with HMAC chain
-- **SELLO-036**: Test coverage
-- **SELLO-037**: Security audit
+- **TXGATE-007**: SecretKey zeroization
+- **TXGATE-010**: Key encryption
+- **TXGATE-014**: Ethereum parser
+- **TXGATE-015**: ERC-20 token transfer detection
+- **TXGATE-018**: Policy engine
+- **TXGATE-031.5**: Audit logging with HMAC chain
+- **TXGATE-036**: Test coverage
+- **TXGATE-037**: Security audit
 
 ### Recommended Sprint Planning
 
 **Sprint 1 (Foundation)**:
-- SELLO-001 through SELLO-006, SELLO-003.5
+- TXGATE-001 through TXGATE-006, TXGATE-003.5
 - Focus: Project setup, core types, and testing/fuzzing infrastructure
 
 **Sprint 2 (Crypto)**:
-- SELLO-007 through SELLO-011
+- TXGATE-007 through TXGATE-011
 - Focus: Cryptographic primitives and key management
 
 **Sprint 3 (Parsing)**:
-- SELLO-012 through SELLO-015, SELLO-012.5, SELLO-013.5
+- TXGATE-012 through TXGATE-015, TXGATE-012.5, TXGATE-013.5
 - Focus: Chain trait, registry, token registry, and Ethereum parsing
 
 **Sprint 4 (Policy)**:
-- SELLO-016 through SELLO-020
+- TXGATE-016 through TXGATE-020
 - Focus: Policy engine (with SQLite history) and configuration
 
 **Sprint 5 (CLI)**:
-- SELLO-021 through SELLO-027, SELLO-021.5
+- TXGATE-021 through TXGATE-027, TXGATE-021.5
 - Focus: Command-line interface and logging infrastructure
 
 **Sprint 6 (Server)**:
-- SELLO-028 through SELLO-032, SELLO-031.5
+- TXGATE-028 through TXGATE-032, TXGATE-031.5
 - Focus: Unix socket server, audit logging, and integration tests
 
 **Sprint 7 (Polish)**:
-- SELLO-033 through SELLO-040, SELLO-033.5
+- TXGATE-033 through TXGATE-040, TXGATE-033.5
 - Focus: Documentation, coverage enforcement, testing, and release
 
 ---

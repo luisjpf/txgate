@@ -1,19 +1,19 @@
 # Security Audit Checklist
 
-This document tracks the security review status of Sello's critical components.
+This document tracks the security review status of TxGate's critical components.
 
 ## Audit Status
 
 | Component | Status | Last Reviewed | Reviewer |
 |-----------|--------|---------------|----------|
-| sello-crypto | Pending | - | - |
-| sello-chain | Pending | - | - |
-| sello-policy | Pending | - | - |
-| sello (binary) | Pending | - | - |
+| txgate-crypto | Pending | - | - |
+| txgate-chain | Pending | - | - |
+| txgate-policy | Pending | - | - |
+| txgate (binary) | Pending | - | - |
 
 ## Cryptographic Code Review
 
-### SecretKey (`crates/sello-crypto/src/keys.rs`)
+### SecretKey (`crates/txgate-crypto/src/keys.rs`)
 
 - [ ] Verify `Zeroize` is correctly derived
 - [ ] Verify `ZeroizeOnDrop` is correctly derived
@@ -22,7 +22,7 @@ This document tracks the security review status of Sello's critical components.
 - [ ] Review all code paths that handle raw key bytes
 - [ ] Verify constant-time operations where applicable
 
-### Key Encryption (`crates/sello-crypto/src/encryption.rs`)
+### Key Encryption (`crates/txgate-crypto/src/encryption.rs`)
 
 - [ ] Verify Argon2id parameters meet recommendations (64 MiB, 3 iterations, 4 lanes)
 - [ ] Verify salt is generated with CSPRNG
@@ -31,7 +31,7 @@ This document tracks the security review status of Sello's critical components.
 - [ ] Verify authentication tag is validated before decryption
 - [ ] Review encrypted format versioning for future compatibility
 
-### KeyPair and Signer (`crates/sello-crypto/src/keypair.rs`, `signer.rs`)
+### KeyPair and Signer (`crates/txgate-crypto/src/keypair.rs`, `signer.rs`)
 
 - [ ] Verify secp256k1 operations use k256 correctly
 - [ ] Verify signature format includes recovery ID
@@ -40,7 +40,7 @@ This document tracks the security review status of Sello's critical components.
 
 ## Transaction Parser Review
 
-### Ethereum Parser (`crates/sello-chain/src/ethereum.rs`)
+### Ethereum Parser (`crates/txgate-chain/src/ethereum.rs`)
 
 - [ ] Verify RLP decoding handles malformed input safely
 - [ ] Verify all transaction types are correctly parsed (legacy, EIP-2930, EIP-1559)
@@ -49,7 +49,7 @@ This document tracks the security review status of Sello's critical components.
 - [ ] Verify transaction hash calculation matches Ethereum spec
 - [ ] Review edge cases: zero value, contract creation, max values
 
-### ERC-20 Detection (`crates/sello-chain/src/erc20.rs`)
+### ERC-20 Detection (`crates/txgate-chain/src/erc20.rs`)
 
 - [ ] Verify function selector detection (transfer, approve, transferFrom)
 - [ ] Verify ABI decoding is correct
@@ -59,7 +59,7 @@ This document tracks the security review status of Sello's critical components.
 
 ## Policy Engine Review
 
-### Policy Enforcement (`crates/sello-policy/src/engine.rs`)
+### Policy Enforcement (`crates/txgate-policy/src/engine.rs`)
 
 - [ ] Verify blacklist is checked first (highest priority)
 - [ ] Verify whitelist logic is correct when enabled
@@ -68,7 +68,7 @@ This document tracks the security review status of Sello's critical components.
 - [ ] Review rule evaluation order
 - [ ] Test policy bypass attempts
 
-### Transaction History (`crates/sello-policy/src/history.rs`)
+### Transaction History (`crates/txgate-policy/src/history.rs`)
 
 - [ ] Verify SQLite queries are parameterized (no SQL injection)
 - [ ] Verify daily total calculation is correct
@@ -77,14 +77,14 @@ This document tracks the security review status of Sello's critical components.
 
 ## Binary and Server Review
 
-### Unix Socket Server (`crates/sello/src/server/socket.rs`)
+### Unix Socket Server (`crates/txgate/src/server/socket.rs`)
 
 - [ ] Verify socket permissions are set to 0600
 - [ ] Verify JSON-RPC parsing handles malformed input
 - [ ] Review graceful shutdown handling
 - [ ] Verify no sensitive data in error responses
 
-### Audit Logging (`crates/sello/src/audit.rs`)
+### Audit Logging (`crates/txgate/src/audit.rs`)
 
 - [ ] Verify HMAC chain provides tamper evidence
 - [ ] Verify log entries include all required fields
@@ -93,7 +93,7 @@ This document tracks the security review status of Sello's critical components.
 
 ### File Permissions
 
-- [ ] Verify `~/.sello` directory is created with 0700
+- [ ] Verify `~/.txgate` directory is created with 0700
 - [ ] Verify key files are created with 0600
 - [ ] Verify config files are created with 0600
 - [ ] Verify socket is created with 0600

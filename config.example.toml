@@ -1,9 +1,9 @@
 [server]
-socket_path = "~/.sello/sello.sock"
+socket_path = "~/.txgate/txgate.sock"
 timeout_secs = 30
 
 [keys]
-directory = "~/.sello/keys"
+directory = "~/.txgate/keys"
 default_key = "default"
 
 [policy]

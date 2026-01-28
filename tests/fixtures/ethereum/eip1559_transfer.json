@@ -18,6 +18,6 @@
     "value_eth": "1.0",
     "max_fee_gwei": "2",
     "max_priority_fee_gwei": "2",
-    "source": "Generated for Sello testing - follows EIP-1559 (Type 2 transaction)"
+    "source": "Generated for TxGate testing - follows EIP-1559 (Type 2 transaction)"
   }
 }

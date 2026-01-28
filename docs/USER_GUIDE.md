@@ -1,11 +1,11 @@
-# Sello User Guide
+# TxGate User Guide
 
-Sello is a secure multi-chain transaction signing daemon that provides policy-based transaction approval with encrypted key storage. It supports Ethereum, Bitcoin, and Solana.
+TxGate is a secure multi-chain transaction signing daemon that provides policy-based transaction approval with encrypted key storage. It supports Ethereum, Bitcoin, and Solana.
 
 ## Table of Contents
 
-- [What is Sello?](#what-is-sello)
-- [Why Use Sello?](#why-use-sello)
+- [What is TxGate?](#what-is-txgate)
+- [Why Use TxGate?](#why-use-txgate)
 - [Installation](#installation)
 - [Initialization](#initialization)
 - [Key Management](#key-management)
@@ -18,16 +18,16 @@ Sello is a secure multi-chain transaction signing daemon that provides policy-ba
 
 ---
 
-## What is Sello?
+## What is TxGate?
 
-Sello is a transaction signing daemon designed for secure, automated signing of blockchain transactions. It supports Ethereum (secp256k1), Bitcoin (secp256k1), and Solana (ed25519). It separates key management from application logic, enabling:
+TxGate is a transaction signing daemon designed for secure, automated signing of blockchain transactions. It supports Ethereum (secp256k1), Bitcoin (secp256k1), and Solana (ed25519). It separates key management from application logic, enabling:
 
-- **Isolated key storage**: Private keys never leave the Sello process
+- **Isolated key storage**: Private keys never leave the TxGate process
 - **Policy enforcement**: Define rules for which transactions can be signed
 - **Audit logging**: Track all signing operations
 - **Unix socket communication**: Secure local IPC without network exposure
 
-## Why Use Sello?
+## Why Use TxGate?
 
 | Use Case | Benefit |
 |----------|---------|
@@ -45,23 +45,23 @@ Sello is a transaction signing daemon designed for secure, automated signing of 
 
 ```bash
 # Clone the repository
-git clone https://github.com/sello-project/sello.git
-cd sello
+git clone https://github.com/txgate-project/txgate.git
+cd txgate
 
 # Build and install
-cargo install --path crates/sello
+cargo install --path crates/txgate
 ```
 
 ### From crates.io
 
 ```bash
-cargo install sello
+cargo install txgate
 ```
 
 ### Verify Installation
 
 ```bash
-sello --version
+txgate --version
 ```
 
 ### System Requirements
@@ -74,17 +74,17 @@ sello --version
 
 ## Initialization
 
-Initialize Sello to create the configuration directory and generate your first key:
+Initialize TxGate to create the configuration directory and generate your first key:
 
 ```bash
-sello init
+txgate init
 ```
 
 ### What Happens During Init
 
-1. Creates `~/.sello/` directory structure:
+1. Creates `~/.txgate/` directory structure:
    ```
-   ~/.sello/
+   ~/.txgate/
    ├── config.toml       (0600) - Configuration file
    ├── keys/             (0700) - Encrypted key storage
    │   └── default.enc   (0600) - Default signing key
@@ -101,7 +101,7 @@ sello init
 To reset your configuration and generate a new key:
 
 ```bash
-sello init --force
+txgate init --force
 ```
 
 **Warning**: This overwrites your existing key and configuration.
@@ -113,7 +113,7 @@ sello init --force
 ### View Your Address
 
 ```bash
-sello ethereum address
+txgate ethereum address
 ```
 
 You will be prompted for your passphrase. The output is an EIP-55 checksummed Ethereum address:
@@ -124,7 +124,7 @@ You will be prompted for your passphrase. The output is an EIP-55 checksummed Et
 
 ### Key Storage
 
-Keys are stored encrypted at `~/.sello/keys/default.enc` with:
+Keys are stored encrypted at `~/.txgate/keys/default.enc` with:
 
 - **Key derivation**: Argon2id (memory-hard, resistant to GPU attacks)
 - **Encryption**: ChaCha20-Poly1305 (authenticated encryption)
@@ -138,12 +138,12 @@ Keys are stored encrypted at `~/.sello/keys/default.enc` with:
 
 ### Multiple Keys
 
-Sello supports managing multiple keys. Each key has a unique name.
+TxGate supports managing multiple keys. Each key has a unique name.
 
 #### List Keys
 
 ```bash
-sello key list
+txgate key list
 ```
 
 Shows all stored keys:
@@ -158,7 +158,7 @@ Keys:
 Use `--verbose` for additional details:
 
 ```bash
-sello key list --verbose
+txgate key list --verbose
 ```
 
 ```
@@ -173,7 +173,7 @@ Keys:
 Import a private key from a hex string:
 
 ```bash
-sello key import 0xabc123... --name my-imported-key
+txgate key import 0xabc123... --name my-imported-key
 ```
 
 You will be prompted for a passphrase to encrypt the key.
@@ -188,7 +188,7 @@ You will be prompted for a passphrase to encrypt the key.
 Export a key as an encrypted backup:
 
 ```bash
-sello key export my-key --output /path/to/backup.json
+txgate key export my-key --output /path/to/backup.json
 ```
 
 You will be prompted for:
@@ -215,13 +215,13 @@ The exported file is JSON with the encrypted key data:
 Delete a key permanently:
 
 ```bash
-sello key delete my-key
+txgate key delete my-key
 ```
 
 You will be prompted to confirm deletion. Use `--force` to skip confirmation:
 
 ```bash
-sello key delete my-key --force
+txgate key delete my-key --force
 ```
 
 **Security notes:**
@@ -233,7 +233,7 @@ sello key delete my-key --force
 
 ## Policy Configuration
 
-Sello enforces policies before signing any transaction. Configure policies in `~/.sello/config.toml`.
+TxGate enforces policies before signing any transaction. Configure policies in `~/.txgate/config.toml`.
 
 ### Policy Types
 
@@ -290,19 +290,19 @@ See [Configuration Reference](CONFIGURATION.md) for all options.
 ### Start the Server
 
 ```bash
-sello serve
+txgate serve
 ```
 
 Or explicitly run in foreground:
 
 ```bash
-sello serve --foreground
+txgate serve --foreground
 ```
 
 ### Server Behavior
 
 1. Prompts for passphrase to unlock the signing key
-2. Starts listening on `~/.sello/sello.sock`
+2. Starts listening on `~/.txgate/txgate.sock`
 3. Handles incoming JSON-RPC requests
 4. Enforces policy rules for each signing request
 5. Logs all operations to audit log
@@ -314,11 +314,11 @@ Press `Ctrl+C` or send `SIGTERM`/`SIGINT` for graceful shutdown.
 ### Server Output
 
 ```
-Sello server starting...
+TxGate server starting...
 
 Address: 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed
-Socket: /home/user/.sello/sello.sock
-Audit log: /home/user/.sello/logs/audit.jsonl
+Socket: /home/user/.txgate/txgate.sock
+Audit log: /home/user/.txgate/logs/audit.jsonl
 
 Press Ctrl+C to stop the server.
 ```
@@ -329,7 +329,7 @@ Press Ctrl+C to stop the server.
 
 ### Unix Socket Communication
 
-Sello listens on a Unix domain socket at `~/.sello/sello.sock`. This provides:
+TxGate listens on a Unix domain socket at `~/.txgate/txgate.sock`. This provides:
 
 - No network exposure
 - OS-level access control via file permissions
@@ -347,7 +347,7 @@ import json
 
 def sign_transaction(tx_hex):
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect("/home/user/.sello/sello.sock")
+    sock.connect("/home/user/.txgate/txgate.sock")
 
     request = {
         "jsonrpc": "2.0",
@@ -370,7 +370,7 @@ use std::os::unix::net::UnixStream;
 use std::io::{Read, Write};
 
 fn sign_transaction(tx_hex: &str) -> String {
-    let mut stream = UnixStream::connect("/home/user/.sello/sello.sock")
+    let mut stream = UnixStream::connect("/home/user/.txgate/txgate.sock")
         .expect("Failed to connect");
 
     let request = format!(
@@ -391,7 +391,7 @@ fn sign_transaction(tx_hex: &str) -> String {
 
 ## JSON-RPC API
 
-Sello implements a JSON-RPC 2.0 API for signing operations.
+TxGate implements a JSON-RPC 2.0 API for signing operations.
 
 ### eth_signTransaction
 
@@ -468,19 +468,19 @@ Get the signing address.
 
 ### File Permissions
 
-Sello sets secure permissions automatically:
-- `~/.sello/` - 0700 (owner only)
-- `~/.sello/config.toml` - 0600 (owner read/write)
-- `~/.sello/keys/*.enc` - 0600 (owner read/write)
+TxGate sets secure permissions automatically:
+- `~/.txgate/` - 0700 (owner only)
+- `~/.txgate/config.toml` - 0600 (owner read/write)
+- `~/.txgate/keys/*.enc` - 0600 (owner read/write)
 
 Verify permissions:
 ```bash
-ls -la ~/.sello/
+ls -la ~/.txgate/
 ```
 
 ### Network Isolation
 
-- Sello uses Unix sockets, not network ports
+- TxGate uses Unix sockets, not network ports
 - No remote access by default
 - Never expose the socket over a network
 
@@ -493,13 +493,13 @@ ls -la ~/.sello/
 
 ### Audit Logging
 
-- Audit logs are written to `~/.sello/logs/audit.jsonl`
+- Audit logs are written to `~/.txgate/logs/audit.jsonl`
 - Review logs regularly for unexpected activity
 - Back up logs to detect tampering
 
 ### Key Backup
 
-- The encrypted key at `~/.sello/keys/default.enc` can be backed up
+- The encrypted key at `~/.txgate/keys/default.enc` can be backed up
 - Store backups securely (encrypted, offline)
 - Remember: backups are useless without the passphrase
 
@@ -509,9 +509,9 @@ ls -la ~/.sello/
 
 ### Common Issues
 
-#### "Sello is not initialized"
+#### "TxGate is not initialized"
 
-Run `sello init` to create the configuration and key.
+Run `txgate init` to create the configuration and key.
 
 #### "Invalid passphrase"
 
@@ -523,7 +523,7 @@ Passphrases must be at least 8 characters.
 
 #### "Policy denied: blacklist"
 
-The recipient address is in your blacklist. Edit `~/.sello/config.toml` to remove it.
+The recipient address is in your blacklist. Edit `~/.txgate/config.toml` to remove it.
 
 #### "Policy denied: whitelist"
 
@@ -543,12 +543,12 @@ You have exceeded your daily spending limit. Wait until the next day or adjust `
 
 Ensure the server is running:
 ```bash
-sello serve
+txgate serve
 ```
 
 Check socket existence:
 ```bash
-ls -la ~/.sello/sello.sock
+ls -la ~/.txgate/txgate.sock
 ```
 
 #### Permission denied on socket
@@ -559,12 +559,12 @@ Verify you are running as the same user who started the server. The socket is on
 
 ```bash
 # General help
-sello --help
+txgate --help
 
 # Command-specific help
-sello init --help
-sello serve --help
-sello ethereum --help
+txgate init --help
+txgate serve --help
+txgate ethereum --help
 ```
 
 ### Verbose Output
@@ -572,15 +572,15 @@ sello ethereum --help
 Increase verbosity for debugging:
 
 ```bash
-sello -v status      # Info level
-sello -vv status     # Debug level
-sello -vvv status    # Trace level
+txgate -v status      # Info level
+txgate -vv status     # Debug level
+txgate -vvv status    # Trace level
 ```
 
 ### Checking Status
 
 ```bash
-sello status
+txgate status
 ```
 
 Displays:
@@ -593,13 +593,13 @@ Displays:
 
 ```bash
 # Display current configuration
-sello config
+txgate config
 
 # Show config file path
-sello config path
+txgate config path
 
 # Edit configuration
-sello config edit
+txgate config edit
 ```
 
 ---
@@ -610,51 +610,51 @@ sello config edit
 
 | Command | Description |
 |---------|-------------|
-| `sello init` | Initialize configuration and generate key |
-| `sello init --force` | Reinitialize (overwrites existing) |
-| `sello status` | Display current status |
-| `sello config` | View configuration |
-| `sello config edit` | Edit configuration in default editor |
-| `sello config path` | Show configuration file path |
-| `sello serve` | Start the signing server |
-| `sello serve --foreground` | Start server in foreground |
+| `txgate init` | Initialize configuration and generate key |
+| `txgate init --force` | Reinitialize (overwrites existing) |
+| `txgate status` | Display current status |
+| `txgate config` | View configuration |
+| `txgate config edit` | Edit configuration in default editor |
+| `txgate config path` | Show configuration file path |
+| `txgate serve` | Start the signing server |
+| `txgate serve --foreground` | Start server in foreground |
 
 ### Ethereum Commands
 
 | Command | Description |
 |---------|-------------|
-| `sello ethereum address` | Display Ethereum address |
-| `sello ethereum sign <TX>` | Sign a transaction (hex output) |
-| `sello ethereum sign <TX> --format json` | Sign with JSON output |
+| `txgate ethereum address` | Display Ethereum address |
+| `txgate ethereum sign <TX>` | Sign a transaction (hex output) |
+| `txgate ethereum sign <TX> --format json` | Sign with JSON output |
 
 ### Bitcoin Commands
 
 | Command | Description |
 |---------|-------------|
-| `sello bitcoin address` | Display Bitcoin address (P2WPKH bech32) |
-| `sello bitcoin sign <TX>` | Sign a Bitcoin transaction (hex output) |
-| `sello bitcoin sign <TX> --format json` | Sign with JSON output |
+| `txgate bitcoin address` | Display Bitcoin address (P2WPKH bech32) |
+| `txgate bitcoin sign <TX>` | Sign a Bitcoin transaction (hex output) |
+| `txgate bitcoin sign <TX> --format json` | Sign with JSON output |
 
 ### Solana Commands
 
 | Command | Description |
 |---------|-------------|
-| `sello solana address` | Display Solana address (base58 ed25519) |
-| `sello solana sign <TX>` | Sign a Solana transaction (hex output) |
-| `sello solana sign <TX> --format json` | Sign with JSON output |
+| `txgate solana address` | Display Solana address (base58 ed25519) |
+| `txgate solana sign <TX>` | Sign a Solana transaction (hex output) |
+| `txgate solana sign <TX> --format json` | Sign with JSON output |
 
 ### Key Management Commands
 
 | Command | Description |
 |---------|-------------|
-| `sello key list` | List all stored keys |
-| `sello key list --verbose` | List keys with details |
-| `sello key import <HEX>` | Import a private key |
-| `sello key import <HEX> --name NAME` | Import with custom name |
-| `sello key import <HEX> --curve ed25519` | Import an ed25519 key |
-| `sello key export <NAME>` | Export a key as encrypted backup |
-| `sello key delete <NAME>` | Delete a key |
-| `sello key delete <NAME> --force` | Delete without confirmation |
+| `txgate key list` | List all stored keys |
+| `txgate key list --verbose` | List keys with details |
+| `txgate key import <HEX>` | Import a private key |
+| `txgate key import <HEX> --name NAME` | Import with custom name |
+| `txgate key import <HEX> --curve ed25519` | Import an ed25519 key |
+| `txgate key export <NAME>` | Export a key as encrypted backup |
+| `txgate key delete <NAME>` | Delete a key |
+| `txgate key delete <NAME> --force` | Delete without confirmation |
 
 ### Global Options
 
@@ -669,7 +669,7 @@ sello config edit
 
 ## Exit Codes
 
-Sello uses consistent exit codes for scripting and automation:
+TxGate uses consistent exit codes for scripting and automation:
 
 | Code | Name | Description |
 |------|------|-------------|
@@ -683,7 +683,7 @@ Sello uses consistent exit codes for scripting and automation:
 #!/bin/bash
 
 # Sign a transaction
-sello ethereum sign "$TX_HEX"
+txgate ethereum sign "$TX_HEX"
 exit_code=$?
 
 case $exit_code in
@@ -705,7 +705,7 @@ esac
 
 ```bash
 # Check if policy allows the transaction
-if sello ethereum sign "$TX_HEX" > /dev/null 2>&1; then
+if txgate ethereum sign "$TX_HEX" > /dev/null 2>&1; then
     echo "Signed!"
 elif [ $? -eq 1 ]; then
     echo "Policy denied - check your limits"
@@ -723,7 +723,7 @@ All `sign` commands support `--format json` for machine-readable output.
 ### Ethereum JSON Output
 
 ```bash
-sello ethereum sign 0xf86c... --format json
+txgate ethereum sign 0xf86c... --format json
 ```
 
 **Success Response:**
@@ -744,7 +744,7 @@ sello ethereum sign 0xf86c... --format json
 ### Bitcoin JSON Output
 
 ```bash
-sello bitcoin sign 0100000001... --format json
+txgate bitcoin sign 0100000001... --format json
 ```
 
 **Success Response:**
@@ -761,7 +761,7 @@ sello bitcoin sign 0100000001... --format json
 ### Solana JSON Output
 
 ```bash
-sello solana sign 0100000001... --format json
+txgate solana sign 0100000001... --format json
 ```
 
 **Success Response:**

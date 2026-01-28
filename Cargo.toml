@@ -1,23 +1,23 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/sello-core",
-    "crates/sello-crypto",
-    "crates/sello-chain",
-    "crates/sello-policy",
-    "crates/sello",
+    "crates/txgate-core",
+    "crates/txgate-crypto",
+    "crates/txgate-chain",
+    "crates/txgate-policy",
+    "crates/txgate",
 ]
 
 [workspace.package]
 version = "0.1.3"
 edition = "2021"
 rust-version = "1.75"
-authors = ["Sello Contributors"]
+authors = ["TxGate Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/luisjpf/sello"
-homepage = "https://github.com/luisjpf/sello"
+repository = "https://github.com/luisjpf/txgate"
+homepage = "https://github.com/luisjpf/txgate"
 description = "Multi-chain transaction signing and policy engine"
-keywords = ["blockchain", "signing", "crypto", "policy"]
+keywords = ["blockchain", "signing", "crypto", "policy", "txgate"]
 categories = ["cryptography", "command-line-utilities"]
 
 [workspace.lints.rust]
@@ -116,10 +116,10 @@ proptest = "1.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 # Internal crates (for integration tests)
-sello-core = { path = "crates/sello-core" }
-sello-crypto = { path = "crates/sello-crypto" }
-sello-chain = { path = "crates/sello-chain" }
-sello-policy = { path = "crates/sello-policy" }
+txgate-core = { path = "crates/txgate-core" }
+txgate-crypto = { path = "crates/txgate-crypto" }
+txgate-chain = { path = "crates/txgate-chain" }
+txgate-policy = { path = "crates/txgate-policy" }
 
 # ============================================================================
 # Workspace package for benchmarks
@@ -128,17 +128,17 @@ sello-policy = { path = "crates/sello-policy" }
 # in the workspace root.
 
 [package]
-name = "sello-bench"
+name = "txgate-bench"
 version.workspace = true
 edition.workspace = true
 publish = false
 
 [dev-dependencies]
 criterion = { workspace = true }
-sello-crypto = { workspace = true }
-sello-chain = { workspace = true, features = ["mock"] }
-sello-policy = { workspace = true }
-sello-core = { workspace = true }
+txgate-crypto = { workspace = true }
+txgate-chain = { workspace = true, features = ["mock"] }
+txgate-policy = { workspace = true }
+txgate-core = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-consensus = { workspace = true }
 hex = { workspace = true }

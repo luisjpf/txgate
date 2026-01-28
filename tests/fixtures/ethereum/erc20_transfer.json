@@ -20,6 +20,6 @@
     "function_selector": "0xa9059cbb",
     "function_name": "transfer(address,uint256)",
     "token_contract": "USDC (Circle USD)",
-    "source": "Generated for Sello testing - ERC-20 transfer call"
+    "source": "Generated for TxGate testing - ERC-20 transfer call"
   }
 }

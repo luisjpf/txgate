@@ -1,0 +1,32 @@
+[package]
+name = "txgate-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+description = "Core types, traits, and error definitions for TxGate"
+keywords = ["txgate", "core", "types"]
+categories = ["cryptography"]
+# Note: This is an internal crate with unstable API.
+# Published to crates.io only as a dependency of the `txgate` binary.
+# Do not depend on this crate directly - use `txgate` instead.
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+alloy-primitives = { workspace = true }
+hex = { workspace = true }
+toml = { workspace = true }
+dirs = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

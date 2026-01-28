@@ -1,0 +1,38 @@
+[package]
+name = "txgate-crypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+description = "Cryptographic operations for TxGate - key management, signing, and verification"
+keywords = ["txgate", "crypto", "signing", "keys"]
+categories = ["cryptography"]
+# Note: This is an internal crate with unstable API.
+# Published to crates.io only as a dependency of the `txgate` binary.
+# Do not depend on this crate directly - use `txgate` instead.
+
+[lints]
+workspace = true
+
+[dependencies]
+txgate-core = { version = "0.1.0", path = "../txgate-core" }
+k256 = { workspace = true }
+ed25519-dalek = { workspace = true }
+chacha20poly1305 = { workspace = true }
+argon2 = { workspace = true }
+zeroize = { workspace = true }
+rand = { workspace = true }
+subtle = { workspace = true }
+sha3 = { workspace = true }
+hex = { workspace = true }
+dirs = { workspace = true }
+bitcoin = { workspace = true }
+bs58 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+mockall = { workspace = true }
+proptest = { workspace = true }

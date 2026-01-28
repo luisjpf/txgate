@@ -1,4 +1,4 @@
-//! Performance benchmarks for sello-policy evaluation.
+//! Performance benchmarks for txgate-policy evaluation.
 //!
 //! This module benchmarks policy engine operations:
 //! - Policy rule evaluation (whitelist, blacklist, limits)
@@ -10,14 +10,14 @@
 
 use alloy_primitives::U256;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use sello_core::types::{ParsedTx, TxType};
-use sello_policy::{
+use std::collections::HashMap;
+use std::sync::Arc;
+use txgate_core::types::{ParsedTx, TxType};
+use txgate_policy::{
     config::PolicyConfig,
     engine::{DefaultPolicyEngine, PolicyEngine},
     history::TransactionHistory,
 };
-use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Helper to create ETH amounts (in wei) that may exceed u64.
 /// Uses multiplication to avoid literal overflow.

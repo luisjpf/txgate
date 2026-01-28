@@ -1,4 +1,4 @@
-# Sello Architecture
+# TxGate Architecture
 
 **Version:** 0.1.0
 **Last Updated:** 2026-01-21
@@ -25,7 +25,7 @@
 
 ## Executive Summary
 
-Sello is a self-hosted, chain-agnostic transaction signing server written in Rust. Unlike hash-signing solutions that blindly sign whatever clients claim, Sello **parses raw transactions** to extract recipients, amounts, and tokens, then enforces configurable policies before signing.
+TxGate is a self-hosted, chain-agnostic transaction signing server written in Rust. Unlike hash-signing solutions that blindly sign whatever clients claim, TxGate **parses raw transactions** to extract recipients, amounts, and tokens, then enforces configurable policies before signing.
 
 ### Key Architectural Principles
 
@@ -37,10 +37,10 @@ Sello is a self-hosted, chain-agnostic transaction signing server written in Rus
 | **Zero Unsafe** | No `unsafe` blocks in core crypto code without audit |
 | **Defense in Depth** | Multiple layers: socket permissions, policy engine, audit logging |
 
-### What Makes Sello Different
+### What Makes TxGate Different
 
 ```
-Traditional Signer:           Sello:
+Traditional Signer:           TxGate:
 
 Client: "Sign 1 ETH"          Client: "Sign 0x02f873..."
         ↓                              ↓
@@ -62,7 +62,7 @@ Reality: Could be                      ↓
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              SELLO ARCHITECTURE                              │
+│                              TXGATE ARCHITECTURE                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────┐     ┌─────────────┐                                        │
@@ -111,7 +111,7 @@ Reality: Could be                      ↓
 │                          ▼                                                  │
 │                 ┌─────────────────┐                                         │
 │                 │    Key Store    │◄──── Argon2id + ChaCha20-Poly1305       │
-│                 │  (~/.sello/     │      encrypted key files                │
+│                 │  (~/.txgate/     │      encrypted key files                │
 │                 │    keys/*.enc)  │                                         │
 │                 └─────────────────┘                                         │
 │                                                                             │
@@ -152,25 +152,25 @@ sequenceDiagram
 
 ## Crate Structure
 
-Sello uses a multi-crate Cargo workspace for clean separation of concerns and independent compilation. The workspace contains **5 crates**: 4 library crates for core functionality and 1 binary crate that includes CLI and server modules.
+TxGate uses a multi-crate Cargo workspace for clean separation of concerns and independent compilation. The workspace contains **5 crates**: 4 library crates for core functionality and 1 binary crate that includes CLI and server modules.
 
 ### Workspace Layout
 
 ```
-sello/
+txgate/
 ├── Cargo.toml              # Workspace manifest
 ├── ARCHITECTURE.md         # This document
 ├── README.md
 │
 ├── crates/
-│   ├── sello-core/         # Shared types and errors
+│   ├── txgate-core/         # Shared types and errors
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── types.rs    # ParsedTx, PolicyResult, TxType
 │   │       └── error.rs    # Error types with thiserror
 │   │
-│   ├── sello-crypto/       # Cryptographic operations
+│   ├── txgate-crypto/       # Cryptographic operations
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
@@ -178,7 +178,7 @@ sello/
 │   │       ├── signer.rs   # Signing implementations
 │   │       └── store.rs    # Encrypted key storage
 │   │
-│   ├── sello-chain/        # Transaction parsers
+│   ├── txgate-chain/        # Transaction parsers
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs      # Chain trait + registry
@@ -189,7 +189,7 @@ sello/
 │   │       ├── tron.rs     # Protobuf + TRC-20
 │   │       └── ripple.rs   # Binary codec + Issued Currencies
 │   │
-│   ├── sello-policy/       # Policy engine
+│   ├── txgate-policy/       # Policy engine
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
@@ -197,7 +197,7 @@ sello/
 │   │       ├── rules.rs    # Rule definitions
 │   │       └── history.rs  # Transaction history (SQLite)
 │   │
-│   └── sello/              # Binary crate (CLI + Server)
+│   └── txgate/              # Binary crate (CLI + Server)
 │       ├── Cargo.toml
 │       └── src/
 │           ├── main.rs     # Entry point
@@ -237,29 +237,29 @@ sello/
 
 ```mermaid
 graph TD
-    sello[sello binary] --> sello-core
-    sello --> sello-crypto
-    sello --> sello-chain
-    sello --> sello-policy
+    txgate[txgate binary] --> txgate-core
+    txgate --> txgate-crypto
+    txgate --> txgate-chain
+    txgate --> txgate-policy
 
-    sello-crypto --> sello-core
-    sello-chain --> sello-core
-    sello-policy --> sello-core
-    sello-policy --> sello-chain
+    txgate-crypto --> txgate-core
+    txgate-chain --> txgate-core
+    txgate-policy --> txgate-core
+    txgate-policy --> txgate-chain
 
-    sello-crypto -.-> k256
-    sello-crypto -.-> ed25519-dalek
-    sello-crypto -.-> chacha20poly1305
-    sello-crypto -.-> argon2
-    sello-crypto -.-> zeroize
+    txgate-crypto -.-> k256
+    txgate-crypto -.-> ed25519-dalek
+    txgate-crypto -.-> chacha20poly1305
+    txgate-crypto -.-> argon2
+    txgate-crypto -.-> zeroize
 
-    sello-chain -.-> alloy-consensus
-    sello-chain -.-> bitcoin
-    sello-chain -.-> solana-sdk
+    txgate-chain -.-> alloy-consensus
+    txgate-chain -.-> bitcoin
+    txgate-chain -.-> solana-sdk
 
-    sello -.-> tokio
-    sello -.-> axum
-    sello -.-> clap
+    txgate -.-> tokio
+    txgate -.-> axum
+    txgate -.-> clap
 ```
 
 ### Dependency Injection Strategy
@@ -414,7 +414,7 @@ pub enum PolicyResult {
 ```rust
 /// Top-level error type using thiserror
 #[derive(Debug, thiserror::Error)]
-pub enum SelloError {
+pub enum TxGateError {
     #[error("Parse error: {0}")]
     Parse(#[from] ParseError),
 
@@ -554,7 +554,7 @@ let (tx, rx) = mpsc::channel::<SignRequest>(100);
 │                    ▼                                        │
 │  ┌─────────────────────────────────────────┐                │
 │  │  Encrypted Key File Structure           │                │
-│  │  ~/.sello/keys/<name>.enc               │                │
+│  │  ~/.txgate/keys/<name>.enc               │                │
 │  │                                         │                │
 │  │  ┌───────────────────────────────────┐  │                │
 │  │  │ version: 1 (1 byte)               │  │                │
@@ -599,7 +599,7 @@ impl std::fmt::Debug for SecretKey {
 Audit logs are append-only JSONL files with tamper-evidence via HMAC chains.
 
 ```
-~/.sello/audit/
+~/.txgate/audit/
 ├── audit-2026-01-21.jsonl     # Current log
 ├── audit-2026-01-20.jsonl.gz  # Rotated (compressed)
 └── audit.hmac                 # HMAC chain state
@@ -644,7 +644,7 @@ This creates a tamper-evident chain where modifying any entry invalidates all su
 | Protection | Implementation |
 |------------|---------------|
 | **File Permissions** | Socket created with `0600` (owner read/write only) |
-| **Directory Permissions** | `~/.sello/` created with `0700` |
+| **Directory Permissions** | `~/.txgate/` created with `0700` |
 | **No Network** | Unix socket only (HTTP is optional, loopback-only) |
 
 ---
@@ -1125,18 +1125,18 @@ impl HttpServer {
 Configuration is loaded with the following precedence (highest to lowest):
 
 1. **CLI arguments** (`--policy-file /custom/path`)
-2. **Environment variables** (`SELLO_POLICY_FILE=/custom/path`)
-3. **Configuration file** (`~/.sello/config.toml`)
+2. **Environment variables** (`TXGATE_POLICY_FILE=/custom/path`)
+3. **Configuration file** (`~/.txgate/config.toml`)
 4. **Defaults** (built-in sensible defaults)
 
 ### Configuration File Format
 
 ```toml
-# ~/.sello/config.toml
+# ~/.txgate/config.toml
 
 [general]
-# Data directory (default: ~/.sello)
-data_dir = "~/.sello"
+# Data directory (default: ~/.txgate)
+data_dir = "~/.txgate"
 
 # Log level (trace, debug, info, warn, error)
 log_level = "info"
@@ -1146,7 +1146,7 @@ log_format = "json"
 
 [server]
 # Unix socket path
-socket_path = "~/.sello/sello.sock"
+socket_path = "~/.txgate/txgate.sock"
 
 # HTTP server (optional)
 http_enabled = false
@@ -1188,7 +1188,7 @@ USDC = "100000"
 
 [audit]
 # Audit log directory
-log_dir = "~/.sello/audit"
+log_dir = "~/.txgate/audit"
 
 # Maximum log file size before rotation
 max_size_mb = 100
@@ -1208,7 +1208,7 @@ Configuration can be reloaded without restart via SIGHUP:
 
 ```bash
 # Reload configuration
-kill -HUP $(cat ~/.sello/sello.pid)
+kill -HUP $(cat ~/.txgate/txgate.pid)
 ```
 
 The following settings support hot reload:
@@ -1268,9 +1268,9 @@ src/
 
 | Module | Target | Rationale |
 |--------|--------|-----------|
-| `sello-crypto` | **100%** | Core security, no exceptions |
-| `sello-chain` | **100%** | Parsing correctness is critical |
-| `sello-policy` | **100%** | Policy enforcement is critical |
+| `txgate-crypto` | **100%** | Core security, no exceptions |
+| `txgate-chain` | **100%** | Parsing correctness is critical |
+| `txgate-policy` | **100%** | Policy enforcement is critical |
 | Server code | **90%+** | Network edge cases are harder |
 | CLI code | **80%+** | UI code is less critical |
 
@@ -1408,16 +1408,16 @@ todo = "warn"
 #### Systemd Service
 
 ```ini
-# /etc/systemd/system/sello.service
+# /etc/systemd/system/txgate.service
 [Unit]
-Description=Sello Transaction Signing Server
+Description=TxGate Transaction Signing Server
 After=network.target
 
 [Service]
 Type=simple
-User=sello
-Group=sello
-ExecStart=/usr/local/bin/sello serve
+User=txgate
+Group=txgate
+ExecStart=/usr/local/bin/txgate serve
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
@@ -1427,7 +1427,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/var/lib/sello
+ReadWritePaths=/var/lib/txgate
 
 [Install]
 WantedBy=multi-user.target
@@ -1436,9 +1436,9 @@ WantedBy=multi-user.target
 #### Directory Structure (Production)
 
 ```
-/var/lib/sello/
+/var/lib/txgate/
 ├── config.toml         # Configuration
-├── sello.sock          # Unix socket
+├── txgate.sock          # Unix socket
 ├── keys/               # Encrypted key files
 │   └── default.enc
 ├── audit/              # Audit logs
@@ -1455,24 +1455,24 @@ WantedBy=multi-user.target
 # Key metrics exposed at /metrics
 
 # Request counters
-sello_requests_total{method="sign", chain="ethereum", status="success"} 1234
-sello_requests_total{method="sign", chain="ethereum", status="policy_denied"} 56
+txgate_requests_total{method="sign", chain="ethereum", status="success"} 1234
+txgate_requests_total{method="sign", chain="ethereum", status="policy_denied"} 56
 
 # Latency histograms
-sello_request_duration_seconds_bucket{method="sign", le="0.01"} 1000
-sello_request_duration_seconds_bucket{method="sign", le="0.05"} 1200
-sello_request_duration_seconds_bucket{method="sign", le="+Inf"} 1234
+txgate_request_duration_seconds_bucket{method="sign", le="0.01"} 1000
+txgate_request_duration_seconds_bucket{method="sign", le="0.05"} 1200
+txgate_request_duration_seconds_bucket{method="sign", le="+Inf"} 1234
 
 # Policy metrics
-sello_policy_denials_total{rule="whitelist"} 45
-sello_policy_denials_total{rule="daily_limit"} 11
+txgate_policy_denials_total{rule="whitelist"} 45
+txgate_policy_denials_total{rule="daily_limit"} 11
 
 # Key usage
-sello_signatures_total{key="default", chain="ethereum"} 1234
+txgate_signatures_total{key="default", chain="ethereum"} 1234
 
 # Limit utilization
-sello_daily_limit_used{token="ETH"} 8.5
-sello_daily_limit_max{token="ETH"} 10
+txgate_daily_limit_used{token="ETH"} 8.5
+txgate_daily_limit_max{token="ETH"} 10
 ```
 
 #### Health Check
@@ -1480,7 +1480,7 @@ sello_daily_limit_max{token="ETH"} 10
 ```bash
 # Socket health check
 echo '{"jsonrpc":"2.0","id":1,"method":"status","params":{}}' | \
-  socat - UNIX-CONNECT:/var/lib/sello/sello.sock
+  socat - UNIX-CONNECT:/var/lib/txgate/txgate.sock
 
 # HTTP health check (if enabled)
 curl http://127.0.0.1:8080/status
@@ -1492,19 +1492,19 @@ curl http://127.0.0.1:8080/status
 
 ```bash
 #!/bin/bash
-# /etc/cron.daily/sello-backup
+# /etc/cron.daily/txgate-backup
 
-BACKUP_DIR="/var/backups/sello"
+BACKUP_DIR="/var/backups/txgate"
 DATE=$(date +%Y%m%d)
 
 # Backup encrypted keys (DO NOT backup unencrypted!)
-cp -r /var/lib/sello/keys "$BACKUP_DIR/keys-$DATE"
+cp -r /var/lib/txgate/keys "$BACKUP_DIR/keys-$DATE"
 
 # Backup configuration
-cp /var/lib/sello/config.toml "$BACKUP_DIR/config-$DATE.toml"
+cp /var/lib/txgate/config.toml "$BACKUP_DIR/config-$DATE.toml"
 
 # Backup audit logs (compressed)
-tar czf "$BACKUP_DIR/audit-$DATE.tar.gz" /var/lib/sello/audit/
+tar czf "$BACKUP_DIR/audit-$DATE.tar.gz" /var/lib/txgate/audit/
 
 # Retain 30 days
 find "$BACKUP_DIR" -mtime +30 -delete
@@ -1512,10 +1512,10 @@ find "$BACKUP_DIR" -mtime +30 -delete
 
 #### Recovery Procedure
 
-1. **Install Sello** on new host
+1. **Install TxGate** on new host
 2. **Restore keys**: Copy `keys/*.enc` files
 3. **Restore config**: Update paths in `config.toml`
-4. **Verify**: Run `sello status` to confirm key access
+4. **Verify**: Run `txgate status` to confirm key access
 5. **Restore history**: Copy `history.db` (optional, affects daily limits)
 
 ### Logging
@@ -1526,7 +1526,7 @@ find "$BACKUP_DIR" -mtime +30 -delete
 {
     "timestamp": "2026-01-21T12:00:00.000Z",
     "level": "INFO",
-    "target": "sello::server::handler",
+    "target": "txgate::server::handler",
     "correlation_id": "req-abc123",
     "message": "Sign request processed",
     "chain": "ethereum",
@@ -1573,7 +1573,7 @@ find "$BACKUP_DIR" -mtime +30 -delete
 
 ## Appendix: References
 
-- [Sello Design Paper](/docs/sello-paper.md) - Original design document
+- [TxGate Design Paper](/docs/txgate-paper.md) - Original design document
 - [alloy-rs](https://github.com/alloy-rs/alloy) - Ethereum types and parsing
 - [rust-bitcoin](https://github.com/rust-bitcoin/rust-bitcoin) - Bitcoin types and parsing
 - [solana-sdk](https://github.com/solana-labs/solana) - Solana types and parsing

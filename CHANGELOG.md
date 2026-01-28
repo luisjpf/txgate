@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Multi-chain support**: Added Bitcoin and Solana transaction parsers (`sello-chain`).
+- **Multi-chain support**: Added Bitcoin and Solana transaction parsers (`txgate-chain`).
   - `BitcoinParser`: Parses Legacy, SegWit v0, and Taproot transactions.
     - Extracts recipients from P2PKH, P2SH, P2WPKH, P2WSH, P2TR outputs.
     - Computes txid, vsize, weight for fee estimation.
@@ -26,9 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgraded `lru` crate to 0.16 to fix RUSTSEC-2026-0002 soundness issue.
 - Consolidated all dependencies to workspace-level management.
 - **Publishing strategy**: All crates are now published to crates.io to enable
-  `cargo install sello`. Library crates (`sello-core`, `sello-crypto`, `sello-chain`,
-  `sello-policy`) are marked as internal with unstable APIs - users should only
-  depend on the `sello` binary crate directly. Publishing all crates prevents name
+  `cargo install txgate`. Library crates (`txgate-core`, `txgate-crypto`, `txgate-chain`,
+  `txgate-policy`) are marked as internal with unstable APIs - users should only
+  depend on the `txgate` binary crate directly. Publishing all crates prevents name
   squatting attacks and provides the expected Rust installation experience.
 
 ## [0.1.0] - 2026-01-23
@@ -37,11 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Core Infrastructure
 
-- Five-crate workspace architecture: `sello-core`, `sello-crypto`, `sello-chain`, `sello-policy`, and `sello` binary.
+- Five-crate workspace architecture: `txgate-core`, `txgate-crypto`, `txgate-chain`, `txgate-policy`, and `txgate` binary.
 - Comprehensive error types with `thiserror` for all modules.
 - Trait-based dependency injection for testability.
 
-#### Cryptography (`sello-crypto`)
+#### Cryptography (`txgate-crypto`)
 
 - `SecretKey` type with automatic memory zeroization (`Zeroize`, `ZeroizeOnDrop`).
 - Secp256k1 key pair generation and management using `k256`.
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Atomic file writes using temp files and rename.
 - Constant-time comparisons for cryptographic operations.
 
-#### Transaction Parsing (`sello-chain`)
+#### Transaction Parsing (`txgate-chain`)
 
 - `Chain` trait for pluggable blockchain parsers.
 - `ChainRegistry` for runtime chain lookup and management.
@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `transferFrom(address,address,uint256)` - delegated transfers
 - Built-in token registry with major stablecoins (USDC, USDT, DAI).
 
-#### Policy Engine (`sello-policy`)
+#### Policy Engine (`txgate-policy`)
 
 - `PolicyEngine` trait for configurable transaction approval rules.
 - SQLite-backed transaction history for daily limit tracking.
@@ -77,19 +77,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LRU caching for efficient daily total queries.
 - Connection pooling with `r2d2` for concurrent access.
 
-#### CLI (`sello` binary)
+#### CLI (`txgate` binary)
 
-- `sello init` - Initialize Sello with encrypted key generation.
-- `sello status` - Display current configuration and key status.
-- `sello config` - View and edit configuration.
-- `sello keys list` - List all stored keys.
-- `sello keys generate` - Generate new key pairs.
-- `sello keys import` - Import existing private keys.
-- `sello keys export` - Export public keys or encrypted private keys.
-- `sello keys delete` - Remove keys from storage.
-- `sello ethereum address` - Display Ethereum address for a key.
-- `sello ethereum sign` - Parse, validate, and sign Ethereum transactions.
-- `sello serve` - Start JSON-RPC server on Unix socket.
+- `txgate init` - Initialize TxGate with encrypted key generation.
+- `txgate status` - Display current configuration and key status.
+- `txgate config` - View and edit configuration.
+- `txgate keys list` - List all stored keys.
+- `txgate keys generate` - Generate new key pairs.
+- `txgate keys import` - Import existing private keys.
+- `txgate keys export` - Export public keys or encrypted private keys.
+- `txgate keys delete` - Remove keys from storage.
+- `txgate ethereum address` - Display Ethereum address for a key.
+- `txgate ethereum sign` - Parse, validate, and sign Ethereum transactions.
+- `txgate serve` - Start JSON-RPC server on Unix socket.
 
 #### Server
 
@@ -144,5 +144,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Constant-time operations for secret comparisons.
 - Audit logging provides forensic evidence for security incidents.
 
-[Unreleased]: https://github.com/sello-project/sello/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/sello-project/sello/releases/tag/v0.1.0
+[Unreleased]: https://github.com/txgate-project/txgate/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/txgate-project/txgate/releases/tag/v0.1.0

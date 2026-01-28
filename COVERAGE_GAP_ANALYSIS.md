@@ -7,15 +7,15 @@
 
 | Crate | Current | Target | Gap | Priority |
 |-------|---------|--------|-----|----------|
-| sello-crypto | 69.6% | 100% | 30.4% | HIGH (security-critical) |
-| sello-chain | 67.2% | 100% | 32.8% | HIGH (security-critical) |
-| sello-policy | 68.5% | 100% | 31.5% | HIGH (security-critical) |
-| sello-core | 98.1% | 90% | ✅ PASS | - |
-| sello | 71.2% | 80% | 8.8% | MEDIUM |
+| txgate-crypto | 69.6% | 100% | 30.4% | HIGH (security-critical) |
+| txgate-chain | 67.2% | 100% | 32.8% | HIGH (security-critical) |
+| txgate-policy | 68.5% | 100% | 31.5% | HIGH (security-critical) |
+| txgate-core | 98.1% | 90% | ✅ PASS | - |
+| txgate | 71.2% | 80% | 8.8% | MEDIUM |
 
 ## Detailed Gap Analysis by Crate
 
-### 1. sello-crypto (69.6% → 100%)
+### 1. txgate-crypto (69.6% → 100%)
 
 **Gap: ~30%** | **Estimated Missing Tests: 25-30**
 
@@ -82,7 +82,7 @@
 
 ---
 
-### 2. sello-chain (67.2% → 100%)
+### 2. txgate-chain (67.2% → 100%)
 
 **Gap: ~33%** | **Estimated Missing Tests: 30-35**
 
@@ -175,7 +175,7 @@
 
 ---
 
-### 3. sello-policy (68.5% → 100%)
+### 3. txgate-policy (68.5% → 100%)
 
 **Gap: ~31.5%** | **Estimated Missing Tests: 25-30**
 
@@ -259,7 +259,7 @@
 
 ---
 
-### 4. sello (71.2% → 80%)
+### 4. txgate (71.2% → 80%)
 
 **Gap: ~9%** | **Estimated Missing Tests: 10-12**
 
@@ -305,35 +305,35 @@
 **Duration**: 2-3 hours
 **Focus**: Error handling in security-critical crypto and parsing code
 
-1. **sello-crypto** - File I/O errors (8-10%)
-2. **sello-chain** - RLP decoding errors (8-10%)
-3. **sello-policy** - U256 boundary cases (5-6%)
+1. **txgate-crypto** - File I/O errors (8-10%)
+2. **txgate-chain** - RLP decoding errors (8-10%)
+3. **txgate-policy** - U256 boundary cases (5-6%)
 
 ### Phase 2: Parser Edge Cases (Target: +10% total coverage)
 
 **Duration**: 1-2 hours
 **Focus**: Transaction parsing and ERC-20 edge cases
 
-4. **sello-chain** - Ethereum missing fields (6-8%)
-5. **sello-chain** - ERC-20 truncated calldata (5-6%)
-6. **sello-crypto** - Signature normalization (3-4%)
+4. **txgate-chain** - Ethereum missing fields (6-8%)
+5. **txgate-chain** - ERC-20 truncated calldata (5-6%)
+6. **txgate-crypto** - Signature normalization (3-4%)
 
 ### Phase 3: Policy Logic Completeness (Target: +8% total coverage)
 
 **Duration**: 1-2 hours
 **Focus**: Policy evaluation branches and denial reasons
 
-7. **sello-policy** - PolicyCheckResult variants (6-8%)
-8. **sello-policy** - None recipient handling (4-5%)
-9. **sello-policy** - Database errors (6-8%)
+7. **txgate-policy** - PolicyCheckResult variants (6-8%)
+8. **txgate-policy** - None recipient handling (4-5%)
+9. **txgate-policy** - Database errors (6-8%)
 
-### Phase 4: CLI and Config (Target: +7% for sello)
+### Phase 4: CLI and Config (Target: +7% for txgate)
 
 **Duration**: 1 hour
 **Focus**: User-facing error paths
 
-10. **sello** - CLI error paths (3-4%)
-11. **sello** - Config loading errors (3-4%)
+10. **txgate** - CLI error paths (3-4%)
+11. **txgate** - Config loading errors (3-4%)
 
 ### Phase 5: Remaining Coverage (Target: Fill gaps to 100%/80%)
 
@@ -348,10 +348,10 @@
 
 | Crate | Current | After Phase 1-2 | After Phase 3-4 | Final Target |
 |-------|---------|-----------------|-----------------|--------------|
-| sello-crypto | 69.6% | 85-88% | 92-95% | 98-100% |
-| sello-chain | 67.2% | 85-90% | 95-98% | 98-100% |
-| sello-policy | 68.5% | 80-82% | 92-95% | 98-100% |
-| sello | 71.2% | 71.2% | 78-80% | 80-82% |
+| txgate-crypto | 69.6% | 85-88% | 92-95% | 98-100% |
+| txgate-chain | 67.2% | 85-90% | 95-98% | 98-100% |
+| txgate-policy | 68.5% | 80-82% | 92-95% | 98-100% |
+| txgate | 71.2% | 71.2% | 78-80% | 80-82% |
 
 ---
 
@@ -359,7 +359,7 @@
 
 Use this checklist to track progress:
 
-### sello-crypto (30% gap)
+### txgate-crypto (30% gap)
 - [ ] Argon2 error paths (derive_key, encrypt_key)
 - [ ] FileKeyStore I/O errors (read, write, delete, permissions)
 - [ ] normalize_s() both branches (high-S, low-S)
@@ -367,7 +367,7 @@ Use this checklist to track progress:
 - [ ] Concurrent FileKeyStore access
 - [ ] Unreachable path documentation
 
-### sello-chain (33% gap)
+### txgate-chain (33% gap)
 - [ ] Missing transaction fields (nonce, to, value, data, v) - 5 tests
 - [ ] ERC-20 truncated calldata (transfer, approve, transferFrom)
 - [ ] RLP malformed structures (truncated, invalid, empty)
@@ -376,7 +376,7 @@ Use this checklist to track progress:
 - [ ] RiskLevel Display implementation
 - [ ] Token registry address parsing failures
 
-### sello-policy (31% gap)
+### txgate-policy (31% gap)
 - [ ] PolicyCheckResult variant reasons (4 variants)
 - [ ] Daily limit boundaries (==limit, overflow, U256::MAX)
 - [ ] Daily limit reset across dates
@@ -387,7 +387,7 @@ Use this checklist to track progress:
 - [ ] Concurrent history access
 - [ ] Duplicate transaction hashes
 
-### sello (9% gap)
+### txgate (9% gap)
 - [ ] CLI command execution errors
 - [ ] Invalid config parsing (TOML syntax, missing fields, type errors)
 - [ ] Audit log write failures (permissions, disk full)
@@ -400,10 +400,10 @@ If 100% coverage proves impractical, consider these realistic thresholds:
 
 | Crate | Current Threshold | Realistic Threshold | Rationale |
 |-------|-------------------|---------------------|-----------|
-| sello-crypto | 100% | 85-90% | Platform-specific code hard to cover |
-| sello-chain | 100% | 90-95% | Some error paths are defensive |
-| sello-policy | 100% | 90-95% | Database error mocking complex |
-| sello | 80% | 75-80% | CLI error paths diverse |
+| txgate-crypto | 100% | 85-90% | Platform-specific code hard to cover |
+| txgate-chain | 100% | 90-95% | Some error paths are defensive |
+| txgate-policy | 100% | 90-95% | Database error mocking complex |
+| txgate | 80% | 75-80% | CLI error paths diverse |
 
 ---
 

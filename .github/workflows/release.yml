@@ -1,4 +1,4 @@
-# Sello Release Pipeline
+# TxGate Release Pipeline
 #
 # This workflow creates release binaries and publishes them when a version tag
 # is pushed. It builds for multiple platforms and creates a GitHub Release with
@@ -10,7 +10,7 @@
 #   - macOS arm64 (Apple Silicon)
 #
 # Not supported:
-#   - Windows: Sello uses Unix sockets for the server which aren't available on Windows
+#   - Windows: TxGate uses Unix sockets for the server which aren't available on Windows
 #   - Linux arm64: OpenSSL cross-compilation issues with solana-sdk dependencies
 #
 # Usage:
@@ -41,21 +41,21 @@ jobs:
           - name: Linux-x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            asset_name: sello-linux-x86_64
+            asset_name: txgate-linux-x86_64
             cross: false
 
           # macOS Intel (native on Intel runner)
           - name: macOS-x86_64
             os: macos-15-intel
             target: x86_64-apple-darwin
-            asset_name: sello-macos-x86_64
+            asset_name: txgate-macos-x86_64
             cross: false
 
           # macOS Apple Silicon (native)
           - name: macOS-arm64
             os: macos-latest
             target: aarch64-apple-darwin
-            asset_name: sello-macos-aarch64
+            asset_name: txgate-macos-aarch64
             cross: false
 
     steps:
@@ -73,13 +73,13 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --locked --release --target ${{ matrix.target }} --package sello
+        run: cargo build --locked --release --target ${{ matrix.target }} --package txgate
 
       - name: Prepare binary
         run: |
           cd target/${{ matrix.target }}/release
-          strip sello || true
-          tar -czvf ${{ matrix.asset_name }}.tar.gz sello
+          strip txgate || true
+          tar -czvf ${{ matrix.asset_name }}.tar.gz txgate
           shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
 
       - name: Upload artifact
@@ -132,14 +132,14 @@ jobs:
 
           | Platform | Architecture | Download |
           |----------|--------------|----------|
-          | Linux | x86_64 | [sello-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-linux-x86_64.tar.gz) |
-          | macOS | Intel | [sello-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-x86_64.tar.gz) |
-          | macOS | Apple Silicon | [sello-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sello-macos-aarch64.tar.gz) |
+          | Linux | x86_64 | [txgate-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/txgate-linux-x86_64.tar.gz) |
+          | macOS | Intel | [txgate-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/txgate-macos-x86_64.tar.gz) |
+          | macOS | Apple Silicon | [txgate-macos-aarch64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/txgate-macos-aarch64.tar.gz) |
 
           ### Install from crates.io
 
           ```bash
-          cargo install sello
+          cargo install txgate
           ```
 
           ### Verify Download
@@ -147,20 +147,20 @@ jobs:
           Each binary has a corresponding `.sha256` file for verification:
 
           ```bash
-          shasum -a 256 -c sello-linux-x86_64.tar.gz.sha256
+          shasum -a 256 -c txgate-linux-x86_64.tar.gz.sha256
           ```
 
           ## Quick Start
 
           ```bash
           # Extract (Unix)
-          tar -xzf sello-*.tar.gz
+          tar -xzf txgate-*.tar.gz
 
           # Initialize
-          ./sello init
+          ./txgate init
 
           # View your address
-          ./sello ethereum address
+          ./txgate ethereum address
           ```
           EOF
           echo "Release notes generated"
@@ -168,7 +168,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Sello ${{ github.ref_name }}
+          name: TxGate ${{ github.ref_name }}
           body_path: release_notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -230,10 +230,10 @@ jobs:
           }
 
           # Publish in dependency order
-          publish_crate sello-core && sleep 30
-          publish_crate sello-crypto && sleep 30
-          publish_crate sello-chain && sleep 30
-          publish_crate sello-policy && sleep 30
-          publish_crate sello
+          publish_crate txgate-core && sleep 30
+          publish_crate txgate-crypto && sleep 30
+          publish_crate txgate-chain && sleep 30
+          publish_crate txgate-policy && sleep 30
+          publish_crate txgate
 
           echo "All crates published successfully!"

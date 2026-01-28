@@ -22,10 +22,10 @@
 use alloy_primitives::U256;
 use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
-use sello_core::types::{ParsedTx, TxType};
-use sello_policy::config::PolicyConfig;
-use sello_policy::engine::{DefaultPolicyEngine, PolicyEngine};
-use sello_policy::history::TransactionHistory;
+use txgate_core::types::{ParsedTx, TxType};
+use txgate_policy::config::PolicyConfig;
+use txgate_policy::engine::{DefaultPolicyEngine, PolicyEngine};
+use txgate_policy::history::TransactionHistory;
 use std::collections::HashMap;
 use std::sync::Arc;
 

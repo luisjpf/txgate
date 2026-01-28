@@ -1,4 +1,4 @@
-# Sello CODEOWNERS
+# TxGate CODEOWNERS
 #
 # This file defines code ownership for automatic review assignment.
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
@@ -11,16 +11,16 @@
 # =============================================================================
 
 # Cryptographic operations - key management, signing, encryption
-/crates/sello-crypto/ @luisjpf
+/crates/txgate-crypto/ @luisjpf
 
 # Policy engine - authorization and enforcement
-/crates/sello-policy/ @luisjpf
+/crates/txgate-policy/ @luisjpf
 
 # Transaction parsing - correctness is critical for policy enforcement
-/crates/sello-chain/ @luisjpf
+/crates/txgate-chain/ @luisjpf
 
 # Core types and errors - foundation for all modules
-/crates/sello-core/ @luisjpf
+/crates/txgate-core/ @luisjpf
 
 # =============================================================================
 # CI/CD and Infrastructure

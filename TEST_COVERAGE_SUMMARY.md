@@ -1,8 +1,8 @@
-# sello-policy Test Coverage Summary
+# txgate-policy Test Coverage Summary
 
 ## Overview
 
-Comprehensive unit tests have been added to the `sello-policy` crate to achieve maximum code coverage. The test suite now includes 82 unit tests (up from 53), with extensive coverage of all code paths, error cases, and edge conditions.
+Comprehensive unit tests have been added to the `txgate-policy` crate to achieve maximum code coverage. The test suite now includes 82 unit tests (up from 53), with extensive coverage of all code paths, error cases, and edge conditions.
 
 ## Test Statistics
 
@@ -148,9 +148,9 @@ Comprehensive unit tests have been added to the `sello-policy` crate to achieve 
 - ✓ TransactionRecord debug format
 - ✓ current_unix_timestamp is positive and reasonable
 
-### config.rs (Re-exported from sello-core)
+### config.rs (Re-exported from txgate-core)
 
-The PolicyConfig is re-exported from sello-core and is tested there. All policy-related configuration tests are in sello-core's comprehensive test suite.
+The PolicyConfig is re-exported from txgate-core and is tested there. All policy-related configuration tests are in txgate-core's comprehensive test suite.
 
 ## Security-Critical Areas Covered
 
@@ -215,7 +215,7 @@ The PolicyConfig is re-exported from sello-core and is tested there. All policy-
 
 ### Lines Covered
 
-All production code paths in `sello-policy` are covered:
+All production code paths in `txgate-policy` are covered:
 
 **engine.rs**:
 - All public methods: `check()`, `record()`
@@ -273,7 +273,7 @@ To reach true 100% coverage, consider:
 
 ## Conclusion
 
-The `sello-policy` crate now has comprehensive test coverage with 82 unit tests covering:
+The `txgate-policy` crate now has comprehensive test coverage with 82 unit tests covering:
 - All policy evaluation logic
 - All transaction history operations
 - All edge cases and error conditions

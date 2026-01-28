@@ -18,7 +18,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use sello_chain::{Chain, EthereumParser};
+use txgate_chain::{Chain, EthereumParser};
 
 fuzz_target!(|data: &[u8]| {
     // Create the parser once (it's stateless)

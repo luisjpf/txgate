@@ -4,7 +4,7 @@ labels: [enhancement]
 body:
   - type: markdown
     attributes:
-      value: "Thanks for helping improve Sello."
+      value: "Thanks for helping improve TxGate."
   - type: textarea
     id: summary
     attributes:

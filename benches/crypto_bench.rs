@@ -1,4 +1,4 @@
-//! Performance benchmarks for sello-crypto operations.
+//! Performance benchmarks for txgate-crypto operations.
 //!
 //! This module benchmarks critical cryptographic operations:
 //! - Key generation (secp256k1)
@@ -9,7 +9,7 @@
 #![allow(clippy::expect_used)]
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use sello_crypto::{
+use txgate_crypto::{
     decrypt_key, encrypt_key,
     keypair::{KeyPair, Secp256k1KeyPair},
     keys::SecretKey,

@@ -1,6 +1,6 @@
-# Contributing to Sello
+# Contributing to TxGate
 
-Thank you for your interest in contributing to Sello! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to TxGate! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Please read and follow `CODE_OF_CONDUCT.md` in the repository root.
 
 ### Submitting a Bug Report
 
-Create a [new issue](https://github.com/sello-project/sello/issues/new) with:
+Create a [new issue](https://github.com/txgate-project/txgate/issues/new) with:
 
 **Title**: Clear, descriptive title (e.g., "Ethereum parser fails on EIP-1559 transactions with access lists")
 
@@ -42,7 +42,7 @@ Create a [new issue](https://github.com/sello-project/sello/issues/new) with:
 A clear description of the bug.
 
 ## Steps to Reproduce
-1. Run command `sello ...`
+1. Run command `txgate ...`
 2. Provide input `...`
 3. Observe error
 
@@ -53,7 +53,7 @@ What you expected to happen.
 What actually happened.
 
 ## Environment
-- Sello version: (run `sello --version`)
+- TxGate version: (run `txgate --version`)
 - OS: (e.g., macOS 14.0, Ubuntu 22.04)
 - Rust version: (run `rustc --version`)
 
@@ -73,7 +73,7 @@ If possible, provide a minimal example that reproduces the issue:
 
 **Do not report security vulnerabilities through public issues.**
 
-Instead, email security@sello-project.org with:
+Instead, email security@txgate-project.org with:
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -91,7 +91,7 @@ Instead, email security@sello-project.org with:
 
 ### Submitting a Feature Request
 
-Create a [new issue](https://github.com/sello-project/sello/issues/new) with:
+Create a [new issue](https://github.com/txgate-project/txgate/issues/new) with:
 
 **Title**: "Feature: [Brief description]"
 
@@ -131,12 +131,12 @@ If you have ideas about implementation:
 1. **Fork the repository** on GitHub
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/sello.git
-   cd sello
+   git clone https://github.com/YOUR-USERNAME/txgate.git
+   cd txgate
    ```
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream https://github.com/sello-project/sello.git
+   git remote add upstream https://github.com/txgate-project/txgate.git
    ```
 
 ### Development Workflow
@@ -172,7 +172,7 @@ If you have ideas about implementation:
    cargo test
 
    # Check coverage (for crypto, chain, policy)
-   cargo llvm-cov -p sello-crypto
+   cargo llvm-cov -p txgate-crypto
    ```
 
 5. **Commit your changes**:
@@ -365,10 +365,10 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Scope | Crate/Area |
 |-------|------------|
-| `core` | sello-core |
-| `crypto` | sello-crypto |
-| `chain` | sello-chain |
-| `policy` | sello-policy |
+| `core` | txgate-core |
+| `crypto` | txgate-crypto |
+| `chain` | txgate-chain |
+| `policy` | txgate-policy |
 | `cli` | CLI commands |
 | `server` | Server code |
 | `docs` | Documentation |
@@ -409,11 +409,11 @@ Add instructions for installing via cargo and from source.
 
 | Crate | Required Coverage |
 |-------|-------------------|
-| sello-crypto | 100% |
-| sello-chain | 100% |
-| sello-policy | 100% |
-| sello-core | 90%+ |
-| sello | 80%+ |
+| txgate-crypto | 100% |
+| txgate-chain | 100% |
+| txgate-policy | 100% |
+| txgate-core | 90%+ |
+| txgate | 80%+ |
 
 ### Test Categories
 
@@ -504,8 +504,8 @@ When your changes affect:
 
 ## Questions?
 
-- **Discussion**: Open a [GitHub Discussion](https://github.com/sello-project/sello/discussions)
+- **Discussion**: Open a [GitHub Discussion](https://github.com/txgate-project/txgate/discussions)
 - **Chat**: Join our Discord (if available)
 - **Issues**: For bugs and feature requests
 
-Thank you for contributing to Sello!
+Thank you for contributing to TxGate!
