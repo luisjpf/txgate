@@ -28,7 +28,6 @@ use txgate_chain::{Chain, EthereumParser};
 use txgate_core::types::{ParsedTx, TxType};
 use txgate_policy::config::PolicyConfig;
 use txgate_policy::engine::DefaultPolicyEngine;
-use txgate_policy::history::TransactionHistory;
 
 /// One ETH in wei (10^18).
 pub const ONE_ETH: u64 = 1_000_000_000_000_000_000;
@@ -106,10 +105,8 @@ addresses = []
 pub fn setup_test_env_with_policy(config: PolicyConfig) -> (TempDir, Arc<DefaultPolicyEngine>) {
     let temp_dir = setup_test_env();
 
-    let history = Arc::new(TransactionHistory::in_memory().expect("failed to create history"));
-    let engine = Arc::new(
-        DefaultPolicyEngine::new(config, history).expect("failed to create policy engine"),
-    );
+    let engine =
+        Arc::new(DefaultPolicyEngine::new(config).expect("failed to create policy engine"));
 
     (temp_dir, engine)
 }

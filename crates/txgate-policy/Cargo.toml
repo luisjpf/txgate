@@ -20,10 +20,6 @@ workspace = true
 [dependencies]
 txgate-core = { version = "0.1.0", path = "../txgate-core" }
 txgate-chain = { version = "0.1.0", path = "../txgate-chain" }
-rusqlite = { workspace = true }
-r2d2 = { workspace = true }
-r2d2_sqlite = { workspace = true }
-lru = { workspace = true }
 serde = { workspace = true }
 alloy-primitives = { workspace = true }
 hex = { workspace = true }

@@ -43,7 +43,6 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use txgate_chain::solana::SolanaParser;
 use txgate_chain::Chain;
@@ -54,7 +53,6 @@ use txgate_crypto::keypair::Ed25519KeyPair;
 use txgate_crypto::signer::{Chain as SignerChain, Ed25519Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
 use txgate_policy::engine::{DefaultPolicyEngine, PolicyEngine};
-use txgate_policy::history::TransactionHistory;
 
 use crate::cli::args::OutputFormat;
 use crate::cli::commands::exit_codes::{EXIT_ERROR, EXIT_POLICY_DENIED};
@@ -291,11 +289,7 @@ impl SignCommand {
             .map_err(|e| SignCommandError::InvalidTransaction(e.to_string()))?;
 
         // 9. Create policy engine and check policy
-        let history = Arc::new(
-            TransactionHistory::in_memory()
-                .map_err(|e| SignCommandError::PolicyError(e.to_string()))?,
-        );
-        let policy_engine = DefaultPolicyEngine::new(config.policy, history)
+        let policy_engine = DefaultPolicyEngine::new(config.policy)
             .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         let policy_result = policy_engine
@@ -323,12 +317,7 @@ impl SignCommand {
             .sign(&parsed_tx.hash)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
-        // 12. Record the transaction in policy engine (for daily limits)
-        policy_engine
-            .record(&parsed_tx)
-            .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
-
-        // 13. Output the result
+        // 12. Output the result
         match self.format {
             OutputFormat::Hex => {
                 let output = format_hex_output(&signature);
@@ -399,11 +388,7 @@ impl SignCommand {
 
         // 8. Create policy engine and check policy
         let policy_config = config.policy;
-        let history = Arc::new(
-            TransactionHistory::in_memory()
-                .map_err(|e| SignCommandError::PolicyError(e.to_string()))?,
-        );
-        let policy_engine = DefaultPolicyEngine::new(policy_config, history)
+        let policy_engine = DefaultPolicyEngine::new(policy_config)
             .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         let policy_result = policy_engine
@@ -430,11 +415,6 @@ impl SignCommand {
         let signature = signer
             .sign(&parsed_tx.hash)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
-
-        // 11. Record the transaction
-        policy_engine
-            .record(&parsed_tx)
-            .map_err(|e| SignCommandError::PolicyError(e.to_string()))?;
 
         Ok(SignOutput {
             transaction_hash: format_hex_output(&parsed_tx.hash),

@@ -25,7 +25,6 @@
 //!   Whitelist addresses: 0
 //!   Blacklist addresses: 2
 //!   Transaction limits: 3 tokens
-//!   Daily limits: 2 tokens
 //!
 //! Server:
 //!   Socket path: ~/.txgate/txgate.sock
@@ -107,8 +106,6 @@ pub struct PolicySummary {
     pub blacklist_count: usize,
     /// Number of tokens with transaction limits.
     pub tx_limit_count: usize,
-    /// Number of tokens with daily limits.
-    pub daily_limit_count: usize,
 }
 
 // ============================================================================
@@ -356,7 +353,6 @@ pub fn get_policy_summary(policy: &PolicyConfig) -> PolicySummary {
         whitelist_count: policy.whitelist.len(),
         blacklist_count: policy.blacklist.len(),
         tx_limit_count: policy.transaction_limits.len(),
-        daily_limit_count: policy.daily_limits.len(),
     }
 }
 
@@ -458,10 +454,6 @@ fn print_status(
     println!(
         "  Transaction limits: {} tokens",
         policy_summary.tx_limit_count
-    );
-    println!(
-        "  Daily limits: {} tokens",
-        policy_summary.daily_limit_count
     );
     println!();
 
@@ -616,7 +608,6 @@ mod tests {
         assert_eq!(summary.whitelist_count, 0);
         assert_eq!(summary.blacklist_count, 0);
         assert_eq!(summary.tx_limit_count, 0);
-        assert_eq!(summary.daily_limit_count, 0);
     }
 
     #[test]
@@ -626,9 +617,7 @@ mod tests {
         let policy = PolicyConfig::new()
             .with_whitelist(vec!["0xAAA".to_string(), "0xBBB".to_string()])
             .with_blacklist(vec!["0xCCC".to_string()])
-            .with_transaction_limit("ETH", U256::from(1_u64))
-            .with_daily_limit("ETH", U256::from(10_u64))
-            .with_daily_limit("USDC", U256::from(100_u64));
+            .with_transaction_limit("ETH", U256::from(1_u64));
 
         let summary = get_policy_summary(&policy);
 
@@ -636,7 +625,6 @@ mod tests {
         assert_eq!(summary.whitelist_count, 2);
         assert_eq!(summary.blacklist_count, 1);
         assert_eq!(summary.tx_limit_count, 1);
-        assert_eq!(summary.daily_limit_count, 2);
     }
 
     #[test]
@@ -783,10 +771,6 @@ blacklist = ["0xCCC"]
 
 [policy.transaction_limits]
 ETH = "1000000000000000000"
-
-[policy.daily_limits]
-ETH = "10000000000000000000"
-USDC = "10000000000"
 "#;
         fs::write(base_dir.join(CONFIG_FILE_NAME), config_content).expect("failed to write config");
 
@@ -800,7 +784,6 @@ USDC = "10000000000"
         assert_eq!(output.policy_summary.whitelist_count, 2);
         assert_eq!(output.policy_summary.blacklist_count, 1);
         assert_eq!(output.policy_summary.tx_limit_count, 1);
-        assert_eq!(output.policy_summary.daily_limit_count, 2);
     }
 
     // ------------------------------------------------------------------------
@@ -888,7 +871,6 @@ USDC = "10000000000"
         assert_eq!(summary.whitelist_count, 0);
         assert_eq!(summary.blacklist_count, 0);
         assert_eq!(summary.tx_limit_count, 0);
-        assert_eq!(summary.daily_limit_count, 0);
     }
 
     #[test]
@@ -906,7 +888,6 @@ USDC = "10000000000"
             whitelist_count: 5,
             blacklist_count: 3,
             tx_limit_count: 2,
-            daily_limit_count: 1,
         };
         let cloned = summary.clone();
         assert_eq!(summary.whitelist_enabled, cloned.whitelist_enabled);

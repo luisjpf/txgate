@@ -2,7 +2,6 @@
 //!
 //! This module contains comprehensive end-to-end tests.
 
-pub mod persistence_test;
 pub mod policy_test;
 pub mod server_test;
 pub mod sign_flow_test;

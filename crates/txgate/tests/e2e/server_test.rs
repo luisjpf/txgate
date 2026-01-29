@@ -26,7 +26,6 @@ use txgate_chain::EthereumParser;
 use txgate_crypto::signer::Secp256k1Signer;
 use txgate_policy::config::PolicyConfig;
 use txgate_policy::engine::DefaultPolicyEngine;
-use txgate_policy::history::TransactionHistory;
 
 use super::test_utils::{addresses, create_test_transaction, ONE_ETH};
 
@@ -34,10 +33,9 @@ use super::test_utils::{addresses, create_test_transaction, ONE_ETH};
 fn create_test_server_with_policy(
     socket_path: PathBuf,
     policy_config: PolicyConfig,
-    history: Arc<TransactionHistory>,
 ) -> TxGateServer<Secp256k1Signer> {
     let signer = Secp256k1Signer::generate();
-    let policy_engine = DefaultPolicyEngine::new(policy_config, history).expect("policy engine");
+    let policy_engine = DefaultPolicyEngine::new(policy_config).expect("policy engine");
     let parser = EthereumParser::new();
 
     let server_config = ServerConfig {
@@ -50,9 +48,8 @@ fn create_test_server_with_policy(
 
 /// Helper to create a test server with default policy.
 fn create_test_server(socket_path: PathBuf) -> TxGateServer<Secp256k1Signer> {
-    let history = Arc::new(TransactionHistory::in_memory().expect("history"));
     let policy_config = PolicyConfig::new();
-    create_test_server_with_policy(socket_path, policy_config, history)
+    create_test_server_with_policy(socket_path, policy_config)
 }
 
 /// Helper to send a JSON-RPC request and get response.
@@ -122,9 +119,8 @@ async fn test_concurrent_sign_requests() {
     let socket_path = temp_dir.path().join("txgate.sock");
 
     // Create server with no limits for this test
-    let history = Arc::new(TransactionHistory::in_memory().expect("history"));
     let policy_config = PolicyConfig::new();
-    let server = create_test_server_with_policy(socket_path.clone(), policy_config, history);
+    let server = create_test_server_with_policy(socket_path.clone(), policy_config);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
     let server_handle = tokio::spawn(async move { server.run(shutdown_rx).await });

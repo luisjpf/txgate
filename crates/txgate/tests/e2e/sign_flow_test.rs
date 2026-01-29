@@ -24,8 +24,7 @@ use txgate_core::error::{PolicyError, SignError};
 use txgate_core::signing::{ChainParser, PolicyEngineExt, SignerExt, SigningService};
 use txgate_core::types::{ParsedTx, PolicyResult, TxType};
 use txgate_policy::config::PolicyConfig;
-use txgate_policy::engine::{DefaultPolicyEngine, PolicyEngine};
-use txgate_policy::history::TransactionHistory;
+use txgate_policy::engine::DefaultPolicyEngine;
 
 use super::test_utils::{
     addresses, create_erc20_transfer, create_test_transaction, load_fixture, setup_test_env,
@@ -96,11 +95,7 @@ struct PolicyEngineAdapter(Arc<DefaultPolicyEngine>);
 
 impl PolicyEngineExt for PolicyEngineAdapter {
     fn check(&self, tx: &ParsedTx) -> Result<PolicyResult, PolicyError> {
-        PolicyEngine::check(&*self.0, tx)
-    }
-
-    fn record(&self, tx: &ParsedTx) -> Result<(), PolicyError> {
-        PolicyEngine::record(&*self.0, tx)
+        txgate_policy::engine::PolicyEngine::check(&*self.0, tx)
     }
 }
 
@@ -143,8 +138,7 @@ fn test_init_creates_directory_structure() {
 fn test_sign_eth_transfer() {
     // Set up test environment with permissive policy
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     // Create signing components
     let chain = EthereumChainAdapter(EthereumParser::new());
@@ -185,8 +179,7 @@ fn test_sign_legacy_transfer_from_fixture() {
 
     // Set up test environment
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -218,8 +211,7 @@ fn test_sign_eip1559_transfer_from_fixture() {
 
     // Set up test environment
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -248,8 +240,7 @@ fn test_sign_eip1559_transfer_from_fixture() {
 fn test_sign_erc20_transfer() {
     // Set up test environment with permissive policy
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -294,8 +285,7 @@ fn test_sign_erc20_transfer_from_fixture() {
 
     // Set up test environment
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -322,8 +312,7 @@ fn test_sign_erc20_transfer_from_fixture() {
 fn test_check_without_signing() {
     // Set up test environment
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -361,8 +350,7 @@ fn test_check_without_signing() {
 fn test_recovery_id_passed_through() {
     // Set up test environment with a signer that uses recovery_id = 1
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -387,8 +375,7 @@ fn test_recovery_id_passed_through() {
 #[test]
 fn test_parse_error_on_invalid_input() {
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -411,8 +398,7 @@ fn test_parse_error_on_invalid_input() {
 #[test]
 fn test_empty_transaction_fails() {
     let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
+    let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
     let chain = EthereumChainAdapter(EthereumParser::new());
     let policy = PolicyEngineAdapter(engine);
@@ -424,54 +410,4 @@ fn test_empty_transaction_fails() {
     let result = service.sign(&empty_tx);
 
     assert!(result.is_err());
-}
-
-// ============================================================================
-// Recording Tests
-// ============================================================================
-
-#[test]
-fn test_sign_records_to_history() {
-    let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
-
-    let chain = EthereumChainAdapter(EthereumParser::new());
-    let policy = PolicyEngineAdapter(engine);
-    let signer = MockSigner::new();
-
-    let service = SigningService::new(chain, policy, signer);
-
-    // Sign a transaction
-    let raw_tx = create_test_transaction(addresses::TEST_RECIPIENT, U256::from(ONE_ETH), 1);
-    let _result = service.sign(&raw_tx).expect("signing should succeed");
-
-    // Verify the transaction was recorded in history
-    let daily_total = history.daily_total("ETH").expect("should get daily total");
-    assert_eq!(
-        daily_total,
-        U256::from(ONE_ETH),
-        "transaction should be recorded"
-    );
-}
-
-#[test]
-fn test_check_does_not_record() {
-    let config = PolicyConfig::new();
-    let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    let engine = Arc::new(DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap());
-
-    let chain = EthereumChainAdapter(EthereumParser::new());
-    let policy = PolicyEngineAdapter(engine);
-    let signer = MockSigner::new();
-
-    let service = SigningService::new(chain, policy, signer);
-
-    // Check a transaction (dry run)
-    let raw_tx = create_test_transaction(addresses::TEST_RECIPIENT, U256::from(ONE_ETH), 1);
-    let _result = service.check(&raw_tx).expect("check should succeed");
-
-    // Verify nothing was recorded
-    let daily_total = history.daily_total("ETH").expect("should get daily total");
-    assert_eq!(daily_total, U256::ZERO, "check should not record");
 }

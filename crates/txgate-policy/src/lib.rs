@@ -20,7 +20,6 @@
 //! ## Modules
 //!
 //! - [`config`] - Policy configuration types
-//! - [`history`] - Transaction history tracking with `SQLite`
 //!
 //! ## Modules (planned)
 //!
@@ -64,11 +63,9 @@
 
 pub mod config;
 pub mod engine;
-pub mod history;
 
 pub use config::PolicyConfig;
 pub use engine::{DefaultPolicyEngine, PolicyCheckResult, PolicyEngine};
-pub use history::{TransactionHistory, TransactionRecord};
 
 // Placeholder for future modules
 // pub mod rules;

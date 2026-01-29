@@ -10,7 +10,7 @@
 //! 1. **Parse** - Transform raw transaction bytes into a [`ParsedTx`]
 //! 2. **Check** - Evaluate the transaction against policy rules
 //! 3. **Sign** - If allowed, sign the transaction hash
-//! 4. **Record** - Update policy history for limit tracking
+
 //!
 //! # Example
 //!
@@ -391,13 +391,6 @@ pub trait PolicyEngineExt: Send + Sync {
     ///
     /// Returns [`PolicyError`] if policy evaluation fails.
     fn check(&self, tx: &ParsedTx) -> Result<PolicyResult, PolicyError>;
-
-    /// Record a signed transaction for limit tracking.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError`] if recording fails.
-    fn record(&self, tx: &ParsedTx) -> Result<(), PolicyError>;
 }
 
 /// Trait for signers.
@@ -429,7 +422,6 @@ where
     /// 1. **Parse** - Transform raw bytes into a [`ParsedTx`]
     /// 2. **Check** - Evaluate against policy rules
     /// 3. **Sign** - If allowed, sign the transaction hash
-    /// 4. **Record** - Update policy history
     ///
     /// # Arguments
     ///
@@ -480,10 +472,7 @@ where
         // Extract signature components (expecting 65 bytes: r || s || v)
         let (signature, recovery_id) = extract_signature_components(&sig_bytes)?;
 
-        // 5. Record in history
-        self.policy.record(&parsed_tx)?;
-
-        // 6. Return result
+        // Return result
         Ok(SigningResult {
             parsed_tx,
             policy_result: PolicyCheckResult::Allowed,
@@ -588,7 +577,6 @@ mod tests {
     use super::*;
     use crate::types::TxType;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     // ========================================================================
     // Mock Implementations
@@ -670,14 +658,12 @@ mod tests {
     /// Mock policy engine for testing.
     struct MockPolicy {
         check_behavior: MockPolicyBehavior,
-        record_count: AtomicUsize,
     }
 
     impl MockPolicy {
         fn allowed() -> Self {
             Self {
                 check_behavior: MockPolicyBehavior::Allowed,
-                record_count: AtomicUsize::new(0),
             }
         }
 
@@ -687,7 +673,6 @@ mod tests {
                     rule: rule.to_string(),
                     reason: reason.to_string(),
                 },
-                record_count: AtomicUsize::new(0),
             }
         }
 
@@ -695,12 +680,7 @@ mod tests {
         fn check_error(kind: MockPolicyErrorKind) -> Self {
             Self {
                 check_behavior: MockPolicyBehavior::Error(kind),
-                record_count: AtomicUsize::new(0),
             }
-        }
-
-        fn recorded_count(&self) -> usize {
-            self.record_count.load(Ordering::SeqCst)
         }
     }
 
@@ -714,11 +694,6 @@ mod tests {
                 }),
                 MockPolicyBehavior::Error(kind) => Err(kind.to_error()),
             }
-        }
-
-        fn record(&self, _tx: &ParsedTx) -> Result<(), PolicyError> {
-            self.record_count.fetch_add(1, Ordering::SeqCst);
-            Ok(())
         }
     }
 
@@ -1053,57 +1028,6 @@ mod tests {
             // check() does NOT return error for denial
             assert!(!result.is_allowed());
             assert!(!result.has_signature());
-        }
-
-        #[test]
-        fn test_record_called_on_success() {
-            let tx = test_tx();
-            let chain = MockChain::success(tx);
-            let policy = MockPolicy::allowed();
-            let signer = MockSigner::success();
-
-            let service = SigningService::new(chain, policy, signer);
-
-            // Before signing
-            assert_eq!(service.policy().recorded_count(), 0);
-
-            // Sign
-            service.sign(&[0x01]).unwrap();
-
-            // After signing - record should have been called
-            assert_eq!(service.policy().recorded_count(), 1);
-        }
-
-        #[test]
-        fn test_record_not_called_on_denial() {
-            let tx = test_tx();
-            let chain = MockChain::success(tx);
-            let policy = MockPolicy::denied("test", "denied");
-            let signer = MockSigner::success();
-
-            let service = SigningService::new(chain, policy, signer);
-
-            // Try to sign (will fail due to denial)
-            let _ = service.sign(&[0x01]);
-
-            // Record should NOT have been called
-            assert_eq!(service.policy().recorded_count(), 0);
-        }
-
-        #[test]
-        fn test_record_not_called_on_check() {
-            let tx = test_tx();
-            let chain = MockChain::success(tx);
-            let policy = MockPolicy::allowed();
-            let signer = MockSigner::success();
-
-            let service = SigningService::new(chain, policy, signer);
-
-            // Check (dry run)
-            service.check(&[0x01]).unwrap();
-
-            // Record should NOT have been called
-            assert_eq!(service.policy().recorded_count(), 0);
         }
 
         #[test]

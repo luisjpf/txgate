@@ -25,7 +25,6 @@ use txgate_crypto::keypair::Secp256k1KeyPair;
 use txgate_crypto::signer::{Chain, Secp256k1Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
 use txgate_policy::engine::DefaultPolicyEngine;
-use txgate_policy::history::TransactionHistory;
 use txgate_policy::PolicyConfig;
 
 use crate::audit::AuditLogger;
@@ -157,8 +156,7 @@ impl ServeCommand {
             .map_err(|e| ServeError::KeyError(e.to_string()))?;
 
         // 6. Create policy engine
-        let history = create_transaction_history(&base_dir)?;
-        let policy_engine = create_policy_engine(config.policy, history)?;
+        let policy_engine = create_policy_engine(config.policy)?;
 
         // 7. Create audit logger (optional - don't fail if key doesn't exist)
         let audit_logger = create_audit_logger(&base_dir).ok();
@@ -277,21 +275,9 @@ fn load_key(base_dir: &Path, passphrase: &str) -> Result<Secp256k1KeyPair, Serve
         .map_err(|e| ServeError::KeyError(format!("failed to create keypair: {e}")))
 }
 
-/// Create the transaction history database.
-fn create_transaction_history(base_dir: &Path) -> Result<Arc<TransactionHistory>, ServeError> {
-    let db_path = base_dir.join("history.db");
-
-    TransactionHistory::new(&db_path)
-        .map(Arc::new)
-        .map_err(|e| ServeError::PolicyError(format!("failed to create transaction history: {e}")))
-}
-
 /// Create the policy engine.
-fn create_policy_engine(
-    config: PolicyConfig,
-    history: Arc<TransactionHistory>,
-) -> Result<DefaultPolicyEngine, ServeError> {
-    DefaultPolicyEngine::new(config, history)
+fn create_policy_engine(config: PolicyConfig) -> Result<DefaultPolicyEngine, ServeError> {
+    DefaultPolicyEngine::new(config)
         .map_err(|e| ServeError::PolicyError(format!("failed to create policy engine: {e}")))
 }
 
@@ -602,27 +588,6 @@ mod tests {
     }
 
     // =========================================================================
-    // Transaction history tests
-    // =========================================================================
-
-    mod transaction_history_tests {
-        use super::*;
-
-        #[test]
-        fn test_create_transaction_history() {
-            let temp_dir = TempDir::new().expect("failed to create temp dir");
-            let base_dir = temp_dir.path();
-
-            let result = create_transaction_history(base_dir);
-            assert!(result.is_ok());
-
-            // Verify database file was created
-            let db_path = base_dir.join("history.db");
-            assert!(db_path.exists());
-        }
-    }
-
-    // =========================================================================
     // Policy engine tests
     // =========================================================================
 
@@ -631,13 +596,9 @@ mod tests {
 
         #[test]
         fn test_create_policy_engine() {
-            let temp_dir = TempDir::new().expect("failed to create temp dir");
-            let base_dir = temp_dir.path();
-
-            let history = create_transaction_history(base_dir).expect("failed to create history");
             let config = PolicyConfig::new();
 
-            let result = create_policy_engine(config, history);
+            let result = create_policy_engine(config);
             assert!(result.is_ok());
         }
     }
@@ -821,45 +782,6 @@ mod tests {
         }
     }
 
-    mod transaction_history_error_tests {
-        use super::*;
-
-        #[test]
-        fn test_create_transaction_history_readonly() {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-
-                let temp_dir = TempDir::new().expect("failed to create temp dir");
-                let base_dir = temp_dir.path();
-
-                // Create db file with no write permission
-                let db_path = base_dir.join("history.db");
-                fs::write(&db_path, b"").expect("failed to create db");
-
-                let mut perms = fs::metadata(&db_path)
-                    .expect("failed to get metadata")
-                    .permissions();
-                perms.set_mode(0o000);
-                fs::set_permissions(&db_path, perms).expect("failed to set permissions");
-
-                // Should fail with permission error
-                let result = create_transaction_history(base_dir);
-
-                // Restore permissions for cleanup
-                let mut perms = fs::metadata(&db_path)
-                    .expect("failed to get metadata")
-                    .permissions();
-                perms.set_mode(0o644);
-                fs::set_permissions(&db_path, perms).expect("failed to restore permissions");
-
-                // Result may fail or succeed depending on SQLite behavior
-                // Just ensure no panic
-                let _ = result;
-            }
-        }
-    }
-
     mod policy_engine_error_tests {
         use super::*;
 
@@ -867,16 +789,11 @@ mod tests {
         fn test_create_policy_engine_with_custom_config() {
             use txgate_core::U256;
 
-            let temp_dir = TempDir::new().expect("failed to create temp dir");
-            let base_dir = temp_dir.path();
-
-            let history = create_transaction_history(base_dir).expect("failed to create history");
-
             let config = PolicyConfig::new()
                 .with_whitelist(vec!["0xAAA".to_string()])
-                .with_daily_limit("ETH", U256::from(1000_u64));
+                .with_transaction_limit("ETH", U256::from(1000_u64));
 
-            let result = create_policy_engine(config, history);
+            let result = create_policy_engine(config);
             assert!(result.is_ok());
         }
     }

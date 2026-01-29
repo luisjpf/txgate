@@ -13,6 +13,3 @@ blacklist = []
 
 [policy.transaction_limits]
 # ETH = "1000000000000000000"  # 1 ETH
-
-[policy.daily_limits]
-# ETH = "10000000000000000000"  # 10 ETH
