@@ -574,14 +574,13 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 #### TXGATE-016: Implement policy configuration types
 
-**Description**: Create data structures for policy configuration (whitelist, blacklist, transaction limits, daily limits).
+**Description**: Create data structures for policy configuration (whitelist, blacklist, transaction limits).
 
 **Acceptance Criteria**:
 - [ ] `PolicyConfig` struct with all fields
 - [ ] Support for whitelist (Vec<String>)
 - [ ] Support for blacklist (Vec<String>)
 - [ ] Support for per-token transaction limits (HashMap<String, U256>)
-- [ ] Support for per-token daily limits (HashMap<String, U256>)
 - [ ] Implements serde for TOML serialization
 - [ ] Validation logic for config (e.g., no negative limits)
 - [ ] Default implementation with sensible defaults
@@ -602,38 +601,11 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 
 ---
 
-#### TXGATE-017: Implement transaction history tracking with SQLite
+#### TXGATE-017: ~~Implement transaction history tracking with SQLite~~
 
-**Description**: Create a transaction history module backed by SQLite to track daily spending for rate limiting. SQLite is required (not in-memory) because daily limits must survive server restarts.
+**[REMOVED - Daily limits feature was removed in favor of a stateless policy engine]**
 
-**Acceptance Criteria**:
-- [ ] `TransactionHistory` struct wraps SQLite connection
-- [ ] SQLite database file at `~/.txgate/history.db`
-- [ ] Schema: `CREATE TABLE history (id INTEGER PRIMARY KEY, token TEXT, amount TEXT, timestamp INTEGER, tx_hash TEXT)`
-- [ ] Method to calculate daily total for a specific token (SQL aggregation)
-- [ ] Method to add a transaction to history
-- [ ] Automatic cleanup of transactions older than 24 hours (via SQL DELETE)
-- [ ] Thread-safe with connection pooling (r2d2 or similar)
-- [ ] LRU cache for frequently accessed totals
-- [ ] Database migrations support for schema evolution
-
-**Dependencies**: TXGATE-005
-
-**Complexity**: L
-
-**Testing Requirements**:
-- Unit tests for adding transactions (with tempfile database)
-- Unit tests for daily total calculation
-- Unit tests for cleanup logic
-- Unit tests with clock mocking for time-based tests
-- Concurrent access tests
-- Tests for database migration
-- Tests for persistence across restarts
-
-**Files**:
-- Create: `crates/txgate-policy/src/history.rs`
-- Create: `crates/txgate-policy/src/history_test.rs`
-- Create: `crates/txgate-policy/src/migrations/`
+~~**Description**: Create a transaction history module backed by SQLite to track daily spending for rate limiting.~~
 
 ---
 
@@ -644,17 +616,16 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 **Security Note**: CRITICAL - This is the core security enforcement mechanism.
 
 **Acceptance Criteria**:
-- [ ] `PolicyEngine` trait defined with methods: `check()`, `record()`
+- [ ] `PolicyEngine` trait defined with methods: `check()`
 - [ ] `DefaultPolicyEngine` implements `PolicyEngine`
 - [ ] Blacklist checked first (highest priority)
 - [ ] Whitelist checked second (if enabled)
 - [ ] Transaction limit checked third
-- [ ] Daily limit checked fourth
 - [ ] Clear error messages indicating which rule failed
 - [ ] Rule evaluation order matches specification
 - [ ] Trait is `Send + Sync`
 
-**Dependencies**: TXGATE-016, TXGATE-017
+**Dependencies**: TXGATE-016
 
 **Complexity**: L
 
@@ -1113,7 +1084,6 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - [ ] Test with real Ethereum transaction fixtures
 - [ ] Test error paths (invalid tx, policy rejection)
 - [ ] Test concurrent server requests
-- [ ] Test daily limit persistence across restarts
 - [ ] Test all ERC-20 operations (transfer, approve, transferFrom)
 - [ ] Test nonce and chain_id validation
 
@@ -1125,13 +1095,11 @@ This represents: Project Setup → Dependencies → Core Types → SecretKey →
 - Full end-to-end scenarios
 - Performance benchmarks
 - Concurrency stress tests
-- Database persistence tests
 
 **Files**:
 - Create: `tests/integration/sign_flow_test.rs`
 - Create: `tests/integration/policy_enforcement_test.rs`
 - Create: `tests/integration/server_test.rs`
-- Create: `tests/integration/persistence_test.rs`
 
 ---
 
@@ -1435,7 +1403,7 @@ The following tasks require extra scrutiny and human review:
 
 **Sprint 4 (Policy)**:
 - TXGATE-016 through TXGATE-020
-- Focus: Policy engine (with SQLite history) and configuration
+- Focus: Policy engine and configuration
 
 **Sprint 5 (CLI)**:
 - TXGATE-021 through TXGATE-027, TXGATE-021.5

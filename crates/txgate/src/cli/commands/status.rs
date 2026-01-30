@@ -79,10 +79,6 @@ pub enum StatusError {
     /// I/O error.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
-
-    /// History error.
-    #[error("History error: {0}")]
-    History(String),
 }
 
 impl From<ConfigError> for StatusError {
@@ -800,9 +796,6 @@ ETH = "1000000000000000000"
         let io_err = io::Error::new(io::ErrorKind::PermissionDenied, "access denied");
         let status_err = StatusError::Io(io_err);
         assert!(status_err.to_string().contains("IO error"));
-
-        let history_err = StatusError::History("database error".to_string());
-        assert_eq!(history_err.to_string(), "History error: database error");
     }
 
     #[test]
@@ -944,13 +937,6 @@ ETH = "1000000000000000000"
 
         let names = list_key_names(&keys_dir).expect("list should succeed");
         assert_eq!(names, vec!["visible"]);
-    }
-
-    #[test]
-    fn test_status_error_history_variant() {
-        let err = StatusError::History("db error".to_string());
-        assert!(err.to_string().contains("History error"));
-        assert!(err.to_string().contains("db error"));
     }
 
     #[test]

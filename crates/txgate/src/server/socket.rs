@@ -371,7 +371,7 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
     /// Reads line-delimited JSON-RPC requests and writes responses.
     /// Each line should be a complete JSON-RPC request object.
     ///
-    /// CPU-bound work (parsing, policy checks, signing, recording) is offloaded
+    /// CPU-bound work (parsing, policy checks, signing) is offloaded
     /// to the blocking thread pool via `spawn_blocking` so the async runtime
     /// stays responsive for I/O under heavy load.
     async fn handle_connection(self: Arc<Self>, stream: UnixStream) -> Result<(), ServerError> {

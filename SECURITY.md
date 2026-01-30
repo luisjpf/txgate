@@ -38,7 +38,7 @@ TxGate is a transaction signing server with the following security boundaries:
 - Unauthorized transaction signing (via policy engine)
 - Key material exposure in memory dumps (via zeroization)
 - Key theft from disk (via encryption at rest)
-- Excessive spending (via transaction and daily limits)
+- Excessive spending (via per-transaction limits)
 - Transfers to blacklisted addresses
 
 ### What TxGate Does NOT Protect Against

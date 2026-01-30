@@ -30,7 +30,7 @@
 //!
 //! ## Policy Features (planned)
 //!
-//! - Transaction amount limits (per-tx, daily, monthly)
+//! - Transaction amount limits (per-tx)
 //! - Address allowlists and blocklists
 //! - Contract function restrictions
 //! - Time-based rules (business hours, rate limiting)

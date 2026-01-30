@@ -48,9 +48,8 @@ TxGate is a self-hosted, chain-agnostic transaction signing server. Unlike hash-
 | | Ethereum |    | Blacklist   |    | JSONL     |                            |
 | | Bitcoin  |    | Whitelist   |    | +HMAC     |                            |
 | | Solana   |    | Tx Limit    |    | chain     |                            |
-| +----+-----+    | Daily Limit |    +-----------+                            |
-|      |          | History     |                                             |
-|      |          +------+------+                                             |
+| +----+-----+    +------+------+    +-----------+                            |
+|      |                 |                                             |
 |      |                 |                                                    |
 |      +--------+--------+                                                    |
 |               |                                                             |
@@ -218,13 +217,12 @@ txgate-chain/src/
 
 ### txgate-policy
 
-**Purpose**: Policy engine for transaction approval rules and history tracking.
+**Purpose**: Stateless policy engine for transaction approval rules.
 
 **Key Exports**:
 - `PolicyEngine`, `DefaultPolicyEngine` - Policy evaluation
 - `PolicyConfig` - Policy configuration
 - `PolicyCheckResult` - Detailed check results
-- `TransactionHistory`, `TransactionRecord` - History tracking
 
 **Modules**:
 ```
@@ -232,14 +230,12 @@ txgate-policy/src/
 +-- lib.rs      # Public API and re-exports
 +-- config.rs   # Policy configuration types
 +-- engine.rs   # DefaultPolicyEngine implementation
-+-- history.rs  # SQLite-backed transaction history
 ```
 
 **Policy Rules** (evaluated in order):
 1. **Blacklist** - Deny if recipient is blacklisted
 2. **Whitelist** - Deny if whitelist enabled and recipient not in list
 3. **Transaction Limit** - Deny if amount exceeds per-transaction limit
-4. **Daily Limit** - Deny if cumulative 24h amount would exceed limit
 
 ### txgate (binary)
 
@@ -476,9 +472,6 @@ Defines the interface for policy evaluation:
 pub trait PolicyEngine: Send + Sync {
     /// Check if a transaction is allowed
     fn check(&self, tx: &ParsedTx) -> PolicyCheckResult;
-
-    /// Record a signed transaction for history tracking
-    fn record(&mut self, tx: &ParsedTx) -> Result<(), PolicyError>;
 }
 ```
 
@@ -522,15 +515,6 @@ pub struct SigningService<S: Signer, P: PolicyEngine> {
 ```
 
 Generics allow the compiler to inline and optimize signing operations.
-
-### Why SQLite for History?
-
-Transaction history needs:
-- Persistence across restarts
-- Efficient time-range queries for daily limits
-- ACID guarantees for concurrent access
-
-SQLite provides all of this with zero operational overhead.
 
 ### Why Unix Socket as Primary Interface?
 

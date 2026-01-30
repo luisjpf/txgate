@@ -51,7 +51,7 @@ crates/
 ├── txgate-core/        # Shared types (ParsedTx, errors)
 ├── txgate-crypto/      # Keys, signing, encryption
 ├── txgate-chain/       # Chain parsers, registry
-├── txgate-policy/      # Policy engine, history
+├── txgate-policy/      # Policy engine
 └── txgate/             # Binary (CLI + server modules)
     ├── src/cli/       # CLI commands
     └── src/server/    # Unix socket + HTTP server
@@ -70,7 +70,6 @@ crates/
 - `serde`, `serde_json`, `toml` - Serialization
 - `clap` - CLI parsing
 - `thiserror` - Error handling
-- `rusqlite` - SQLite for transaction history
 
 ### Dev Dependencies
 - `tempfile` - Test isolation

@@ -57,7 +57,6 @@ pub mod addresses {
 ///
 /// This sets up the complete directory structure that `TxGate` expects:
 /// - `~/.txgate/keys/` - Encrypted key storage
-/// - `~/.txgate/history.db` - Transaction history
 /// - `~/.txgate/config.toml` - Configuration file
 ///
 /// # Returns
