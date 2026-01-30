@@ -23,13 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Upgraded `lru` crate to 0.16 to fix RUSTSEC-2026-0002 soundness issue.
 - Consolidated all dependencies to workspace-level management.
 - **Publishing strategy**: All crates are now published to crates.io to enable
   `cargo install txgate`. Library crates (`txgate-core`, `txgate-crypto`, `txgate-chain`,
   `txgate-policy`) are marked as internal with unstable APIs - users should only
   depend on the `txgate` binary crate directly. Publishing all crates prevents name
   squatting attacks and provides the expected Rust installation experience.
+
+### Removed
+
+- **Daily limits feature**: Removed SQLite-backed transaction history, daily spending limits, `rusqlite`, `r2d2`, and `lru` dependencies. The policy engine is now fully stateless.
 
 ## [0.1.0] - 2026-01-23
 

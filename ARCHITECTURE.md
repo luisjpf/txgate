@@ -49,7 +49,6 @@ Hash: 0xabc123...             Parse → recipient: 0x742d...
 Sign blindly                           ↓
         ↓                     Policy → whitelist: PASS
 Signature                              tx_limit: PASS
-                                       daily_limit: PASS
 Reality: Could be                      ↓
 1000 ETH to attacker          Sign only if all pass
 ```
@@ -94,9 +93,9 @@ Reality: Could be                      ↓
 │  │ │Ethereum │ │                 │ │Blacklist│ │                │ +HMAC   │ │
 │  │ │Bitcoin  │ │                 │ │Whitelist│ │                │ chain   │ │
 │  │ │Solana   │ │                 │ │Tx Limit │ │                │         │ │
-│  │ │Tron     │ │                 │ │Daily Lim│ │                └─────────┘ │
-│  │ │Ripple   │ │                 │ │History  │ │                            │
-│  │ └─────────┘ │                 │ └─────────┘ │                            │
+│  │ │Tron     │ │                 │ └─────────┘ │                └─────────┘ │
+│  │ │Ripple   │ │                 │             │                            │
+│  │ └─────────┘ │                 │             │                            │
 │  └──────┬──────┘                 └──────┬──────┘                            │
 │         │                               │                                   │
 │         └───────────────┬───────────────┘                                   │
@@ -142,7 +141,6 @@ sequenceDiagram
         E-->>S: Allowed
         S->>K: Sign hash
         K-->>S: Signature
-        S->>E: Record transaction
         S->>A: Log success
         S-->>C: Signature + parsed context
     end
@@ -194,8 +192,7 @@ txgate/
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── engine.rs   # Policy evaluation
-│   │       ├── rules.rs    # Rule definitions
-│   │       └── history.rs  # Transaction history (SQLite)
+│   │       └── rules.rs    # Rule definitions
 │   │
 │   └── txgate/              # Binary crate (CLI + Server)
 │       ├── Cargo.toml
@@ -334,7 +331,6 @@ classDiagram
     class PolicyEngine {
         <<trait>>
         +check(tx: &ParsedTx) PolicyResult
-        +record(tx: &ParsedTx) Result
     }
 
     Chain <|.. EthereumParser
@@ -479,7 +475,6 @@ pub enum RpcErrorCode {
    ├── Blacklist check (FIRST - always)
    ├── Whitelist check (if enabled)
    ├── Transaction limit check
-   ├── Daily limit check (with history)
    └── Return PolicyResult
 
 5. SIGNING (if allowed)
@@ -622,8 +617,7 @@ Audit logs are append-only JSONL files with tamper-evidence via HMAC chains.
     "checks": [
         {"rule": "blacklist", "passed": true},
         {"rule": "whitelist", "passed": true},
-        {"rule": "tx_limit", "passed": true},
-        {"rule": "daily_limit", "passed": true, "remaining": "8.5 ETH"}
+        {"rule": "tx_limit", "passed": true}
     ],
     "signature": "0x...",
     "prev_hmac": "base64...",
@@ -850,10 +844,7 @@ flowchart TD
     WL -->|Whitelist disabled or in list| TXL{TX Limit Check}
 
     TXL -->|Over limit| Denied3[DENIED: tx_limit]
-    TXL -->|Under limit| DL{Daily Limit Check}
-
-    DL -->|Would exceed| Denied4[DENIED: daily_limit]
-    DL -->|Within limit| Allowed[ALLOWED]
+    TXL -->|Under limit| Allowed[ALLOWED]
 ```
 
 ### Rule Types
@@ -871,88 +862,8 @@ pub enum PolicyRule {
         token: String,
         limit: U256,
     },
-
-    /// Maximum amount per time window
-    DailyLimit {
-        token: String,
-        limit: U256,
-        window: Duration,
-    },
 }
 ```
-
-### Transaction History
-
-Daily limits require tracking past transactions:
-
-```rust
-pub struct TransactionHistory {
-    /// SQLite database for persistence
-    db: Connection,
-
-    /// In-memory cache for fast lookups
-    cache: LruCache<String, Vec<HistoryEntry>>,
-}
-
-impl TransactionHistory {
-    /// Get total amount spent in current window
-    pub fn daily_total(&self, token: &str) -> U256 {
-        let cutoff = Utc::now() - Duration::hours(24);
-        self.db.query_row(
-            "SELECT SUM(amount) FROM history
-             WHERE token = ? AND timestamp > ?",
-            params![token, cutoff],
-            |row| row.get(0),
-        ).unwrap_or_default()
-    }
-}
-```
-
-### Concurrent Access
-
-The policy engine must support concurrent access from multiple signing requests. Use `Arc<RwLock<>>` for thread-safe shared state:
-
-```rust
-use std::sync::{Arc, RwLock};
-
-/// Thread-safe policy engine wrapper
-pub struct SharedPolicyEngine {
-    inner: Arc<RwLock<DefaultPolicyEngine>>,
-}
-
-impl SharedPolicyEngine {
-    pub fn new(engine: DefaultPolicyEngine) -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(engine)),
-        }
-    }
-
-    /// Check policy (read lock - allows concurrent checks)
-    pub fn check(&self, tx: &ParsedTx) -> PolicyResult {
-        let engine = self.inner.read().unwrap();
-        engine.check(tx)
-    }
-
-    /// Record transaction (write lock - exclusive access)
-    pub fn record(&self, tx: &ParsedTx) -> Result<(), PolicyError> {
-        let mut engine = self.inner.write().unwrap();
-        engine.record(tx)
-    }
-}
-
-impl Clone for SharedPolicyEngine {
-    fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-        }
-    }
-}
-```
-
-**Concurrency Strategy:**
-- `check()` uses a read lock, allowing multiple concurrent policy evaluations
-- `record()` uses a write lock for exclusive access when updating history
-- The `SharedPolicyEngine` is cheaply cloneable via `Arc`
 
 ### Extension Points
 
@@ -1091,8 +1002,7 @@ impl HttpServer {
             "allowed": true,
             "checks": [
                 {"rule": "whitelist", "passed": true},
-                {"rule": "tx_limit", "passed": true},
-                {"rule": "daily_limit", "passed": true, "remaining": "8.5 ETH"}
+                {"rule": "tx_limit", "passed": true}
             ]
         }
     }
@@ -1178,13 +1088,6 @@ ETH = "5"
 BTC = "0.5"
 SOL = "500"
 USDC = "50000"
-
-# Maximum amount per 24-hour period
-[policy.daily_limits]
-ETH = "10"
-BTC = "1"
-SOL = "1000"
-USDC = "100000"
 
 [audit]
 # Audit log directory
@@ -1284,7 +1187,6 @@ use mockall::{automock, predicate::*};
 #[automock]
 pub trait PolicyEngine: Send + Sync {
     fn check(&self, tx: &ParsedTx) -> PolicyResult;
-    fn record(&mut self, tx: &ParsedTx) -> Result<(), PolicyError>;
 }
 
 // Use manual mocks for crypto (avoid mockall for security code)
@@ -1441,10 +1343,9 @@ WantedBy=multi-user.target
 ├── txgate.sock          # Unix socket
 ├── keys/               # Encrypted key files
 │   └── default.enc
-├── audit/              # Audit logs
-│   ├── audit-2026-01-21.jsonl
-│   └── audit.hmac
-└── history.db          # Transaction history (SQLite)
+└── audit/              # Audit logs
+    ├── audit-2026-01-21.jsonl
+    └── audit.hmac
 ```
 
 ### Monitoring
@@ -1465,14 +1366,9 @@ txgate_request_duration_seconds_bucket{method="sign", le="+Inf"} 1234
 
 # Policy metrics
 txgate_policy_denials_total{rule="whitelist"} 45
-txgate_policy_denials_total{rule="daily_limit"} 11
 
 # Key usage
 txgate_signatures_total{key="default", chain="ethereum"} 1234
-
-# Limit utilization
-txgate_daily_limit_used{token="ETH"} 8.5
-txgate_daily_limit_max{token="ETH"} 10
 ```
 
 #### Health Check
@@ -1516,7 +1412,6 @@ find "$BACKUP_DIR" -mtime +30 -delete
 2. **Restore keys**: Copy `keys/*.enc` files
 3. **Restore config**: Update paths in `config.toml`
 4. **Verify**: Run `txgate status` to confirm key access
-5. **Restore history**: Copy `history.db` (optional, affects daily limits)
 
 ### Logging
 

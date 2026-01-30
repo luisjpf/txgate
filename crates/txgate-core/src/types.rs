@@ -351,7 +351,7 @@ pub enum PolicyResult {
     Denied {
         /// The name of the rule that denied the transaction.
         ///
-        /// Common values: `blacklist`, `whitelist`, `tx_limit`, `daily_limit`
+        /// Common values: `blacklist`, `whitelist`, `tx_limit`
         rule: String,
 
         /// Human-readable explanation of why the transaction was denied.

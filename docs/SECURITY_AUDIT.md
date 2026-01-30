@@ -64,16 +64,8 @@ This document tracks the security review status of TxGate's critical components.
 - [ ] Verify blacklist is checked first (highest priority)
 - [ ] Verify whitelist logic is correct when enabled
 - [ ] Verify transaction limit comparison is correct
-- [ ] Verify daily limit accumulation is correct
 - [ ] Review rule evaluation order
 - [ ] Test policy bypass attempts
-
-### Transaction History (`crates/txgate-policy/src/history.rs`)
-
-- [ ] Verify SQLite queries are parameterized (no SQL injection)
-- [ ] Verify daily total calculation is correct
-- [ ] Verify cleanup of old transactions works
-- [ ] Review concurrent access safety
 
 ## Binary and Server Review
 

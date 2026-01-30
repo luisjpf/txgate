@@ -406,17 +406,6 @@ pub enum PolicyError {
         amount: String,
     },
 
-    /// The transaction would exceed the daily limit.
-    #[error("exceeds daily limit: limit={limit}, current={current}, amount={amount}")]
-    ExceedsDailyLimit {
-        /// The configured daily limit.
-        limit: String,
-        /// The current daily total.
-        current: String,
-        /// The requested amount.
-        amount: String,
-    },
-
     /// The policy configuration is invalid.
     #[error("invalid configuration: {context}")]
     InvalidConfiguration {
@@ -451,20 +440,6 @@ impl PolicyError {
         }
     }
 
-    /// Create an `ExceedsDailyLimit` error.
-    #[must_use]
-    pub fn exceeds_daily_limit(
-        limit: impl Into<String>,
-        current: impl Into<String>,
-        amount: impl Into<String>,
-    ) -> Self {
-        Self::ExceedsDailyLimit {
-            limit: limit.into(),
-            current: current.into(),
-            amount: amount.into(),
-        }
-    }
-
     /// Create an `InvalidConfiguration` error.
     #[must_use]
     pub fn invalid_configuration(context: impl Into<String>) -> Self {
@@ -486,7 +461,6 @@ impl PolicyError {
             Self::Blacklisted { .. } => "blacklist",
             Self::NotWhitelisted { .. } => "whitelist",
             Self::ExceedsTransactionLimit { .. } => "tx_limit",
-            Self::ExceedsDailyLimit { .. } => "daily_limit",
             Self::InvalidConfiguration { .. } => "configuration",
         }
     }
@@ -969,11 +943,6 @@ mod tests {
         );
 
         assert_eq!(
-            PolicyError::exceeds_daily_limit("10 ETH", "8 ETH", "5 ETH").to_string(),
-            "exceeds daily limit: limit=10 ETH, current=8 ETH, amount=5 ETH"
-        );
-
-        assert_eq!(
             PolicyError::invalid_configuration("missing whitelist").to_string(),
             "invalid configuration: missing whitelist"
         );
@@ -986,10 +955,6 @@ mod tests {
         assert_eq!(
             PolicyError::exceeds_transaction_limit("1", "2").rule_name(),
             "tx_limit"
-        );
-        assert_eq!(
-            PolicyError::exceeds_daily_limit("1", "2", "3").rule_name(),
-            "daily_limit"
         );
         assert_eq!(
             PolicyError::invalid_configuration("x").rule_name(),

@@ -10,8 +10,7 @@
 //! 1. **Blacklist** - Highest priority. If the recipient is blacklisted, DENY immediately.
 //! 2. **Whitelist** - If whitelist is enabled and recipient is not whitelisted, DENY.
 //! 3. **Transaction Limit** - If amount exceeds per-transaction limit, DENY.
-//! 4. **Daily Limit** - If amount would exceed daily limit, DENY.
-//! 5. **Allow** - If all checks pass, the transaction is ALLOWED.
+//! 4. **Allow** - If all checks pass, the transaction is ALLOWED.
 //!
 //! # Thread Safety
 //!
@@ -22,21 +21,16 @@
 //! ```no_run
 //! use txgate_policy::engine::{PolicyEngine, DefaultPolicyEngine};
 //! use txgate_policy::config::PolicyConfig;
-//! use txgate_policy::history::TransactionHistory;
 //! use txgate_core::types::{ParsedTx, PolicyResult};
 //! use alloy_primitives::U256;
-//! use std::sync::Arc;
 //!
 //! // Create a policy config
 //! let config = PolicyConfig::new()
 //!     .with_blacklist(vec!["0xBAD".to_string()])
 //!     .with_transaction_limit("ETH", U256::from(5_000_000_000_000_000_000u64));
 //!
-//! // Create transaction history
-//! let history = Arc::new(TransactionHistory::in_memory().unwrap());
-//!
 //! // Create the engine
-//! let engine = DefaultPolicyEngine::new(config, history).unwrap();
+//! let engine = DefaultPolicyEngine::new(config).unwrap();
 //!
 //! // Check a transaction
 //! let tx = ParsedTx::default();
@@ -44,16 +38,13 @@
 //! ```
 
 use crate::config::PolicyConfig;
-use crate::history::TransactionHistory;
 use alloy_primitives::U256;
-use std::sync::Arc;
 use txgate_core::error::PolicyError;
 use txgate_core::types::{ParsedTx, PolicyResult};
 
 /// Trait for policy engines that enforce transaction rules.
 ///
-/// Implementors of this trait can check transactions against policy rules
-/// and record signed transactions for tracking purposes (e.g., daily limits).
+/// Implementors of this trait can check transactions against policy rules.
 ///
 /// # Thread Safety
 ///
@@ -70,8 +61,7 @@ use txgate_core::types::{ParsedTx, PolicyResult};
 /// fn process_transaction(engine: &dyn PolicyEngine, tx: &ParsedTx) -> Result<(), PolicyError> {
 ///     let result = engine.check(tx)?;
 ///     if result.is_allowed() {
-///         // Transaction approved, record it
-///         engine.record(tx)?;
+///         // Transaction approved
 ///     }
 ///     Ok(())
 /// }
@@ -80,7 +70,7 @@ pub trait PolicyEngine: Send + Sync {
     /// Check if a transaction is allowed by policy rules.
     ///
     /// Evaluates the transaction against all configured policy rules in order
-    /// of priority (blacklist > whitelist > `tx_limit` > `daily_limit`).
+    /// of priority (blacklist > whitelist > `tx_limit`).
     ///
     /// # Arguments
     ///
@@ -95,25 +85,8 @@ pub trait PolicyEngine: Send + Sync {
     /// # Errors
     ///
     /// Returns [`PolicyError`] if policy evaluation fails due to:
-    /// - Database errors when checking daily limits
     /// - Invalid policy configuration
     fn check(&self, tx: &ParsedTx) -> Result<PolicyResult, PolicyError>;
-
-    /// Record a transaction that was signed (for limit tracking).
-    ///
-    /// This should be called after a transaction is successfully signed
-    /// to update the daily spending totals.
-    ///
-    /// # Arguments
-    ///
-    /// * `tx` - The signed transaction to record
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError`] if recording fails due to:
-    /// - Database errors
-    /// - Internal errors
-    fn record(&self, tx: &ParsedTx) -> Result<(), PolicyError>;
 }
 
 /// Detailed result of a policy check operation.
@@ -146,18 +119,6 @@ pub enum PolicyCheckResult {
         /// The configured limit.
         limit: U256,
     },
-
-    /// Transaction denied - amount would exceed daily limit.
-    DeniedExceedsDailyLimit {
-        /// Token identifier (e.g., "ETH" or contract address).
-        token: String,
-        /// The requested transaction amount.
-        amount: U256,
-        /// The current daily total before this transaction.
-        daily_total: U256,
-        /// The configured daily limit.
-        limit: U256,
-    },
 }
 
 impl PolicyCheckResult {
@@ -181,7 +142,6 @@ impl PolicyCheckResult {
             Self::DeniedBlacklisted { .. } => Some("blacklist"),
             Self::DeniedNotWhitelisted { .. } => Some("whitelist"),
             Self::DeniedExceedsTransactionLimit { .. } => Some("tx_limit"),
-            Self::DeniedExceedsDailyLimit { .. } => Some("daily_limit"),
         }
     }
 
@@ -202,14 +162,6 @@ impl PolicyCheckResult {
                 limit,
             } => Some(format!(
                 "amount {amount} exceeds transaction limit {limit} for {token}"
-            )),
-            Self::DeniedExceedsDailyLimit {
-                token,
-                amount,
-                daily_total,
-                limit,
-            } => Some(format!(
-                "amount {amount} plus daily total {daily_total} exceeds daily limit {limit} for {token}"
             )),
         }
     }
@@ -232,43 +184,36 @@ impl From<PolicyCheckResult> for PolicyResult {
 /// Default policy engine implementation.
 ///
 /// Evaluates transactions against configured whitelist, blacklist, and limit rules.
-/// Uses [`TransactionHistory`] for tracking daily spending totals.
 ///
 /// # Rule Evaluation Order
 ///
 /// 1. Blacklist check (highest priority)
 /// 2. Whitelist check (if enabled)
 /// 3. Transaction limit check
-/// 4. Daily limit check
-/// 5. Allow (if all checks pass)
+/// 4. Allow (if all checks pass)
 ///
 /// # Thread Safety
 ///
 /// This struct is `Send + Sync` and can be safely shared across threads.
-/// The underlying [`TransactionHistory`] handles concurrent access.
 pub struct DefaultPolicyEngine {
     /// Policy configuration with whitelist, blacklist, and limits.
     config: PolicyConfig,
-    /// Transaction history for tracking daily totals.
-    history: Arc<TransactionHistory>,
 }
 
 impl std::fmt::Debug for DefaultPolicyEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultPolicyEngine")
             .field("config", &self.config)
-            .field("history", &"<TransactionHistory>")
             .finish()
     }
 }
 
 impl DefaultPolicyEngine {
-    /// Creates a new policy engine with the given configuration and history.
+    /// Creates a new policy engine with the given configuration.
     ///
     /// # Arguments
     ///
     /// * `config` - Policy configuration with whitelist, blacklist, and limits
-    /// * `history` - Transaction history for tracking daily totals
     ///
     /// # Returns
     ///
@@ -284,25 +229,19 @@ impl DefaultPolicyEngine {
     /// ```no_run
     /// use txgate_policy::engine::DefaultPolicyEngine;
     /// use txgate_policy::config::PolicyConfig;
-    /// use txgate_policy::history::TransactionHistory;
     /// use alloy_primitives::U256;
-    /// use std::sync::Arc;
     ///
     /// let config = PolicyConfig::new()
     ///     .with_whitelist(vec!["0xAAA".to_string()])
     ///     .with_transaction_limit("ETH", U256::from(5_000_000_000_000_000_000u64));
     ///
-    /// let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    /// let engine = DefaultPolicyEngine::new(config, history).unwrap();
+    /// let engine = DefaultPolicyEngine::new(config).unwrap();
     /// ```
-    pub fn new(
-        config: PolicyConfig,
-        history: Arc<TransactionHistory>,
-    ) -> Result<Self, PolicyError> {
+    pub fn new(config: PolicyConfig) -> Result<Self, PolicyError> {
         // Validate configuration
         config.validate()?;
 
-        Ok(Self { config, history })
+        Ok(Self { config })
     }
 
     /// Check recipient against blacklist.
@@ -372,50 +311,6 @@ impl DefaultPolicyEngine {
 
         None
     }
-
-    /// Check daily total against daily limit.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Some(DeniedExceedsDailyLimit))` - If amount would exceed daily limit
-    /// * `Ok(None)` - If no limit is configured, within limit, or transaction has no amount
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError`] if fetching the daily total fails.
-    fn check_daily_limit(&self, tx: &ParsedTx) -> Result<Option<PolicyCheckResult>, PolicyError> {
-        let Some(amount) = tx.amount else {
-            return Ok(None);
-        };
-
-        // Determine token key: use token_address if present, otherwise "ETH"
-        let token = tx.token_address.as_deref().unwrap_or("ETH");
-
-        // Get the configured daily limit for this token
-        let Some(limit) = self.config.get_daily_limit(token) else {
-            return Ok(None);
-        };
-
-        // Get current daily total from history
-        let daily_total = self.history.daily_total(token).map_err(|e| {
-            PolicyError::invalid_configuration(format!("failed to get daily total: {e}"))
-        })?;
-
-        // Check if new transaction would exceed daily limit
-        // Use saturating_add to prevent overflow
-        let new_total = daily_total.saturating_add(amount);
-
-        if new_total > limit {
-            return Ok(Some(PolicyCheckResult::DeniedExceedsDailyLimit {
-                token: token.to_string(),
-                amount,
-                daily_total,
-                limit,
-            }));
-        }
-
-        Ok(None)
-    }
 }
 
 impl PolicyEngine for DefaultPolicyEngine {
@@ -435,29 +330,8 @@ impl PolicyEngine for DefaultPolicyEngine {
             return Ok(result.into());
         }
 
-        // 4. Check daily limit
-        if let Some(result) = self.check_daily_limit(tx)? {
-            return Ok(result.into());
-        }
-
-        // 5. All checks passed
+        // 4. All checks passed
         Ok(PolicyResult::Allowed)
-    }
-
-    fn record(&self, tx: &ParsedTx) -> Result<(), PolicyError> {
-        // Determine token key: use token_address if present, otherwise "ETH"
-        let token = tx.token_address.as_deref().unwrap_or("ETH");
-
-        // Get amount, default to zero if not present
-        let amount = tx.amount.unwrap_or(U256::ZERO);
-
-        // Get transaction hash as hex string
-        let hash = hex::encode(tx.hash);
-
-        // Record in history
-        self.history.record(token, amount, &hash).map_err(|e| {
-            PolicyError::invalid_configuration(format!("failed to record transaction: {e}"))
-        })
     }
 }
 
@@ -478,6 +352,7 @@ mod tests {
 
     use super::*;
     use std::collections::HashMap;
+    use std::sync::Arc;
     use txgate_core::types::TxType;
 
     /// Helper to create a basic test transaction.
@@ -571,20 +446,6 @@ mod tests {
         }
 
         #[test]
-        fn test_denied_exceeds_daily_limit() {
-            let result = PolicyCheckResult::DeniedExceedsDailyLimit {
-                token: "ETH".to_string(),
-                amount: U256::from(5u64),
-                daily_total: U256::from(8u64),
-                limit: U256::from(10u64),
-            };
-            assert!(!result.is_allowed());
-            assert!(result.is_denied());
-            assert_eq!(result.rule_name(), Some("daily_limit"));
-            assert!(result.reason().unwrap().contains("exceeds daily limit"));
-        }
-
-        #[test]
         fn test_conversion_to_policy_result_allowed() {
             let check_result = PolicyCheckResult::Allowed;
             let policy_result: PolicyResult = check_result.into();
@@ -621,8 +482,7 @@ mod tests {
                 .with_whitelist(vec!["0xAAA".to_string()])
                 .with_blacklist(vec!["0xBBB".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history);
+            let engine = DefaultPolicyEngine::new(config);
 
             assert!(engine.is_ok());
         }
@@ -634,8 +494,7 @@ mod tests {
                 .with_whitelist(vec!["0xAAA".to_string()])
                 .with_blacklist(vec!["0xAAA".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history);
+            let engine = DefaultPolicyEngine::new(config);
 
             assert!(engine.is_err());
             let err = engine.unwrap_err();
@@ -645,8 +504,7 @@ mod tests {
         #[test]
         fn test_create_engine_with_empty_config() {
             let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history);
+            let engine = DefaultPolicyEngine::new(config);
 
             assert!(engine.is_ok());
         }
@@ -663,8 +521,7 @@ mod tests {
         fn test_blacklist_blocks_transaction() {
             let config = PolicyConfig::new().with_blacklist(vec!["0xBAD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xBAD"), Some(U256::from(100u64)));
             let result = engine.check(&tx).unwrap();
@@ -681,8 +538,7 @@ mod tests {
         fn test_blacklist_case_insensitive() {
             let config = PolicyConfig::new().with_blacklist(vec!["0xBAD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xbad"), Some(U256::from(100u64)));
             let result = engine.check(&tx).unwrap();
@@ -694,8 +550,7 @@ mod tests {
         fn test_non_blacklisted_address_allowed() {
             let config = PolicyConfig::new().with_blacklist(vec!["0xBAD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xGOOD"), Some(U256::from(100u64)));
             let result = engine.check(&tx).unwrap();
@@ -707,8 +562,7 @@ mod tests {
         fn test_no_recipient_skips_blacklist_check() {
             let config = PolicyConfig::new().with_blacklist(vec!["0xBAD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(None, Some(U256::from(100u64)));
             let result = engine.check(&tx).unwrap();
@@ -729,8 +583,7 @@ mod tests {
         fn test_whitelist_allows_only_whitelisted_when_enabled() {
             let config = PolicyConfig::new().with_whitelist(vec!["0xGOOD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Whitelisted address should be allowed
             let tx = create_test_tx(Some("0xGOOD"), Some(U256::from(100u64)));
@@ -752,8 +605,7 @@ mod tests {
                 .with_whitelist(vec!["0xGOOD".to_string()])
                 .with_whitelist_enabled(false);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Any address should be allowed when whitelist is disabled
             let tx = create_test_tx(Some("0xOTHER"), Some(U256::from(100u64)));
@@ -765,8 +617,7 @@ mod tests {
         fn test_whitelist_case_insensitive() {
             let config = PolicyConfig::new().with_whitelist(vec!["0xGOOD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xgood"), Some(U256::from(100u64)));
             let result = engine.check(&tx).unwrap();
@@ -777,8 +628,7 @@ mod tests {
         fn test_no_recipient_skips_whitelist_check() {
             let config = PolicyConfig::new().with_whitelist(vec!["0xGOOD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(None, Some(U256::from(100u64)));
             let result = engine.check(&tx).unwrap();
@@ -799,8 +649,7 @@ mod tests {
         fn test_transaction_limit_enforcement() {
             let config = PolicyConfig::new().with_transaction_limit("ETH", U256::from(100u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Within limit - should be allowed
             let tx = create_test_tx(Some("0xREC"), Some(U256::from(50u64)));
@@ -827,8 +676,7 @@ mod tests {
             let config =
                 PolicyConfig::new().with_transaction_limit(token_address, U256::from(1000u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Above limit for token - should be denied
             let tx = create_token_tx(Some("0xREC"), Some(U256::from(1001u64)), token_address);
@@ -845,8 +693,7 @@ mod tests {
         fn test_no_transaction_limit_allows_any_amount() {
             let config = PolicyConfig::new();
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xREC"), Some(U256::MAX));
             let result = engine.check(&tx).unwrap();
@@ -857,8 +704,7 @@ mod tests {
         fn test_zero_transaction_limit_denies_everything() {
             let config = PolicyConfig::new().with_transaction_limit("ETH", U256::ZERO);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Even a tiny amount should be denied
             let tx = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
@@ -875,115 +721,7 @@ mod tests {
         fn test_no_amount_skips_transaction_limit_check() {
             let config = PolicyConfig::new().with_transaction_limit("ETH", U256::from(100u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
-
-            let tx = create_test_tx(Some("0xREC"), None);
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-        }
-    }
-
-    // =========================================================================
-    // Daily limit tests
-    // =========================================================================
-
-    mod daily_limit_tests {
-        use super::*;
-
-        #[test]
-        fn test_daily_limit_enforcement() {
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // First transaction within limit
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(500u64)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-
-            // Record the transaction
-            engine.record(&tx).unwrap();
-
-            // Second transaction that would exceed daily limit
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(600u64)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_denied());
-            if let PolicyResult::Denied { rule, .. } = result {
-                assert_eq!(rule, "daily_limit");
-            }
-
-            // Transaction that keeps us within limit should be allowed
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(400u64)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_for_token() {
-            let token_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-            let config = PolicyConfig::new().with_daily_limit(token_address, U256::from(1000u64));
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a token transaction
-            let tx = create_token_tx(Some("0xREC"), Some(U256::from(800u64)), token_address);
-            engine.record(&tx).unwrap();
-
-            // Next token transaction that exceeds limit
-            let tx = create_token_tx(Some("0xREC"), Some(U256::from(300u64)), token_address);
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_denied());
-
-            // ETH transaction should not be affected
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(10000u64)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_no_daily_limit_allows_any_amount() {
-            let config = PolicyConfig::new();
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a large transaction
-            let tx = create_test_tx(Some("0xREC"), Some(U256::MAX / U256::from(2)));
-            engine.record(&tx).unwrap();
-
-            // Another large transaction should be allowed
-            let tx = create_test_tx(Some("0xREC"), Some(U256::MAX / U256::from(2)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_zero_daily_limit_denies_everything() {
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::ZERO);
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
-
-            // Even a tiny amount should be denied
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_denied());
-
-            // Zero amount should be allowed
-            let tx = create_test_tx(Some("0xREC"), Some(U256::ZERO));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_no_amount_skips_daily_limit_check() {
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(100u64));
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xREC"), None);
             let result = engine.check(&tx).unwrap();
@@ -1008,8 +746,7 @@ mod tests {
                 .with_whitelist(vec!["0xGOOD".to_string()])
                 .with_blacklist(vec!["0xBAD".to_string()]);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Blacklisted address should be denied
             let tx = create_test_tx(Some("0xBAD"), Some(U256::from(100u64)));
@@ -1026,8 +763,7 @@ mod tests {
                 .with_whitelist(vec!["0xGOOD".to_string()])
                 .with_transaction_limit("ETH", U256::from(100u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Non-whitelisted address should be denied by whitelist, not tx_limit
             let tx = create_test_tx(Some("0xOTHER"), Some(U256::from(1000u64)));
@@ -1039,34 +775,14 @@ mod tests {
         }
 
         #[test]
-        fn test_tx_limit_takes_precedence_over_daily_limit() {
-            let config = PolicyConfig::new()
-                .with_transaction_limit("ETH", U256::from(50u64))
-                .with_daily_limit("ETH", U256::from(100u64));
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
-
-            // Amount exceeds both limits, should be denied by tx_limit first
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(60u64)));
-            let result = engine.check(&tx).unwrap();
-            assert!(result.is_denied());
-            if let PolicyResult::Denied { rule, .. } = result {
-                assert_eq!(rule, "tx_limit");
-            }
-        }
-
-        #[test]
         fn test_full_rule_evaluation_order() {
             // Create a config with all rules
             let config = PolicyConfig::new()
                 .with_whitelist(vec!["0xGOOD".to_string(), "0xALSO_GOOD".to_string()])
                 .with_blacklist(vec!["0xBAD".to_string()])
-                .with_transaction_limit("ETH", U256::from(100u64))
-                .with_daily_limit("ETH", U256::from(200u64));
+                .with_transaction_limit("ETH", U256::from(100u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // 1. Blacklisted address - denied by blacklist
             let tx = create_test_tx(Some("0xBAD"), Some(U256::from(50u64)));
@@ -1089,88 +805,10 @@ mod tests {
                 assert_eq!(rule, "tx_limit");
             }
 
-            // 4. Record some transactions to affect daily limit
-            let tx = create_test_tx(Some("0xGOOD"), Some(U256::from(80u64)));
-            engine.record(&tx).unwrap();
-            let tx = create_test_tx(Some("0xALSO_GOOD"), Some(U256::from(80u64)));
-            engine.record(&tx).unwrap();
-
-            // 5. Within tx limit but over daily limit - denied by daily_limit
-            let tx = create_test_tx(Some("0xGOOD"), Some(U256::from(50u64)));
-            let result = engine.check(&tx).unwrap();
-            if let PolicyResult::Denied { rule, .. } = result {
-                assert_eq!(rule, "daily_limit");
-            }
-
-            // 6. All checks pass - allowed
+            // 4. All checks pass - allowed
             let tx = create_test_tx(Some("0xGOOD"), Some(U256::from(10u64)));
             let result = engine.check(&tx).unwrap();
             assert!(result.is_allowed());
-        }
-    }
-
-    // =========================================================================
-    // Record transaction tests
-    // =========================================================================
-
-    mod record_tests {
-        use super::*;
-
-        #[test]
-        fn test_record_updates_history() {
-            let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a transaction
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(100u64)));
-            engine.record(&tx).unwrap();
-
-            // Check that history was updated
-            let total = history.daily_total("ETH").unwrap();
-            assert_eq!(total, U256::from(100u64));
-
-            // Record another transaction
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(50u64)));
-            engine.record(&tx).unwrap();
-
-            let total = history.daily_total("ETH").unwrap();
-            assert_eq!(total, U256::from(150u64));
-        }
-
-        #[test]
-        fn test_record_token_transaction() {
-            let token_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-            let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a token transaction
-            let tx = create_token_tx(Some("0xREC"), Some(U256::from(1000u64)), token_address);
-            engine.record(&tx).unwrap();
-
-            // Check that history was updated for the token
-            let total = history.daily_total(token_address).unwrap();
-            assert_eq!(total, U256::from(1000u64));
-
-            // ETH should still be zero
-            let eth_total = history.daily_total("ETH").unwrap();
-            assert_eq!(eth_total, U256::ZERO);
-        }
-
-        #[test]
-        fn test_record_with_no_amount() {
-            let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a transaction with no amount (defaults to zero)
-            let tx = create_test_tx(Some("0xREC"), None);
-            engine.record(&tx).unwrap();
-
-            // History should show zero
-            let total = history.daily_total("ETH").unwrap();
-            assert_eq!(total, U256::ZERO);
         }
     }
 
@@ -1199,8 +837,7 @@ mod tests {
 
             let config = PolicyConfig::new().with_transaction_limit("ETH", U256::from(1000u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = Arc::new(DefaultPolicyEngine::new(config, history).unwrap());
+            let engine = Arc::new(DefaultPolicyEngine::new(config).unwrap());
 
             let mut handles = vec![];
 
@@ -1231,8 +868,7 @@ mod tests {
         #[test]
         fn test_empty_config_allows_everything() {
             let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xANYONE"), Some(U256::MAX));
             let result = engine.check(&tx).unwrap();
@@ -1245,8 +881,7 @@ mod tests {
                 .with_whitelist(vec!["0xGOOD".to_string()])
                 .with_transaction_limit("ETH", U256::from(100u64));
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Transaction with no recipient and no amount
             let tx = ParsedTx::default();
@@ -1260,67 +895,23 @@ mod tests {
 
         #[test]
         fn test_max_u256_amount() {
-            let config = PolicyConfig::new()
-                .with_transaction_limit("ETH", U256::MAX)
-                .with_daily_limit("ETH", U256::MAX);
+            let config = PolicyConfig::new().with_transaction_limit("ETH", U256::MAX);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let tx = create_test_tx(Some("0xREC"), Some(U256::MAX));
             let result = engine.check(&tx).unwrap();
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_with_overflow_protection() {
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a large transaction
-            let tx = create_test_tx(Some("0xREC"), Some(U256::MAX));
-            engine.record(&tx).unwrap();
-
-            // Try another transaction - should use saturating_add and not overflow
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // The new_total would saturate at MAX, which equals the limit, so it should be allowed
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_exactly_at_limit_after_saturation() {
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record U256::MAX - 50
-            let tx = create_test_tx(Some("0xREC"), Some(U256::MAX - U256::from(50u64)));
-            engine.record(&tx).unwrap();
-
-            // Try to send 100 more - this will saturate at MAX and exceed limit
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(100u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Should be denied because new_total (saturated at MAX) > MAX is false,
-            // but MAX + 100 saturates to MAX which is not > MAX, so it's allowed
             assert!(result.is_allowed());
         }
 
         #[test]
         fn test_engine_debug_format() {
             let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             let debug_str = format!("{engine:?}");
             assert!(debug_str.contains("DefaultPolicyEngine"));
             assert!(debug_str.contains("config"));
-            assert!(debug_str.contains("TransactionHistory"));
         }
 
         #[test]
@@ -1360,8 +951,7 @@ mod tests {
         #[test]
         fn test_transaction_with_token_address_no_limit() {
             let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Token transaction without any configured limits
             let tx = create_token_tx(
@@ -1374,30 +964,13 @@ mod tests {
         }
 
         #[test]
-        fn test_record_transaction_with_token_address() {
-            let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            let token_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-            let tx = create_token_tx(Some("0xREC"), Some(U256::from(1000u64)), token_address);
-
-            engine.record(&tx).unwrap();
-
-            // Verify the token address was used as the key
-            let total = history.daily_total(token_address).unwrap();
-            assert_eq!(total, U256::from(1000u64));
-        }
-
-        #[test]
         fn test_whitelist_disabled_explicitly() {
             // Test that whitelist is properly disabled even when addresses are present
             let config = PolicyConfig::new()
                 .with_whitelist(vec!["0xGOOD".to_string()])
                 .with_whitelist_enabled(false);
 
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Non-whitelisted address should be allowed when whitelist is disabled
             let tx = create_test_tx(Some("0xOTHER"), Some(U256::from(100u64)));
@@ -1424,14 +997,6 @@ mod tests {
                 limit: U256::from(5u64),
             };
             assert_eq!(tx_limit.rule_name(), Some("tx_limit"));
-
-            let daily_limit = PolicyCheckResult::DeniedExceedsDailyLimit {
-                token: "ETH".to_string(),
-                amount: U256::from(5u64),
-                daily_total: U256::from(8u64),
-                limit: U256::from(10u64),
-            };
-            assert_eq!(daily_limit.rule_name(), Some("daily_limit"));
         }
 
         #[test]
@@ -1441,233 +1006,6 @@ mod tests {
             let allowed = PolicyCheckResult::Allowed;
             let policy_result: PolicyResult = allowed.into();
             assert!(policy_result.is_allowed());
-        }
-
-        // =========================================================================
-        // Daily Limit Boundary Tests
-        // =========================================================================
-
-        #[test]
-        fn test_daily_limit_amount_exactly_equal_to_limit() {
-            // Arrange: Configure daily limit
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
-
-            // Act: Try to send exactly the limit amount
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1000u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be allowed (not exceeding)
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_boundary_total_plus_amount_equals_limit() {
-            // Arrange: Configure daily limit and record some transactions
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record transactions totaling 600
-            let tx1 = create_test_tx(Some("0xREC"), Some(U256::from(300u64)));
-            engine.record(&tx1).unwrap();
-            let tx2 = create_test_tx(Some("0xREC"), Some(U256::from(300u64)));
-            engine.record(&tx2).unwrap();
-
-            // Act: Try to send exactly the remaining amount (400)
-            let tx3 = create_test_tx(Some("0xREC"), Some(U256::from(400u64)));
-            let result = engine.check(&tx3).unwrap();
-
-            // Assert: Should be allowed (total = 1000, exactly at limit)
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_boundary_one_over_limit() {
-            // Arrange: Configure daily limit
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
-
-            // Act: Try to send one unit over the limit
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1001u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be denied
-            assert!(result.is_denied());
-            if let PolicyResult::Denied { rule, .. } = result {
-                assert_eq!(rule, "daily_limit");
-            }
-        }
-
-        #[test]
-        fn test_daily_limit_u256_max_amount() {
-            // Arrange: Configure daily limit to U256::MAX
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
-
-            // Act: Try to send U256::MAX
-            let tx = create_test_tx(Some("0xREC"), Some(U256::MAX));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be allowed
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_overflow_protection_with_saturating_add() {
-            // Arrange: Configure daily limit to U256::MAX
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a very large transaction
-            let large_tx = create_test_tx(Some("0xREC"), Some(U256::MAX - U256::from(10u64)));
-            engine.record(&large_tx).unwrap();
-
-            // Act: Try to add more (this would overflow without saturating_add)
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(100u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: The saturating_add in check_daily_limit should prevent overflow
-            // new_total = (U256::MAX - 10) + 100 = saturates to U256::MAX
-            // U256::MAX > U256::MAX is false, so it should be allowed
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_with_u256_max_minus_one() {
-            // Arrange: Configure limit to U256::MAX and record MAX - 1
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::MAX);
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record U256::MAX - 1
-            let tx1 = create_test_tx(Some("0xREC"), Some(U256::MAX - U256::from(1u64)));
-            engine.record(&tx1).unwrap();
-
-            // Act: Try to send 1 more (total would be exactly MAX)
-            let tx2 = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
-            let result = engine.check(&tx2).unwrap();
-
-            // Assert: Should be allowed (total = MAX, not > MAX)
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_accumulation_near_limit() {
-            // Arrange: Configure daily limit
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record transactions approaching the limit
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(250u64))))
-                .unwrap();
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(250u64))))
-                .unwrap();
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(250u64))))
-                .unwrap();
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(249u64))))
-                .unwrap();
-
-            // Total is now 999
-
-            // Act: Try to send 1 more (total = 1000)
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(1u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be allowed
-            assert!(result.is_allowed());
-
-            // Act: Try to send 2 more (total = 1001)
-            let tx2 = create_test_tx(Some("0xREC"), Some(U256::from(2u64)));
-            let result2 = engine.check(&tx2).unwrap();
-
-            // Assert: Should be denied
-            assert!(result2.is_denied());
-        }
-
-        #[test]
-        fn test_daily_limit_zero_amount_with_existing_total() {
-            // Arrange: Configure daily limit and record some transactions
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record transactions at the limit
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(1000u64))))
-                .unwrap();
-
-            // Act: Try to send zero amount
-            let tx = create_test_tx(Some("0xREC"), Some(U256::ZERO));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be allowed (not exceeding)
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_multiple_tokens_independent() {
-            // Arrange: Configure limits for multiple tokens
-            let config = PolicyConfig::new()
-                .with_daily_limit("ETH", U256::from(1000u64))
-                .with_daily_limit(
-                    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-                    U256::from(5000u64),
-                );
-
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Act: Record ETH at limit
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(1000u64))))
-                .unwrap();
-
-            // Token should still have full limit available
-            let token_tx = create_token_tx(
-                Some("0xREC"),
-                Some(U256::from(5000u64)),
-                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            );
-            let result = engine.check(&token_tx).unwrap();
-
-            // Assert: Token transaction should be allowed
-            assert!(result.is_allowed());
-        }
-
-        #[test]
-        fn test_daily_limit_reason_message_includes_values() {
-            // Arrange: Configure daily limit and approach it
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record transaction
-            engine
-                .record(&create_test_tx(Some("0xREC"), Some(U256::from(900u64))))
-                .unwrap();
-
-            // Act: Try to exceed limit
-            let tx = create_test_tx(Some("0xREC"), Some(U256::from(200u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be denied with descriptive reason
-            assert!(result.is_denied());
-            if let PolicyResult::Denied { reason, .. } = result {
-                assert!(reason.contains("200")); // amount
-                assert!(reason.contains("900")); // daily_total
-                assert!(reason.contains("1000")); // limit
-                assert!(reason.contains("ETH"));
-            }
         }
 
         // =====================================================================
@@ -1754,41 +1092,6 @@ mod tests {
             );
         }
 
-        #[test]
-        fn should_generate_daily_limit_denial_reason_with_all_values() {
-            // Arrange: Create daily limit denial with all values
-            let result = PolicyCheckResult::DeniedExceedsDailyLimit {
-                token: "ETH".to_string(),
-                amount: U256::from(3_000_000_000_000_000_000u64), // 3 ETH
-                daily_total: U256::from(8_000_000_000_000_000_000u64), // 8 ETH
-                limit: U256::from(10_000_000_000_000_000_000u64), // 10 ETH limit
-            };
-
-            // Act: Get the reason message
-            let reason = result.reason();
-
-            // Assert: Reason contains amount, daily_total, limit, and token
-            assert!(reason.is_some());
-            let reason_str = reason.unwrap();
-            assert!(
-                reason_str.contains("3000000000000000000"),
-                "Reason should include the requested amount"
-            );
-            assert!(
-                reason_str.contains("8000000000000000000"),
-                "Reason should include the daily total"
-            );
-            assert!(
-                reason_str.contains("10000000000000000000"),
-                "Reason should include the limit"
-            );
-            assert!(reason_str.contains("ETH"), "Reason should include token");
-            assert!(
-                reason_str.contains("exceeds daily limit"),
-                "Reason should explain the violation"
-            );
-        }
-
         // =====================================================================
         // Phase 2: None Recipient Handling in Policy Checks
         // =====================================================================
@@ -1797,8 +1100,7 @@ mod tests {
         fn should_allow_transaction_with_none_recipient_when_no_whitelist() {
             // Arrange: Policy with no whitelist (allow all)
             let config = PolicyConfig::new();
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Act: Check transaction with None recipient (contract creation)
             let tx = create_test_tx(None, Some(U256::from(1000u64)));
@@ -1816,8 +1118,7 @@ mod tests {
             // Arrange: Policy with whitelist enabled
             // Note: Whitelist/blacklist checks only apply when there IS a recipient
             let config = PolicyConfig::new().with_whitelist(vec!["0xALLOWED".to_string()]);
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Act: Check transaction with None recipient (e.g., contract creation)
             let tx = create_test_tx(None, Some(U256::from(1000u64)));
@@ -1835,8 +1136,7 @@ mod tests {
         fn should_allow_none_recipient_when_not_blacklisted() {
             // Arrange: Policy with only blacklist (None can't be blacklisted)
             let config = PolicyConfig::new().with_blacklist(vec!["0xBAD".to_string()]);
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Act: Check transaction with None recipient
             let tx = create_test_tx(None, Some(U256::from(1000u64)));
@@ -1853,8 +1153,7 @@ mod tests {
         fn should_enforce_amount_limits_on_none_recipient_transactions() {
             // Arrange: Policy with transaction limit but no address filters
             let config = PolicyConfig::new().with_transaction_limit("ETH", U256::from(500u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, history).unwrap();
+            let engine = DefaultPolicyEngine::new(config).unwrap();
 
             // Act: Check transaction with None recipient but exceeds limit
             let tx = create_test_tx(None, Some(U256::from(1000u64)));
@@ -1867,32 +1166,6 @@ mod tests {
             );
             if let PolicyResult::Denied { rule, .. } = result {
                 assert_eq!(rule, "tx_limit");
-            }
-        }
-
-        #[test]
-        fn should_enforce_daily_limits_on_none_recipient_transactions() {
-            // Arrange: Policy with daily limit
-            let config = PolicyConfig::new().with_daily_limit("ETH", U256::from(1000u64));
-            let history = Arc::new(TransactionHistory::in_memory().unwrap());
-            let engine = DefaultPolicyEngine::new(config, Arc::clone(&history)).unwrap();
-
-            // Record a prior transaction
-            engine
-                .record(&create_test_tx(Some("0xSOME"), Some(U256::from(800u64))))
-                .unwrap();
-
-            // Act: Check transaction with None recipient that would exceed daily limit
-            let tx = create_test_tx(None, Some(U256::from(300u64)));
-            let result = engine.check(&tx).unwrap();
-
-            // Assert: Should be denied (daily limit applies regardless of recipient)
-            assert!(
-                result.is_denied(),
-                "Daily limits should apply to None recipient transactions"
-            );
-            if let PolicyResult::Denied { rule, .. } = result {
-                assert_eq!(rule, "daily_limit");
             }
         }
     }

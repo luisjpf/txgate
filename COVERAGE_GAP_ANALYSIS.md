@@ -187,40 +187,18 @@
      - `DeniedBlacklisted` reason message
      - `DeniedNotWhitelisted` reason message
      - `DeniedExceedsTransactionLimit` reason message (with amount)
-     - `DeniedExceedsDailyLimit` reason message (with limit)
-   - **Test needed**: 4 tests generating each denial type
+   - **Test needed**: 3 tests generating each denial type
    - **Impact**: 6-8% coverage
 
-#### B. Daily Limit Boundary Cases (Priority: HIGH)
+#### B. Policy Evaluation Edge Cases (Priority: HIGH)
 
-2. **U256 boundary arithmetic**
-   - **Location**: Daily limit checks in engine.rs
-   - **Issue**: Boundary conditions not tested:
-     - amount == limit (should allow)
-     - daily_total + amount == limit (boundary)
-     - daily_total + amount overflows U256
-     - U256::MAX amounts
-   - **Test needed**: 4 boundary tests
-   - **Impact**: 5-6% coverage
-
-3. **Daily limit reset behavior**
-   - **Location**: `TransactionHistory::daily_total()`
-   - **Issue**: Date boundary and reset logic not tested
-   - **Test needed**:
-     - Query for different dates
-     - Midnight rollover scenario
-     - Multiple days in history
-   - **Impact**: 3-4% coverage
-
-#### C. Policy Evaluation Edge Cases (Priority: HIGH)
-
-4. **None recipient handling**
+2. **None recipient handling**
    - **Location**: Blacklist/whitelist checks
    - **Issue**: Policy evaluation with None recipients not tested
    - **Test needed**: Transactions without recipient field
    - **Impact**: 4-5% coverage
 
-5. **Whitelist empty vs. disabled**
+3. **Whitelist empty vs. disabled**
    - **Location**: Whitelist check logic
    - **Issue**: Difference between empty whitelist and disabled not tested
    - **Test needed**:
@@ -228,34 +206,11 @@
      - Whitelist disabled (allow all)
    - **Impact**: 3% coverage
 
-6. **Zero-amount transactions**
+4. **Zero-amount transactions**
    - **Location**: Amount limit checks
    - **Issue**: Zero amounts passing through limits not tested
    - **Test needed**: Transaction with amount = 0
    - **Impact**: 2% coverage
-
-#### D. Transaction History Error Paths (Priority: MEDIUM)
-
-7. **Database operation failures**
-   - **Location**: `TransactionHistory` all methods
-   - **Issue**: SQLite error paths not tested:
-     - Connection failures
-     - Query errors
-     - Constraint violations
-   - **Test needed**: Mock database failures
-   - **Impact**: 6-8% coverage
-
-8. **Concurrent access**
-   - **Location**: All history operations
-   - **Issue**: Race conditions and concurrent transactions not tested
-   - **Test needed**: Multi-threaded test with concurrent inserts/queries
-   - **Impact**: 2-3% coverage
-
-9. **Duplicate transaction recording**
-   - **Location**: `record()` method
-   - **Issue**: Same transaction hash recorded multiple times not tested
-   - **Test needed**: Record same hash twice
-   - **Impact**: 1-2% coverage
 
 ---
 
@@ -307,7 +262,7 @@
 
 1. **txgate-crypto** - File I/O errors (8-10%)
 2. **txgate-chain** - RLP decoding errors (8-10%)
-3. **txgate-policy** - U256 boundary cases (5-6%)
+3. **txgate-policy** - PolicyCheckResult variants (6-8%)
 
 ### Phase 2: Parser Edge Cases (Target: +10% total coverage)
 
@@ -325,7 +280,6 @@
 
 7. **txgate-policy** - PolicyCheckResult variants (6-8%)
 8. **txgate-policy** - None recipient handling (4-5%)
-9. **txgate-policy** - Database errors (6-8%)
 
 ### Phase 4: CLI and Config (Target: +7% for txgate)
 
@@ -377,15 +331,10 @@ Use this checklist to track progress:
 - [ ] Token registry address parsing failures
 
 ### txgate-policy (31% gap)
-- [ ] PolicyCheckResult variant reasons (4 variants)
-- [ ] Daily limit boundaries (==limit, overflow, U256::MAX)
-- [ ] Daily limit reset across dates
+- [ ] PolicyCheckResult variant reasons (3 variants)
 - [ ] None recipient handling
 - [ ] Whitelist empty vs. disabled
 - [ ] Zero-amount transactions
-- [ ] Database operation failures
-- [ ] Concurrent history access
-- [ ] Duplicate transaction hashes
 
 ### txgate (9% gap)
 - [ ] CLI command execution errors

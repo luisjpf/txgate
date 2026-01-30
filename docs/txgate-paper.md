@@ -13,7 +13,7 @@ Private key compromise remains the dominant attack vector in cryptocurrency, acc
 TxGate is an open-source, self-hosted signing server written in Rust that:
 
 - Parses raw transactions to extract recipient, amount, and token
-- Enforces configurable policies (daily limits, whitelists, blacklists)
+- Enforces configurable policies (per-transaction limits, whitelists, blacklists)
 - Signs only when policy checks pass
 - Runs as a single binary with zero external dependencies
 - Supports the top 5 chains by transaction volume
@@ -153,8 +153,7 @@ src/
 ├── policy/
 │   ├── mod.rs
 │   ├── engine.rs           # PolicyEngine trait + implementation
-│   ├── rules.rs            # Rule types (limit, whitelist, blacklist)
-│   └── history.rs          # Transaction history for rate limiting
+│   └── rules.rs            # Rule types (limit, whitelist, blacklist)
 │
 ├── server/
 │   ├── mod.rs
@@ -192,7 +191,6 @@ pub trait KeyStore: Send + Sync {
 /// Evaluates policy rules against a parsed transaction
 pub trait PolicyEngine: Send + Sync {
     fn check(&self, tx: &ParsedTx) -> PolicyResult;
-    fn record(&mut self, tx: &ParsedTx) -> Result<(), PolicyError>;
 }
 ```
 
@@ -274,13 +272,6 @@ ETH = "5"
 BTC = "0.5"
 SOL = "500"
 USDC = "50000"
-
-# Maximum amount per 24-hour period
-[policy.daily_limits]
-ETH = "10"
-BTC = "1"
-SOL = "1000"
-USDC = "100000"
 ```
 
 ### Rule Evaluation
@@ -318,20 +309,6 @@ impl PolicyEngine for DefaultPolicyEngine {
                     return PolicyResult::Denied {
                         rule: "tx_limit",
                         reason: format!("amount exceeds tx limit of {}", limit),
-                    };
-                }
-            }
-        }
-
-        // 4. Check daily limit
-        if let Some(amount) = tx.amount {
-            let token = tx.token.as_deref().unwrap_or("NATIVE");
-            if let Some(limit) = self.daily_limits.get(token) {
-                let spent = self.history.daily_total(token);
-                if spent + amount > *limit {
-                    return PolicyResult::Denied {
-                        rule: "daily_limit",
-                        reason: format!("would exceed daily limit of {}", limit),
                     };
                 }
             }
@@ -375,7 +352,7 @@ TxGate Status
 ────────────
 Keys:       1 (default)
 Chains:     ethereum, bitcoin, solana, tron, ripple
-Policy:     10 ETH/day, 5 whitelisted addresses
+Policy:     5 ETH/tx limit, 5 whitelisted addresses
 Signed:     0 transactions
 Uptime:     -
 
@@ -397,7 +374,6 @@ Parsed:
 Policy:
   ✓ Recipient whitelisted
   ✓ Amount under tx limit (5 ETH)
-  ✓ Daily limit: 1.5 / 10 ETH
 
 Signature: 0x...
 
@@ -455,8 +431,7 @@ Error: transaction rejected by policy
             "allowed": true,
             "checks": [
                 {"rule": "whitelist", "passed": true},
-                {"rule": "tx_limit", "passed": true},
-                {"rule": "daily_limit", "passed": true, "remaining": "8.5 ETH"}
+                {"rule": "tx_limit", "passed": true}
             ]
         }
     }
@@ -587,8 +562,7 @@ tests/
 │   │   └── ripple_test.rs
 │   ├── policy/
 │   │   ├── engine_test.rs
-│   │   ├── rules_test.rs
-│   │   └── history_test.rs
+│   │   └── rules_test.rs
 │   └── server/
 │       ├── socket_test.rs
 │       └── http_test.rs
@@ -654,27 +628,6 @@ mod tests {
         assert!(matches!(engine.check(&tx), PolicyResult::Denied { rule: "blacklist", .. }));
     }
 
-    #[test]
-    fn test_daily_limit_accumulates() {
-        let mut engine = DefaultPolicyEngine::new(PolicyConfig {
-            daily_limits: [("ETH".to_string(), U256::from(100))].into(),
-            ..Default::default()
-        });
-
-        // First transaction: 60 ETH
-        let tx1 = mock_tx("0xAlice", 60, "ETH");
-        assert!(matches!(engine.check(&tx1), PolicyResult::Allowed));
-        engine.record(&tx1).unwrap();
-
-        // Second transaction: 30 ETH (total 90, under limit)
-        let tx2 = mock_tx("0xAlice", 30, "ETH");
-        assert!(matches!(engine.check(&tx2), PolicyResult::Allowed));
-        engine.record(&tx2).unwrap();
-
-        // Third transaction: 20 ETH (total 110, over limit)
-        let tx3 = mock_tx("0xAlice", 20, "ETH");
-        assert!(matches!(engine.check(&tx3), PolicyResult::Denied { rule: "daily_limit", .. }));
-    }
 }
 ```
 
@@ -768,12 +721,11 @@ pub struct SigningService<S: Signer, P: PolicyEngine, C: Chain> {
 }
 
 impl<S: Signer, P: PolicyEngine, C: Chain> SigningService<S, P, C> {
-    pub fn sign(&mut self, raw_tx: &[u8]) -> Result<Signature, SignError> {
+    pub fn sign(&self, raw_tx: &[u8]) -> Result<Signature, SignError> {
         let parsed = self.chain.parse(raw_tx)?;
-        
+
         match self.policy.check(&parsed) {
             PolicyResult::Allowed => {
-                self.policy.record(&parsed)?;
                 self.signer.sign(&parsed.hash)
             }
             PolicyResult::Denied { rule, reason } => {

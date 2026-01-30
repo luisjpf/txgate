@@ -258,31 +258,6 @@ Notes:
 - Token keys are case-insensitive
 - Omitting a token means no per-transaction limit for that token
 
-### daily_limits
-
-Maximum total amount allowed per 24-hour period, specified per token.
-
-| Property | Value |
-|----------|-------|
-| Type | Table (String -> String) |
-| Default | `{}` |
-| Required | No |
-
-```toml
-[policy.daily_limits]
-# Native ETH - 10 ETH max per day
-ETH = "10000000000000000000"
-
-# USDC (6 decimals) - 50,000 USDC max per day
-"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" = "50000000000"
-```
-
-Notes:
-- Daily limit tracking resets every 24 hours
-- Tracked amounts persist across server restarts
-- Uses rolling 24-hour window
-- Token keys are case-insensitive
-
 ---
 
 ## Logging Configuration
@@ -368,19 +343,6 @@ ETH = "5000000000000000000"
 
 # Maximum USDT per transaction: 10,000 USDT
 "0xdAC17F958D2ee523a2206206994597C13D831ec7" = "10000000000"
-
-# -----------------------------------------------------------------------------
-# Daily Limits (rolling 24-hour window)
-# -----------------------------------------------------------------------------
-[policy.daily_limits]
-# Maximum ETH per day: 20 ETH
-ETH = "20000000000000000000"
-
-# Maximum USDC per day: 50,000 USDC
-"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" = "50000000000"
-
-# Maximum USDT per day: 50,000 USDT
-"0xdAC17F958D2ee523a2206206994597C13D831ec7" = "50000000000"
 ```
 
 ---
@@ -491,9 +453,6 @@ blacklist = []
 
 [policy.transaction_limits]
 # ETH = "1000000000000000000"  # 1 ETH
-
-[policy.daily_limits]
-# ETH = "10000000000000000000"  # 10 ETH
 ```
 
 The limits are commented out by default, meaning no amount limits are enforced until you configure them.
@@ -521,9 +480,6 @@ Start with low limits and increase as needed:
 ```toml
 [policy.transaction_limits]
 ETH = "1000000000000000000"  # 1 ETH
-
-[policy.daily_limits]
-ETH = "5000000000000000000"  # 5 ETH
 ```
 
 ### Blacklist Known Bad Addresses

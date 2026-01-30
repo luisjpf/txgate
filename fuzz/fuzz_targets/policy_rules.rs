@@ -25,9 +25,7 @@ use libfuzzer_sys::fuzz_target;
 use txgate_core::types::{ParsedTx, TxType};
 use txgate_policy::config::PolicyConfig;
 use txgate_policy::engine::{DefaultPolicyEngine, PolicyEngine};
-use txgate_policy::history::TransactionHistory;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Fuzz input representing a policy evaluation request.
 ///
@@ -57,8 +55,6 @@ struct PolicyFuzzInput {
     blacklist_indices: Vec<u8>,
     /// Transaction limit (if any)
     tx_limit: Option<u64>,
-    /// Daily limit (if any)
-    daily_limit: Option<u64>,
 }
 
 /// Convert bytes to hex address string
@@ -135,17 +131,8 @@ fuzz_target!(|data: &[u8]| {
         config = config.with_transaction_limit("ETH", U256::from(limit));
     }
 
-    if let Some(limit) = input.daily_limit {
-        config = config.with_daily_limit("ETH", U256::from(limit));
-    }
-
     // Try to create the policy engine (may fail if config is invalid, e.g., overlap)
-    let history = match TransactionHistory::in_memory() {
-        Ok(h) => Arc::new(h),
-        Err(_) => return,
-    };
-
-    let engine = match DefaultPolicyEngine::new(config, history) {
+    let engine = match DefaultPolicyEngine::new(config) {
         Ok(e) => e,
         Err(_) => return, // Invalid config (e.g., address in both lists) is expected
     };
@@ -187,10 +174,5 @@ fuzz_target!(|data: &[u8]| {
         // Exercise the is_allowed/is_denied methods
         let _ = policy_result.is_allowed();
         let _ = policy_result.is_denied();
-
-        // If allowed, try recording the transaction
-        if policy_result.is_allowed() {
-            let _ = engine.record(&tx);
-        }
     }
 });

@@ -41,9 +41,6 @@
 //!
 //! [policy.transaction_limits]
 //! # ETH = "1000000000000000000"  # 1 ETH
-//!
-//! [policy.daily_limits]
-//! # ETH = "10000000000000000000"  # 10 ETH
 //! ```
 
 use crate::error::{ConfigError, PolicyError};
@@ -246,7 +243,6 @@ impl Default for KeysConfig {
 /// - **Whitelist**: Addresses that are always allowed (when enabled)
 /// - **Blacklist**: Addresses that are always denied
 /// - **Transaction limits**: Maximum amount per single transaction
-/// - **Daily limits**: Maximum total amount per 24-hour period
 ///
 /// # Address Handling
 ///
@@ -311,16 +307,6 @@ pub struct PolicyConfig {
     /// ```
     #[serde(default)]
     pub transaction_limits: HashMap<String, U256>,
-
-    /// Per-token daily limits (max total amount per 24h).
-    ///
-    /// Key: token address or "ETH" for native token.
-    /// Value: maximum daily total in the token's smallest unit (wei, etc.).
-    ///
-    /// Note: Actual daily limit tracking requires a stateful tracker component
-    /// that is not part of this configuration struct.
-    #[serde(default)]
-    pub daily_limits: HashMap<String, U256>,
 
     /// Whether whitelist is enabled.
     ///
@@ -451,42 +437,6 @@ impl PolicyConfig {
             .map(|(_, v)| *v)
     }
 
-    /// Gets the daily limit for a token.
-    ///
-    /// Token key comparison is case-insensitive.
-    ///
-    /// # Arguments
-    ///
-    /// * `token` - The token identifier (e.g., "ETH" or a contract address)
-    ///
-    /// # Returns
-    ///
-    /// The daily limit if configured, `None` if no limit is set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use txgate_core::config::PolicyConfig;
-    /// use alloy_primitives::U256;
-    ///
-    /// let config = PolicyConfig::new()
-    ///     .with_daily_limit("ETH", U256::from(10_000_000_000_000_000_000u64));
-    ///
-    /// assert_eq!(
-    ///     config.get_daily_limit("ETH"),
-    ///     Some(U256::from(10_000_000_000_000_000_000u64))
-    /// );
-    /// assert!(config.get_daily_limit("BTC").is_none());
-    /// ```
-    #[must_use]
-    pub fn get_daily_limit(&self, token: &str) -> Option<U256> {
-        let token_lower = token.to_lowercase();
-        self.daily_limits
-            .iter()
-            .find(|(k, _)| k.to_lowercase() == token_lower)
-            .map(|(_, v)| *v)
-    }
-
     /// Validates the policy configuration.
     ///
     /// Checks for configuration errors such as:
@@ -605,30 +555,6 @@ impl PolicyConfig {
     #[must_use]
     pub fn with_transaction_limit(mut self, token: &str, limit: U256) -> Self {
         self.transaction_limits.insert(token.to_string(), limit);
-        self
-    }
-
-    /// Builder method to add a daily limit for a token.
-    ///
-    /// # Arguments
-    ///
-    /// * `token` - Token identifier (e.g., "ETH" or contract address)
-    /// * `limit` - Maximum total amount per 24-hour period
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use txgate_core::config::PolicyConfig;
-    /// use alloy_primitives::U256;
-    ///
-    /// let config = PolicyConfig::new()
-    ///     .with_daily_limit("ETH", U256::from(10_000_000_000_000_000_000u64));
-    ///
-    /// assert!(config.get_daily_limit("ETH").is_some());
-    /// ```
-    #[must_use]
-    pub fn with_daily_limit(mut self, token: &str, limit: U256) -> Self {
-        self.daily_limits.insert(token.to_string(), limit);
         self
     }
 
@@ -774,9 +700,6 @@ blacklist = []
 
 [policy.transaction_limits]
 # ETH = "1000000000000000000"  # 1 ETH
-
-[policy.daily_limits]
-# ETH = "10000000000000000000"  # 10 ETH
 "#
         .to_string()
     }
@@ -1000,7 +923,6 @@ mod tests {
         assert!(config.whitelist.is_empty());
         assert!(config.blacklist.is_empty());
         assert!(config.transaction_limits.is_empty());
-        assert!(config.daily_limits.is_empty());
         assert!(!config.whitelist_enabled);
     }
 
@@ -1042,18 +964,6 @@ mod tests {
             Some(U256::from(5_000_000_000_000_000_000u64))
         );
         assert!(config.get_transaction_limit("BTC").is_none());
-    }
-
-    #[test]
-    fn test_policy_daily_limit() {
-        let config =
-            PolicyConfig::new().with_daily_limit("ETH", U256::from(10_000_000_000_000_000_000u64));
-
-        assert_eq!(
-            config.get_daily_limit("ETH"),
-            Some(U256::from(10_000_000_000_000_000_000u64))
-        );
-        assert!(config.get_daily_limit("BTC").is_none());
     }
 
     #[test]
@@ -1272,9 +1182,6 @@ mod tests {
 
             [policy.transaction_limits]
             ETH = "1000000000000000000"
-
-            [policy.daily_limits]
-            ETH = "10000000000000000000"
         "#;
 
         let config: Config = toml::from_str(toml_str).expect("TOML deserialization failed");
@@ -1282,10 +1189,6 @@ mod tests {
         assert_eq!(
             config.policy.get_transaction_limit("ETH"),
             Some(U256::from(1_000_000_000_000_000_000u64))
-        );
-        assert_eq!(
-            config.policy.get_daily_limit("ETH"),
-            Some(U256::from(10_000_000_000_000_000_000u64))
         );
     }
 
@@ -1301,7 +1204,6 @@ mod tests {
         assert!(toml.contains("[keys]"));
         assert!(toml.contains("[policy]"));
         assert!(toml.contains("[policy.transaction_limits]"));
-        assert!(toml.contains("[policy.daily_limits]"));
     }
 
     #[test]
@@ -1501,13 +1403,11 @@ mod tests {
             .with_whitelist(vec!["0xWhite".to_string()])
             .with_blacklist(vec!["0xBlack".to_string()])
             .with_transaction_limit("ETH", U256::from(100))
-            .with_daily_limit("ETH", U256::from(1000))
             .with_whitelist_enabled(true);
 
         assert!(config.is_whitelisted("0xWhite"));
         assert!(config.is_blacklisted("0xBlack"));
         assert_eq!(config.get_transaction_limit("ETH"), Some(U256::from(100)));
-        assert_eq!(config.get_daily_limit("ETH"), Some(U256::from(1000)));
         assert!(config.whitelist_enabled);
     }
 
@@ -1543,23 +1443,17 @@ mod tests {
 
     #[test]
     fn test_policy_zero_limits() {
-        let config = PolicyConfig::new()
-            .with_transaction_limit("ETH", U256::ZERO)
-            .with_daily_limit("ETH", U256::ZERO);
+        let config = PolicyConfig::new().with_transaction_limit("ETH", U256::ZERO);
 
         assert_eq!(config.get_transaction_limit("ETH"), Some(U256::ZERO));
-        assert_eq!(config.get_daily_limit("ETH"), Some(U256::ZERO));
     }
 
     #[test]
     fn test_policy_large_u256_limits() {
         let large_value = U256::MAX;
-        let config = PolicyConfig::new()
-            .with_transaction_limit("ETH", large_value)
-            .with_daily_limit("ETH", large_value);
+        let config = PolicyConfig::new().with_transaction_limit("ETH", large_value);
 
         assert_eq!(config.get_transaction_limit("ETH"), Some(large_value));
-        assert_eq!(config.get_daily_limit("ETH"), Some(large_value));
     }
 
     #[test]

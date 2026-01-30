@@ -20,12 +20,11 @@ This crate is published to crates.io only as a dependency of the `txgate` binary
 - **Allowlist** - Only sign transactions to approved addresses
 - **Denylist** - Block transactions to specific addresses
 - **Rate Limits** - Limit transaction frequency per time window
-- **Amount Limits** - Maximum per-transaction and daily spending limits
+- **Amount Limits** - Maximum per-transaction spending limits
 
 ### Features
 - TOML-based policy configuration
 - Per-chain policy rules
-- Transaction history tracking with SQLite
 - Composable rule evaluation
 
 ### Example Policy
@@ -34,7 +33,6 @@ This crate is published to crates.io only as a dependency of the `txgate` binary
 [ethereum]
 allowlist = ["0x742d35Cc6634C0532925a3b844Bc9e7595f0Ab1c"]
 max_amount = "1.0"
-max_daily = "10.0"
 rate_limit = { max_requests = 100, window_seconds = 3600 }
 ```
 

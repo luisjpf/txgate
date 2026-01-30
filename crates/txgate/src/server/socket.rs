@@ -18,7 +18,6 @@
 //! use txgate_crypto::signer::Secp256k1Signer;
 //! use txgate_policy::engine::DefaultPolicyEngine;
 //! use txgate_policy::config::PolicyConfig;
-//! use txgate_policy::history::TransactionHistory;
 //! use txgate_chain::EthereumParser;
 //! use std::path::PathBuf;
 //! use std::sync::Arc;
@@ -30,8 +29,7 @@
 //!
 //!     // Create policy engine
 //!     let config = PolicyConfig::new();
-//!     let history = Arc::new(TransactionHistory::in_memory()?);
-//!     let policy_engine = DefaultPolicyEngine::new(config, history)?;
+//!     let policy_engine = DefaultPolicyEngine::new(config)?;
 //!
 //!     // Create parser
 //!     let parser = EthereumParser::new();
@@ -179,6 +177,10 @@ pub enum ServerError {
     /// Error parsing JSON-RPC request.
     #[error("parse error: {0}")]
     Parse(String),
+
+    /// Internal server error (e.g. task join failure).
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
@@ -199,14 +201,11 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
     /// use txgate_crypto::signer::Secp256k1Signer;
     /// use txgate_policy::engine::DefaultPolicyEngine;
     /// use txgate_policy::config::PolicyConfig;
-    /// use txgate_policy::history::TransactionHistory;
     /// use txgate_chain::EthereumParser;
-    /// use std::sync::Arc;
     ///
     /// let signer = Secp256k1Signer::generate();
     /// let config = PolicyConfig::new();
-    /// let history = Arc::new(TransactionHistory::in_memory().unwrap());
-    /// let policy_engine = DefaultPolicyEngine::new(config, history).unwrap();
+    /// let policy_engine = DefaultPolicyEngine::new(config).unwrap();
     /// let parser = EthereumParser::new();
     /// let server_config = ServerConfig::default();
     ///
@@ -261,16 +260,13 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
     /// use txgate_crypto::signer::Secp256k1Signer;
     /// use txgate_policy::engine::DefaultPolicyEngine;
     /// use txgate_policy::config::PolicyConfig;
-    /// use txgate_policy::history::TransactionHistory;
     /// use txgate_chain::EthereumParser;
-    /// use std::sync::Arc;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     let signer = Secp256k1Signer::generate();
     ///     let config = PolicyConfig::new();
-    ///     let history = Arc::new(TransactionHistory::in_memory()?);
-    ///     let policy_engine = DefaultPolicyEngine::new(config, history)?;
+    ///     let policy_engine = DefaultPolicyEngine::new(config)?;
     ///     let parser = EthereumParser::new();
     ///     let server_config = ServerConfig::default();
     ///
@@ -338,7 +334,7 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
                         Ok((stream, _addr)) => {
                             let server_clone = Arc::clone(&server);
                             tokio::spawn(async move {
-                                if let Err(e) = server_clone.handle_connection(stream).await {
+                                if let Err(e) = Arc::clone(&server_clone).handle_connection(stream).await {
                                     tracing::warn!(error = %e, "Connection error");
                                 }
                             });
@@ -374,7 +370,11 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
     ///
     /// Reads line-delimited JSON-RPC requests and writes responses.
     /// Each line should be a complete JSON-RPC request object.
-    async fn handle_connection(&self, stream: UnixStream) -> Result<(), ServerError> {
+    ///
+    /// CPU-bound work (parsing, policy checks, signing) is offloaded
+    /// to the blocking thread pool via `spawn_blocking` so the async runtime
+    /// stays responsive for I/O under heavy load.
+    async fn handle_connection(self: Arc<Self>, stream: UnixStream) -> Result<(), ServerError> {
         let (reader, mut writer) = stream.into_split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
@@ -399,8 +399,15 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
                 continue;
             }
 
-            // Process the request and get response
-            let response = self.process_request(trimmed);
+            // Offload CPU-bound request processing to blocking thread pool
+            let request_str = trimmed.to_owned();
+            let server = Arc::clone(&self);
+            let response =
+                tokio::task::spawn_blocking(move || server.process_request(&request_str))
+                    .await
+                    .map_err(|e| {
+                        ServerError::Internal(format!("spawn_blocking join error: {e}"))
+                    })?;
 
             // Serialize and write response
             let response_json = serde_json::to_string(&response)
@@ -530,11 +537,6 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
                 );
             }
         };
-
-        // Record the transaction in the policy engine
-        if let Err(e) = self.policy_engine.record(&parsed_tx) {
-            tracing::warn!(error = %e, "Failed to record transaction in policy engine");
-        }
 
         // Extract signature components (65 bytes: r || s || v)
         let Some(r) = signature.get(0..32) else {
@@ -687,14 +689,12 @@ mod tests {
     use tokio::net::UnixStream;
     use txgate_crypto::signer::Secp256k1Signer;
     use txgate_policy::config::PolicyConfig;
-    use txgate_policy::history::TransactionHistory;
 
     /// Helper to create a test server
     fn create_test_server(socket_path: PathBuf) -> TxGateServer<Secp256k1Signer> {
         let signer = Secp256k1Signer::generate();
         let config = PolicyConfig::new();
-        let history = Arc::new(TransactionHistory::in_memory().expect("history"));
-        let policy_engine = DefaultPolicyEngine::new(config, history).expect("policy engine");
+        let policy_engine = DefaultPolicyEngine::new(config).expect("policy engine");
         let parser = EthereumParser::new();
 
         let server_config = ServerConfig {
@@ -1099,8 +1099,7 @@ mod tests {
 
         let signer = Secp256k1Signer::generate();
         let config = PolicyConfig::new();
-        let history = Arc::new(TransactionHistory::in_memory().expect("history"));
-        let policy_engine = DefaultPolicyEngine::new(config, history).expect("policy engine");
+        let policy_engine = DefaultPolicyEngine::new(config).expect("policy engine");
         let parser = EthereumParser::new();
 
         let server_config = ServerConfig {

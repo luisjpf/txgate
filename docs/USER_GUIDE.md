@@ -33,7 +33,7 @@ TxGate is a transaction signing daemon designed for secure, automated signing of
 |----------|---------|
 | Bot automation | Sign transactions without exposing keys to your bot |
 | Multi-sig preparation | Generate signatures for multi-sig wallets |
-| Rate limiting | Enforce transaction limits per day/transaction |
+| Per-tx limits | Enforce per-transaction amount limits |
 | Address restrictions | Whitelist/blacklist recipient addresses |
 | Audit compliance | Maintain tamper-evident signing logs |
 
@@ -242,7 +242,6 @@ TxGate enforces policies before signing any transaction. Configure policies in `
 | Whitelist | Only allow transactions to specified addresses |
 | Blacklist | Deny transactions to specified addresses |
 | Transaction Limit | Maximum amount per single transaction |
-| Daily Limit | Maximum total amount per 24-hour period |
 
 ### Rule Evaluation Order
 
@@ -251,8 +250,7 @@ Policies are evaluated in strict priority order:
 1. **Blacklist** (highest priority) - Deny if recipient is blacklisted
 2. **Whitelist** - Deny if whitelist enabled and recipient not listed
 3. **Transaction Limit** - Deny if amount exceeds per-tx limit
-4. **Daily Limit** - Deny if amount would exceed daily total
-5. **Allow** - Approve if all checks pass
+4. **Allow** - Approve if all checks pass
 
 ### Example Policy Configuration
 
@@ -275,10 +273,6 @@ blacklist = [
 # Per-transaction limits (in wei)
 [policy.transaction_limits]
 ETH = "5000000000000000000"  # 5 ETH max per transaction
-
-# Daily spending limits (in wei)
-[policy.daily_limits]
-ETH = "10000000000000000000"  # 10 ETH max per day
 ```
 
 See [Configuration Reference](CONFIGURATION.md) for all options.
@@ -488,7 +482,7 @@ ls -la ~/.txgate/
 
 - Start with `whitelist_enabled = true`
 - Whitelist only known, trusted addresses
-- Set conservative transaction and daily limits
+- Set conservative transaction limits
 - Review and update policies regularly
 
 ### Audit Logging
@@ -534,10 +528,6 @@ Whitelist mode is enabled and the recipient is not whitelisted. Either:
 #### "Policy denied: tx_limit"
 
 The transaction amount exceeds your configured per-transaction limit. Adjust `[policy.transaction_limits]` in config.
-
-#### "Policy denied: daily_limit"
-
-You have exceeded your daily spending limit. Wait until the next day or adjust `[policy.daily_limits]`.
 
 #### Socket connection refused
 

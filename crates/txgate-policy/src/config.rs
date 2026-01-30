@@ -12,8 +12,7 @@
 //! // Create a basic policy config with builder pattern
 //! let config = PolicyConfig::new()
 //!     .with_whitelist(vec!["0x742d35Cc6634C0532925a3b844Bc454e7595f".to_string()])
-//!     .with_transaction_limit("ETH", U256::from(5_000_000_000_000_000_000u64)) // 5 ETH
-//!     .with_daily_limit("ETH", U256::from(10_000_000_000_000_000_000u64)); // 10 ETH
+//!     .with_transaction_limit("ETH", U256::from(5_000_000_000_000_000_000u64)); // 5 ETH
 //!
 //! assert!(config.is_whitelisted("0x742d35Cc6634C0532925a3b844Bc454e7595f"));
 //! ```

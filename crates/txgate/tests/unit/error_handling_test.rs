@@ -88,11 +88,6 @@ fn test_error_display() {
     let err = InitError::NoHomeDirectory;
     assert!(err.to_string().contains("home directory"));
 
-    // StatusError
-    let err = StatusError::History("db error".to_string());
-    assert!(err.to_string().contains("History error"));
-    assert!(err.to_string().contains("db error"));
-
     // AddressError
     let err = AddressError::KeyNotFound;
     assert!(err.to_string().contains("Default key not found"));
