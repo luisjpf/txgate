@@ -18,8 +18,8 @@ categories = ["cryptography", "parser-implementations"]
 workspace = true
 
 [dependencies]
-txgate-core = { version = "0.1.0", path = "../txgate-core" }
-txgate-crypto = { version = "0.1.0", path = "../txgate-crypto" }
+txgate-core = { version = "0.2.0", path = "../txgate-core" }
+txgate-crypto = { version = "0.2.0", path = "../txgate-crypto" }
 alloy-consensus = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }

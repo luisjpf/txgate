@@ -18,8 +18,8 @@ categories = ["cryptography", "config"]
 workspace = true
 
 [dependencies]
-txgate-core = { version = "0.1.0", path = "../txgate-core" }
-txgate-chain = { version = "0.1.0", path = "../txgate-chain" }
+txgate-core = { version = "0.2.0", path = "../txgate-core" }
+txgate-chain = { version = "0.2.0", path = "../txgate-chain" }
 serde = { workspace = true }
 alloy-primitives = { workspace = true }
 hex = { workspace = true }
