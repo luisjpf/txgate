@@ -155,10 +155,10 @@ Keys:
   cold-storage
 ```
 
-Use `--verbose` for additional details:
+Use `--details` for additional details:
 
 ```bash
-txgate key list --verbose
+txgate key list --details
 ```
 
 ```
@@ -638,7 +638,7 @@ txgate config edit
 | Command | Description |
 |---------|-------------|
 | `txgate key list` | List all stored keys |
-| `txgate key list --verbose` | List keys with details |
+| `txgate key list --details` | List keys with details |
 | `txgate key import <HEX>` | Import a private key |
 | `txgate key import <HEX> --name NAME` | Import with custom name |
 | `txgate key import <HEX> --curve ed25519` | Import an ed25519 key |

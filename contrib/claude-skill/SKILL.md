@@ -100,8 +100,12 @@ Evaluation order: blacklist > whitelist > tx_limit > allow.
 ### Sign and check result in a script
 
 ```bash
-txgate ethereum sign "$TX" && echo "signed" || \
-  if [ $? -eq 1 ]; then echo "policy denied"; else echo "error"; fi
+txgate ethereum sign "$TX_HEX"
+case $? in
+  0) echo "signed" ;;
+  1) echo "policy denied" ;;
+  2) echo "error" ;;
+esac
 ```
 
 ### Debug a denied transaction

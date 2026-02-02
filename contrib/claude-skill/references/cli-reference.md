@@ -20,7 +20,7 @@
 |---------|-------------|
 | `txgate ethereum address` | Display Ethereum address (EIP-55 checksummed) |
 | `txgate ethereum sign <TX>` | Sign a transaction (hex output) |
-| `txgate ethereum sign <TX> --format json` | Sign with JSON output |
+| `txgate ethereum sign <TX> -f json` | Sign with JSON output (`-f` / `--format`) |
 
 ## Bitcoin Commands
 
@@ -28,7 +28,7 @@
 |---------|-------------|
 | `txgate bitcoin address` | Display Bitcoin address (P2WPKH bech32) |
 | `txgate bitcoin sign <TX>` | Sign a Bitcoin transaction (hex output) |
-| `txgate bitcoin sign <TX> --format json` | Sign with JSON output |
+| `txgate bitcoin sign <TX> -f json` | Sign with JSON output (`-f` / `--format`) |
 
 ## Solana Commands
 
@@ -36,19 +36,19 @@
 |---------|-------------|
 | `txgate solana address` | Display Solana address (base58 ed25519) |
 | `txgate solana sign <TX>` | Sign a Solana transaction (hex output) |
-| `txgate solana sign <TX> --format json` | Sign with JSON output |
+| `txgate solana sign <TX> -f json` | Sign with JSON output (`-f` / `--format`) |
 
 ## Key Management Commands
 
 | Command | Description |
 |---------|-------------|
 | `txgate key list` | List all stored keys |
-| `txgate key list --details` | List keys with file details |
+| `txgate key list -d` | List keys with file details (`-d` / `--details`) |
 | `txgate key import <HEX>` | Import a private key (secp256k1) |
 | `txgate key import <HEX> --name NAME` | Import with custom name |
-| `txgate key import <HEX> --curve ed25519` | Import an ed25519 key (Solana) |
+| `txgate key import <HEX> -C ed25519` | Import an ed25519 key (`-C` / `--curve`) |
 | `txgate key export <NAME>` | Export a key as encrypted backup |
-| `txgate key export <NAME> --output PATH` | Export to specific file |
+| `txgate key export <NAME> -o PATH` | Export to specific file (`-o` / `--output`) |
 | `txgate key export <NAME> --force` | Overwrite existing export file |
 | `txgate key delete <NAME>` | Delete a key (with confirmation) |
 | `txgate key delete <NAME> --force` | Delete without confirmation |
