@@ -43,6 +43,7 @@
 //! - `txgate key import <HEX> [--name NAME]` - Import a private key
 //! - `txgate key export <NAME> [--output PATH] [--force]` - Export a key
 //! - `txgate key delete <NAME> [--force]` - Delete a key
+//! - `txgate install-skill` - Print Claude Code skill installation instructions
 
 pub mod args;
 pub mod commands;
