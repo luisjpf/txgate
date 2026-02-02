@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-02
+
+### Added
+
+- **Claude Code skill**: Added `contrib/claude-skill/` with a skill that teaches Claude how to use the TxGate CLI, including CLI reference and configuration reference.
+- **`txgate install-skill` command**: Prints installation instructions for the Claude Code skill. Does not write to the filesystem.
+
+### Fixed
+
+- Fixed `key list --verbose` references in USER_GUIDE.md to `key list --details` (matching actual CLI flag).
+
 ## [0.2.0] - 2026-01-30
 
 ### Added
