@@ -35,9 +35,9 @@
 use clap::Parser;
 use txgate::cli::commands::{
     AddressCommand, BitcoinAddressCommand, BitcoinSignCommand, BitcoinSignCommandError,
-    ConfigCommand, DeleteCommand, ExportCommand, ImportCommand, InitCommand, ListCommand,
-    ServeCommand, SignCommand, SignCommandError, SolanaAddressCommand, SolanaSignCommand,
-    SolanaSignCommandError, StatusCommand,
+    ConfigCommand, DeleteCommand, ExportCommand, ImportCommand, InitCommand, InstallSkillCommand,
+    ListCommand, ServeCommand, SignCommand, SignCommandError, SolanaAddressCommand,
+    SolanaSignCommand, SolanaSignCommandError, StatusCommand,
 };
 use txgate::cli::{BitcoinCommands, Cli, Commands, EthereumCommands, KeyCommands, SolanaCommands};
 use txgate::logging::{init_logging, verbosity_to_level, LogConfig, LogError, LogFormat, LogGuard};
@@ -88,6 +88,10 @@ fn main() {
         }
         Commands::Status => {
             let cmd = StatusCommand::new();
+            cmd.run().map_err(|e| e.to_string())
+        }
+        Commands::InstallSkill => {
+            let cmd = InstallSkillCommand::new();
             cmd.run().map_err(|e| e.to_string())
         }
         Commands::Config { action } => {

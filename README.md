@@ -119,6 +119,23 @@ Configuration is done via TOML files. See `config.example.toml` and
 - Configuration reference: `docs/CONFIGURATION.md`
 - Developer guide: `docs/DEVELOPER_GUIDE.md`
 
+## Claude Code Skill
+
+TxGate includes a [Claude Code](https://claude.ai/code) skill that teaches Claude
+how to use the TxGate CLI. To install it:
+
+```bash
+mkdir -p ~/.claude/skills/txgate/references
+curl -sL https://raw.githubusercontent.com/luisjpf/txgate/main/contrib/claude-skill/SKILL.md \
+  -o ~/.claude/skills/txgate/SKILL.md
+curl -sL https://raw.githubusercontent.com/luisjpf/txgate/main/contrib/claude-skill/references/cli-reference.md \
+  -o ~/.claude/skills/txgate/references/cli-reference.md
+curl -sL https://raw.githubusercontent.com/luisjpf/txgate/main/contrib/claude-skill/references/config-reference.md \
+  -o ~/.claude/skills/txgate/references/config-reference.md
+```
+
+Or run `txgate install-skill` for detailed instructions.
+
 ## Security
 
 TxGate is designed with security as a top priority:

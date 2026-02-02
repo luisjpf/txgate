@@ -143,6 +143,13 @@ pub enum Commands {
         #[command(subcommand)]
         command: KeyCommands,
     },
+
+    /// Print Claude Code skill installation instructions
+    ///
+    /// Displays instructions for installing the TxGate Claude Code skill,
+    /// which teaches Claude how to use the TxGate CLI.
+    /// This command only prints text and does not write to the filesystem.
+    InstallSkill,
 }
 
 /// Configuration-related actions.
@@ -1018,6 +1025,19 @@ mod tests {
             }
             _ => panic!("Expected Key Import command"),
         }
+    }
+
+    /// Test parsing of the install-skill command.
+    #[test]
+    fn test_parse_install_skill() {
+        let cli = Cli::try_parse_from(["txgate", "install-skill"]);
+        assert!(
+            cli.is_ok(),
+            "Failed to parse 'install-skill': {:?}",
+            cli.err()
+        );
+        let cli = cli.expect("CLI should parse");
+        assert!(matches!(cli.command, Commands::InstallSkill));
     }
 
     /// Test KeyImportArgs debug does not expose key.
