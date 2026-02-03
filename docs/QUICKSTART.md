@@ -14,7 +14,7 @@ Get started with TxGate in under 2 minutes.
 cargo install txgate
 
 # Or build from source
-git clone https://github.com/txgate-project/txgate.git
+git clone https://github.com/luisjpf/txgate.git
 cd txgate
 cargo install --path crates/txgate
 ```

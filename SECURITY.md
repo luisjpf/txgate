@@ -4,14 +4,15 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.2.x   | :white_check_mark: |
+| 0.1.x   | :x:                |
 
 ## Reporting a Vulnerability
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
 If you discover a security vulnerability in TxGate, please report it by emailing
-**security@txgate-project.org**. You should receive a response within 48 hours.
+**luis@mindysm.com**. You should receive a response within 48 hours.
 
 Please include the following information in your report:
 

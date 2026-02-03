@@ -11,7 +11,7 @@ By participating, you agree to follow the Code of Conduct in
 ## Security Issues
 
 Please do not report security vulnerabilities in public issues. Email
-security@txgate-project.org with a detailed report.
+luis@mindysm.com with a detailed report.
 
 ## Getting Started
 

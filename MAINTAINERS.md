@@ -10,4 +10,4 @@ making release decisions.
 ## Contact
 
 General: use GitHub issues or discussions.
-Security: security@txgate-project.org
+Security: luis@mindysm.com

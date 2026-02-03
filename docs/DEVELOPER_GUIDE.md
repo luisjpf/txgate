@@ -35,7 +35,7 @@ Optional but recommended:
 1. **Clone the repository**:
 
 ```bash
-git clone https://github.com/txgate-project/txgate.git
+git clone https://github.com/luisjpf/txgate.git
 cd txgate
 ```
 

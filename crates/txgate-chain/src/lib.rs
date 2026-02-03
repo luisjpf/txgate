@@ -12,7 +12,7 @@
 //!
 //! **Do not depend on this crate directly.** Instead:
 //! - For the signing server binary: `cargo install txgate`
-//! - For programmatic access: Open an issue at <https://github.com/txgate-project/txgate>
+//! - For programmatic access: Open an issue at <https://github.com/luisjpf/txgate>
 //!   to discuss a stable public API.
 //!
 //! This crate provides blockchain-specific transaction handling through the

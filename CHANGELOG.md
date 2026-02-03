@@ -160,6 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Constant-time operations for secret comparisons.
 - Audit logging provides forensic evidence for security incidents.
 
-[Unreleased]: https://github.com/txgate-project/txgate/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/txgate-project/txgate/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/txgate-project/txgate/releases/tag/v0.1.0
+[Unreleased]: https://github.com/luisjpf/txgate/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/luisjpf/txgate/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/luisjpf/txgate/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/luisjpf/txgate/releases/tag/v0.1.0

@@ -45,7 +45,7 @@ TxGate is a transaction signing daemon designed for secure, automated signing of
 
 ```bash
 # Clone the repository
-git clone https://github.com/txgate-project/txgate.git
+git clone https://github.com/luisjpf/txgate.git
 cd txgate
 
 # Build and install

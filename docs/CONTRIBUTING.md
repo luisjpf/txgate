@@ -31,7 +31,7 @@ Please read and follow `CODE_OF_CONDUCT.md` in the repository root.
 
 ### Submitting a Bug Report
 
-Create a [new issue](https://github.com/txgate-project/txgate/issues/new) with:
+Create a [new issue](https://github.com/luisjpf/txgate/issues/new) with:
 
 **Title**: Clear, descriptive title (e.g., "Ethereum parser fails on EIP-1559 transactions with access lists")
 
@@ -73,7 +73,7 @@ If possible, provide a minimal example that reproduces the issue:
 
 **Do not report security vulnerabilities through public issues.**
 
-Instead, email security@txgate-project.org with:
+Instead, email luis@mindysm.com with:
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -91,7 +91,7 @@ Instead, email security@txgate-project.org with:
 
 ### Submitting a Feature Request
 
-Create a [new issue](https://github.com/txgate-project/txgate/issues/new) with:
+Create a [new issue](https://github.com/luisjpf/txgate/issues/new) with:
 
 **Title**: "Feature: [Brief description]"
 
@@ -136,7 +136,7 @@ If you have ideas about implementation:
    ```
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream https://github.com/txgate-project/txgate.git
+   git remote add upstream https://github.com/luisjpf/txgate.git
    ```
 
 ### Development Workflow
@@ -504,7 +504,7 @@ When your changes affect:
 
 ## Questions?
 
-- **Discussion**: Open a [GitHub Discussion](https://github.com/txgate-project/txgate/discussions)
+- **Discussion**: Open a [GitHub Discussion](https://github.com/luisjpf/txgate/discussions)
 - **Chat**: Join our Discord (if available)
 - **Issues**: For bugs and feature requests
 
