@@ -204,7 +204,7 @@ struct SocketGuard {
 }
 
 impl SocketGuard {
-    fn new(path: PathBuf) -> Self {
+    const fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
@@ -384,13 +384,10 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
                 accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, _addr)) => {
-                            let permit = match connection_semaphore.clone().try_acquire_owned() {
-                                Ok(permit) => permit,
-                                Err(_) => {
-                                    tracing::warn!("Connection limit reached ({MAX_CONNECTIONS}), rejecting");
-                                    drop(stream);
-                                    continue;
-                                }
+                            let Ok(permit) = connection_semaphore.clone().try_acquire_owned() else {
+                                tracing::warn!("Connection limit reached ({MAX_CONNECTIONS}), rejecting");
+                                drop(stream);
+                                continue;
                             };
                             let server_clone = Arc::clone(&server);
                             tokio::spawn(async move {

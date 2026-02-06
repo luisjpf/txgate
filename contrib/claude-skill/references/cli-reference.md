@@ -53,6 +53,14 @@
 | `txgate key delete <NAME>` | Delete a key (with confirmation) |
 | `txgate key delete <NAME> --force` | Delete without confirmation |
 
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `TXGATE_PASSPHRASE` | Provide passphrase non-interactively (skips terminal prompt and confirmation) |
+| `RUST_LOG` | Control log verbosity (e.g. `txgate=debug`) |
+| `EDITOR` / `VISUAL` | Editor for `txgate config edit` |
+
 ## Global Options
 
 | Option | Description |

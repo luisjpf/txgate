@@ -23,6 +23,8 @@
 //! let cmd = InitCommand { force: false };
 //! cmd.run().expect("initialization failed");
 //! ```
+//!
+//! Set `TXGATE_PASSPHRASE` to skip the interactive prompt and confirmation.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -172,7 +174,7 @@ impl InitCommand {
         create_directory_structure(&base_dir)?;
 
         // 3. Prompt for passphrase (with confirmation)
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_new_passphrase_for_init()?;
 
         // 4. Generate secp256k1 keypair
         let secret_key = SecretKey::generate();
@@ -334,29 +336,15 @@ fn create_directory_structure(base_dir: &Path) -> Result<(), InitError> {
     Ok(())
 }
 
-/// Prompt for passphrase with confirmation.
-///
-/// Uses `rpassword` for secure hidden input.
-fn prompt_passphrase() -> Result<String, InitError> {
-    println!("Enter a passphrase to encrypt your key:");
-    let passphrase = rpassword::read_password().map_err(|_| InitError::PassphraseCancelled)?;
-
-    if passphrase.is_empty() {
-        return Err(InitError::PassphraseCancelled);
-    }
-
-    if passphrase.len() < MIN_PASSPHRASE_LENGTH {
-        return Err(InitError::PassphraseTooShort);
-    }
-
-    println!("Confirm your passphrase:");
-    let confirmation = rpassword::read_password().map_err(|_| InitError::PassphraseCancelled)?;
-
-    if passphrase != confirmation {
-        return Err(InitError::PassphraseMismatch);
-    }
-
-    Ok(passphrase)
+/// Read a new passphrase (from env var or interactive prompt with confirmation).
+fn read_new_passphrase_for_init() -> Result<String, InitError> {
+    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
+        crate::cli::passphrase::PassphraseError::TooShort { .. } => InitError::PassphraseTooShort,
+        crate::cli::passphrase::PassphraseError::Mismatch => InitError::PassphraseMismatch,
+        crate::cli::passphrase::PassphraseError::Empty
+        | crate::cli::passphrase::PassphraseError::Cancelled
+        | crate::cli::passphrase::PassphraseError::Io(_) => InitError::PassphraseCancelled,
+    })
 }
 
 /// Validate a passphrase.

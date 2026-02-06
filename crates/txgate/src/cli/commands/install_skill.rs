@@ -1,7 +1,7 @@
 //! # Install Skill Command
 //!
 //! Implementation of the `txgate install-skill` command that prints
-//! instructions for installing the TxGate Claude Code skill.
+//! instructions for installing the `TxGate` Claude Code skill.
 //!
 //! This command is intentionally read-only and does not write to the
 //! filesystem. For a transaction signing tool, automatic writes to
@@ -34,7 +34,7 @@ pub enum InstallSkillError {
 
 /// The `txgate install-skill` command handler.
 ///
-/// Prints instructions for installing the TxGate skill for Claude Code.
+/// Prints instructions for installing the `TxGate` skill for Claude Code.
 /// This command intentionally does NOT write to the filesystem.
 ///
 /// # Example
@@ -75,7 +75,7 @@ impl InstallSkillCommand {
 }
 
 /// Installation instructions text.
-const INSTRUCTIONS: &str = r#"TxGate Claude Code Skill
+const INSTRUCTIONS: &str = r"TxGate Claude Code Skill
 ========================
 
 TxGate includes a Claude Code skill that teaches Claude how to use the
@@ -112,7 +112,7 @@ configuration.
 Note: This command intentionally does not write to your filesystem.
 TxGate is a transaction signing tool and avoids unexpected file writes
 as a security practice.
-"#;
+";
 
 // ============================================================================
 // Tests

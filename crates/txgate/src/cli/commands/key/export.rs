@@ -30,7 +30,7 @@
 //! - Requires the current passphrase to decrypt the key
 //! - Requires a new passphrase for the export (with confirmation)
 //! - Output file permissions are set to 0600
-//! - Passphrase prompts require an interactive terminal (not piped input)
+//! - Passphrase can be provided via `TXGATE_PASSPHRASE` env var (skips confirmation) or interactive prompt
 //! - Wrong passphrase errors are detected reliably (not via string matching)
 
 use std::fs::{self, File};
@@ -187,10 +187,10 @@ impl ExportCommand {
         let base_dir = get_base_dir()?;
 
         // Prompt for current passphrase
-        let current_passphrase = prompt_current_passphrase()?;
+        let current_passphrase = read_current_passphrase()?;
 
         // Prompt for new passphrase
-        let new_passphrase = prompt_new_passphrase()?;
+        let new_passphrase = read_new_passphrase_for_export()?;
 
         self.run_with_base_dir_and_passphrases(&base_dir, &current_passphrase, &new_passphrase)
     }
@@ -307,48 +307,23 @@ fn get_base_dir() -> Result<PathBuf, ExportError> {
         .ok_or(ExportError::NoHomeDirectory)
 }
 
-/// Prompt for the current passphrase.
-fn prompt_current_passphrase() -> Result<String, ExportError> {
-    print!("Enter current passphrase: ");
-    io::stdout().flush()?;
-
-    let passphrase =
-        rpassword::read_password().map_err(|e| ExportError::TerminalError(e.to_string()))?;
-
-    if passphrase.is_empty() {
-        return Err(ExportError::Cancelled);
-    }
-
-    Ok(passphrase)
+/// Read the current passphrase (from env var or interactive prompt).
+fn read_current_passphrase() -> Result<String, ExportError> {
+    crate::cli::passphrase::read_passphrase().map_err(|e| match e {
+        crate::cli::passphrase::PassphraseError::Cancelled => ExportError::Cancelled,
+        other => ExportError::TerminalError(other.to_string()),
+    })
 }
 
-/// Prompt for a new passphrase with confirmation.
-fn prompt_new_passphrase() -> Result<String, ExportError> {
-    print!("Enter new passphrase for export: ");
-    io::stdout().flush()?;
-
-    let passphrase =
-        rpassword::read_password().map_err(|e| ExportError::TerminalError(e.to_string()))?;
-
-    if passphrase.is_empty() {
-        return Err(ExportError::Cancelled);
-    }
-
-    if passphrase.len() < MIN_PASSPHRASE_LENGTH {
-        return Err(ExportError::PassphraseTooShort);
-    }
-
-    print!("Confirm new passphrase: ");
-    io::stdout().flush()?;
-
-    let confirmation =
-        rpassword::read_password().map_err(|e| ExportError::TerminalError(e.to_string()))?;
-
-    if passphrase != confirmation {
-        return Err(ExportError::PassphraseMismatch);
-    }
-
-    Ok(passphrase)
+/// Read a new passphrase for export (from env var or interactive prompt with confirmation).
+fn read_new_passphrase_for_export() -> Result<String, ExportError> {
+    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
+        crate::cli::passphrase::PassphraseError::Empty
+        | crate::cli::passphrase::PassphraseError::Cancelled => ExportError::Cancelled,
+        crate::cli::passphrase::PassphraseError::TooShort { .. } => ExportError::PassphraseTooShort,
+        crate::cli::passphrase::PassphraseError::Mismatch => ExportError::PassphraseMismatch,
+        crate::cli::passphrase::PassphraseError::Io(e) => ExportError::TerminalError(e.to_string()),
+    })
 }
 
 // ============================================================================

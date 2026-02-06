@@ -173,7 +173,7 @@ impl AddressCommand {
         }
 
         // 3. Prompt for passphrase
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_passphrase_for_address()?;
 
         // 4. Load and decrypt key
         let keys_dir = base_dir.join(KEYS_DIR_NAME);
@@ -258,19 +258,12 @@ fn is_initialized(base_dir: &Path) -> bool {
     config_path.exists()
 }
 
-/// Prompt for passphrase.
-///
-/// Uses `rpassword` for secure hidden input.
-fn prompt_passphrase() -> Result<String, AddressError> {
-    println!("Enter passphrase to unlock ed25519 key:");
-    let passphrase = rpassword::read_password()
-        .map_err(|e| AddressError::PassphraseInputFailed(e.to_string()))?;
-
-    if passphrase.is_empty() {
-        return Err(AddressError::Cancelled);
-    }
-
-    Ok(passphrase)
+/// Read passphrase (from env var or interactive prompt).
+fn read_passphrase_for_address() -> Result<String, AddressError> {
+    crate::cli::passphrase::read_passphrase().map_err(|e| match e {
+        crate::cli::passphrase::PassphraseError::Cancelled => AddressError::Cancelled,
+        other => AddressError::KeyLoadError(other.to_string()),
+    })
 }
 
 // ============================================================================

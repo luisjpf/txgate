@@ -47,6 +47,7 @@
 
 pub mod args;
 pub mod commands;
+pub mod passphrase;
 
 // Re-export main types for convenience
 pub use args::{

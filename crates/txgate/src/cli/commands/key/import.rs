@@ -25,9 +25,9 @@
 //! - Passphrase must be at least 8 characters and confirmed
 //! - Intermediate key bytes are zeroized after use to prevent memory leaks
 //! - `ImportCommand` implements a custom `Debug` trait that redacts the secret key
-//! - Passphrase prompts require an interactive terminal (not piped input)
+//! - Passphrase can be provided via `TXGATE_PASSPHRASE` env var (skips confirmation) or interactive prompt
 
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use txgate_crypto::keypair::{Ed25519KeyPair, KeyPair, Secp256k1KeyPair};
@@ -184,7 +184,7 @@ impl ImportCommand {
     /// - I/O or storage errors occur
     pub fn run(&self) -> Result<(), ImportError> {
         let base_dir = get_base_dir()?;
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_new_passphrase_for_import()?;
         self.run_with_base_dir_and_passphrase(&base_dir, &passphrase)
     }
 
@@ -367,33 +367,15 @@ fn parse_hex_key(hex_str: &str) -> Result<[u8; SECRET_KEY_LEN], ImportError> {
     Ok(key)
 }
 
-/// Prompt for a passphrase with confirmation.
-fn prompt_passphrase() -> Result<String, ImportError> {
-    print!("Enter passphrase to encrypt the key: ");
-    io::stdout().flush()?;
-
-    let passphrase =
-        rpassword::read_password().map_err(|e| ImportError::TerminalError(e.to_string()))?;
-
-    if passphrase.is_empty() {
-        return Err(ImportError::Cancelled);
-    }
-
-    if passphrase.len() < MIN_PASSPHRASE_LENGTH {
-        return Err(ImportError::PassphraseTooShort);
-    }
-
-    print!("Confirm passphrase: ");
-    io::stdout().flush()?;
-
-    let confirmation =
-        rpassword::read_password().map_err(|e| ImportError::TerminalError(e.to_string()))?;
-
-    if passphrase != confirmation {
-        return Err(ImportError::PassphraseMismatch);
-    }
-
-    Ok(passphrase)
+/// Read a new passphrase (from env var or interactive prompt with confirmation).
+fn read_new_passphrase_for_import() -> Result<String, ImportError> {
+    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
+        crate::cli::passphrase::PassphraseError::Empty
+        | crate::cli::passphrase::PassphraseError::Cancelled => ImportError::Cancelled,
+        crate::cli::passphrase::PassphraseError::TooShort { .. } => ImportError::PassphraseTooShort,
+        crate::cli::passphrase::PassphraseError::Mismatch => ImportError::PassphraseMismatch,
+        crate::cli::passphrase::PassphraseError::Io(e) => ImportError::TerminalError(e.to_string()),
+    })
 }
 
 // ============================================================================

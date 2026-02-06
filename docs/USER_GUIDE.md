@@ -135,6 +135,7 @@ Keys are stored encrypted at `~/.txgate/keys/default.enc` with:
 - Minimum 8 characters
 - Required for all operations that access the key
 - Never stored on disk
+- Can be provided via the `TXGATE_PASSPHRASE` environment variable for non-interactive use (see [Configuration](CONFIGURATION.md#txgate_passphrase))
 
 ### Multiple Keys
 
@@ -295,7 +296,7 @@ txgate serve --foreground
 
 ### Server Behavior
 
-1. Prompts for passphrase to unlock the signing key
+1. Reads passphrase to unlock the signing key (from `TXGATE_PASSPHRASE` env var or interactive prompt)
 2. Starts listening on `~/.txgate/txgate.sock`
 3. Handles incoming JSON-RPC requests
 4. Enforces policy rules for each signing request
@@ -457,7 +458,8 @@ Get the signing address.
 ### Passphrase Security
 
 - Use a strong passphrase (12+ characters recommended)
-- Never store your passphrase in scripts or environment variables
+- For interactive use, prefer the terminal prompt over environment variables
+- The `TXGATE_PASSPHRASE` env var is available for CI/CD and scripting, but note that environment variables may be visible to other processes on the same system
 - Consider using a password manager
 
 ### File Permissions

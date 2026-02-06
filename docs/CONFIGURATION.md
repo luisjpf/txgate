@@ -367,6 +367,28 @@ export RUST_LOG=trace
 export RUST_LOG=warn,txgate=debug,txgate_policy=trace
 ```
 
+### TXGATE_PASSPHRASE
+
+Provides the passphrase non-interactively, bypassing the terminal prompt. Useful for CI/CD pipelines, scripts, and server mode without a TTY.
+
+```bash
+# Start the server without an interactive prompt
+TXGATE_PASSPHRASE=mypassphrase txgate serve --foreground
+
+# Sign a transaction in a script
+TXGATE_PASSPHRASE=mypassphrase txgate ethereum sign 0x...
+
+# Display address non-interactively
+TXGATE_PASSPHRASE=mypassphrase txgate ethereum address
+```
+
+> **Security warning:** Environment variables may be visible to other processes on the same system (e.g. via `/proc/<pid>/environ` on Linux). Prefer the interactive prompt when working in shared or untrusted environments.
+
+When `TXGATE_PASSPHRASE` is set:
+- Key unlock commands skip the interactive prompt
+- Key creation commands (init, import, export) skip the confirmation step
+- A notice is printed to stderr: `Using passphrase from TXGATE_PASSPHRASE environment variable`
+
 ### EDITOR / VISUAL
 
 Used by `txgate config edit` to determine the text editor.
