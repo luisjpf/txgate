@@ -54,8 +54,11 @@ use txgate_crypto::signer::{Chain as SignerChain, Secp256k1Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
 use txgate_policy::engine::{DefaultPolicyEngine, PolicyEngine};
 
+use zeroize::Zeroizing;
+
 use crate::cli::args::OutputFormat;
 use crate::cli::commands::exit_codes::{EXIT_ERROR, EXIT_POLICY_DENIED};
+use crate::cli::passphrase::PassphraseError;
 
 // ============================================================================
 // Constants
@@ -266,7 +269,7 @@ impl SignCommand {
             .map_err(|e| SignCommandError::ConfigError(e.to_string()))?;
 
         // 5. Prompt for passphrase
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_passphrase_for_sign()?;
 
         // 6. Load and decrypt key
         let keys_dir = base_dir.join(KEYS_DIR_NAME);
@@ -461,19 +464,13 @@ fn is_initialized(base_dir: &Path) -> bool {
     config_path.exists()
 }
 
-/// Prompt for passphrase.
-///
-/// Uses `rpassword` for secure hidden input.
-fn prompt_passphrase() -> Result<String, SignCommandError> {
-    println!("Enter passphrase to unlock key:");
-    let passphrase = rpassword::read_password()
-        .map_err(|e| SignCommandError::PassphraseInputFailed(e.to_string()))?;
-
-    if passphrase.is_empty() {
-        return Err(SignCommandError::Cancelled);
-    }
-
-    Ok(passphrase)
+/// Read passphrase (from env var or interactive prompt).
+fn read_passphrase_for_sign() -> Result<Zeroizing<String>, SignCommandError> {
+    crate::cli::passphrase::read_passphrase().map_err(|e| match e {
+        PassphraseError::Empty | PassphraseError::Cancelled => SignCommandError::Cancelled,
+        PassphraseError::Io(e) => SignCommandError::Io(e),
+        other => SignCommandError::PassphraseInputFailed(other.to_string()),
+    })
 }
 
 /// Decode hex-encoded input.

@@ -23,6 +23,8 @@
 //! let cmd = InitCommand { force: false };
 //! cmd.run().expect("initialization failed");
 //! ```
+//!
+//! Set `TXGATE_PASSPHRASE` to skip the interactive prompt and confirmation.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -36,13 +38,13 @@ use txgate_core::error::{ConfigError, StoreError};
 use txgate_crypto::keypair::{KeyPair, Secp256k1KeyPair};
 use txgate_crypto::keys::SecretKey;
 use txgate_crypto::store::{FileKeyStore, KeyStore};
+use zeroize::Zeroizing;
+
+use crate::cli::passphrase::{PassphraseError, MIN_PASSPHRASE_LENGTH};
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-/// Minimum passphrase length in characters.
-const MIN_PASSPHRASE_LENGTH: usize = 8;
 
 /// Default key name for the generated key.
 const DEFAULT_KEY_NAME: &str = "default";
@@ -172,7 +174,7 @@ impl InitCommand {
         create_directory_structure(&base_dir)?;
 
         // 3. Prompt for passphrase (with confirmation)
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_new_passphrase_for_init()?;
 
         // 4. Generate secp256k1 keypair
         let secret_key = SecretKey::generate();
@@ -334,35 +336,20 @@ fn create_directory_structure(base_dir: &Path) -> Result<(), InitError> {
     Ok(())
 }
 
-/// Prompt for passphrase with confirmation.
-///
-/// Uses `rpassword` for secure hidden input.
-fn prompt_passphrase() -> Result<String, InitError> {
-    println!("Enter a passphrase to encrypt your key:");
-    let passphrase = rpassword::read_password().map_err(|_| InitError::PassphraseCancelled)?;
-
-    if passphrase.is_empty() {
-        return Err(InitError::PassphraseCancelled);
-    }
-
-    if passphrase.len() < MIN_PASSPHRASE_LENGTH {
-        return Err(InitError::PassphraseTooShort);
-    }
-
-    println!("Confirm your passphrase:");
-    let confirmation = rpassword::read_password().map_err(|_| InitError::PassphraseCancelled)?;
-
-    if passphrase != confirmation {
-        return Err(InitError::PassphraseMismatch);
-    }
-
-    Ok(passphrase)
+/// Read a new passphrase (from env var or interactive prompt with confirmation).
+fn read_new_passphrase_for_init() -> Result<Zeroizing<String>, InitError> {
+    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
+        PassphraseError::TooShort { .. } => InitError::PassphraseTooShort,
+        PassphraseError::Mismatch => InitError::PassphraseMismatch,
+        PassphraseError::Empty | PassphraseError::Cancelled => InitError::PassphraseCancelled,
+        PassphraseError::Io(e) => InitError::Io(e),
+    })
 }
 
 /// Validate a passphrase.
 ///
 /// Checks that the passphrase meets minimum length requirements.
-#[allow(dead_code, clippy::missing_const_for_fn)]
+#[cfg(test)]
 fn validate_passphrase(passphrase: &str) -> Result<(), InitError> {
     if passphrase.len() < MIN_PASSPHRASE_LENGTH {
         return Err(InitError::PassphraseTooShort);

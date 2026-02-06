@@ -25,9 +25,9 @@
 //! - Passphrase must be at least 8 characters and confirmed
 //! - Intermediate key bytes are zeroized after use to prevent memory leaks
 //! - `ImportCommand` implements a custom `Debug` trait that redacts the secret key
-//! - Passphrase prompts require an interactive terminal (not piped input)
+//! - Passphrase can be provided via `TXGATE_PASSPHRASE` env var (skips confirmation) or interactive prompt
 
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use txgate_crypto::keypair::{Ed25519KeyPair, KeyPair, Secp256k1KeyPair};
@@ -36,6 +36,7 @@ use txgate_crypto::store::{FileKeyStore, KeyStore};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::cli::args::CurveArg;
+use crate::cli::passphrase::{PassphraseError, MIN_PASSPHRASE_LENGTH};
 
 // ============================================================================
 // Constants
@@ -49,9 +50,6 @@ const KEYS_DIR_NAME: &str = "keys";
 
 /// Expected length of a private key in bytes.
 const SECRET_KEY_LEN: usize = 32;
-
-/// Minimum passphrase length.
-const MIN_PASSPHRASE_LENGTH: usize = 8;
 
 /// Maximum key name length.
 const MAX_KEY_NAME_LENGTH: usize = 64;
@@ -184,7 +182,7 @@ impl ImportCommand {
     /// - I/O or storage errors occur
     pub fn run(&self) -> Result<(), ImportError> {
         let base_dir = get_base_dir()?;
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_new_passphrase_for_import()?;
         self.run_with_base_dir_and_passphrase(&base_dir, &passphrase)
     }
 
@@ -367,33 +365,14 @@ fn parse_hex_key(hex_str: &str) -> Result<[u8; SECRET_KEY_LEN], ImportError> {
     Ok(key)
 }
 
-/// Prompt for a passphrase with confirmation.
-fn prompt_passphrase() -> Result<String, ImportError> {
-    print!("Enter passphrase to encrypt the key: ");
-    io::stdout().flush()?;
-
-    let passphrase =
-        rpassword::read_password().map_err(|e| ImportError::TerminalError(e.to_string()))?;
-
-    if passphrase.is_empty() {
-        return Err(ImportError::Cancelled);
-    }
-
-    if passphrase.len() < MIN_PASSPHRASE_LENGTH {
-        return Err(ImportError::PassphraseTooShort);
-    }
-
-    print!("Confirm passphrase: ");
-    io::stdout().flush()?;
-
-    let confirmation =
-        rpassword::read_password().map_err(|e| ImportError::TerminalError(e.to_string()))?;
-
-    if passphrase != confirmation {
-        return Err(ImportError::PassphraseMismatch);
-    }
-
-    Ok(passphrase)
+/// Read a new passphrase (from env var or interactive prompt with confirmation).
+fn read_new_passphrase_for_import() -> Result<Zeroizing<String>, ImportError> {
+    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
+        PassphraseError::Empty | PassphraseError::Cancelled => ImportError::Cancelled,
+        PassphraseError::TooShort { .. } => ImportError::PassphraseTooShort,
+        PassphraseError::Mismatch => ImportError::PassphraseMismatch,
+        PassphraseError::Io(e) => ImportError::TerminalError(e.to_string()),
+    })
 }
 
 // ============================================================================

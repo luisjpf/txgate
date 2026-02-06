@@ -146,8 +146,8 @@ pub enum Commands {
 
     /// Print Claude Code skill installation instructions
     ///
-    /// Displays instructions for installing the TxGate Claude Code skill,
-    /// which teaches Claude how to use the TxGate CLI.
+    /// Displays instructions for installing the `TxGate` Claude Code skill,
+    /// which teaches Claude how to use the `TxGate` CLI.
     /// This command only prints text and does not write to the filesystem.
     InstallSkill,
 }

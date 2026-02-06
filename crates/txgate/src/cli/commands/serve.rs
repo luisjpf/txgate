@@ -4,18 +4,18 @@
 //!
 //! This module implements the `txgate serve` command which:
 //! - Loads the encrypted key from `~/.txgate/keys/default.enc`
-//! - Prompts for the passphrase to decrypt the key
+//! - Reads the passphrase to decrypt the key (from `TXGATE_PASSPHRASE` env var or interactive prompt)
 //! - Starts the Unix socket server for signing requests
 //! - Handles graceful shutdown via SIGTERM/SIGINT
 //!
 //! ## Usage
 //!
 //! ```bash
-//! # Start the server (runs in foreground)
-//! txgate serve
-//!
-//! # Explicitly run in foreground mode
+//! # Start the server (interactive passphrase prompt)
 //! txgate serve --foreground
+//!
+//! # Start the server non-interactively
+//! TXGATE_PASSPHRASE=mypass txgate serve --foreground
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -27,7 +27,10 @@ use txgate_crypto::store::{FileKeyStore, KeyStore};
 use txgate_policy::engine::DefaultPolicyEngine;
 use txgate_policy::PolicyConfig;
 
+use zeroize::Zeroizing;
+
 use crate::audit::AuditLogger;
+use crate::cli::passphrase::PassphraseError;
 use crate::server::{ServerConfig as SocketServerConfig, ServerError, TxGateServer};
 
 /// Command to start the `TxGate` signing server.
@@ -101,7 +104,7 @@ pub enum ServeError {
 
 impl From<ServerError> for ServeError {
     fn from(e: ServerError) -> Self {
-        ServeError::ServerError(e.to_string())
+        Self::ServerError(e.to_string())
     }
 }
 
@@ -150,8 +153,8 @@ impl ServeCommand {
         // we would load from ~/.txgate/config.toml)
         let config = load_config(&base_dir)?;
 
-        // 3. Prompt for passphrase
-        let passphrase = prompt_passphrase()?;
+        // 3. Read passphrase (env var or interactive prompt)
+        let passphrase = read_passphrase_for_serve()?;
 
         // 4. Load and decrypt default key
         let keypair = load_key(&base_dir, &passphrase)?;
@@ -251,16 +254,12 @@ fn load_config(base_dir: &Path) -> Result<ServeConfig, ServeError> {
     Ok(ServeConfig::default())
 }
 
-/// Prompt the user for their passphrase.
-fn prompt_passphrase() -> Result<String, ServeError> {
-    println!("Enter passphrase to unlock signing key:");
-
-    rpassword::read_password().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::UnexpectedEof {
-            ServeError::Cancelled
-        } else {
-            ServeError::Io(e)
-        }
+/// Read the passphrase (from env var or interactive prompt).
+fn read_passphrase_for_serve() -> Result<Zeroizing<String>, ServeError> {
+    crate::cli::passphrase::read_passphrase().map_err(|e| match e {
+        PassphraseError::Empty | PassphraseError::Cancelled => ServeError::Cancelled,
+        PassphraseError::Io(io_err) => ServeError::Io(io_err),
+        other => ServeError::ConfigError(other.to_string()),
     })
 }
 

@@ -30,6 +30,9 @@ use txgate_core::error::StoreError;
 use txgate_crypto::keypair::Secp256k1KeyPair;
 use txgate_crypto::signer::{Chain, Secp256k1Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
+use zeroize::Zeroizing;
+
+use crate::cli::passphrase::PassphraseError;
 
 // ============================================================================
 // Constants
@@ -169,7 +172,7 @@ impl AddressCommand {
         }
 
         // 3. Prompt for passphrase
-        let passphrase = prompt_passphrase()?;
+        let passphrase = read_passphrase_for_address()?;
 
         // 4. Load and decrypt key
         let keys_dir = base_dir.join(KEYS_DIR_NAME);
@@ -254,18 +257,13 @@ fn is_initialized(base_dir: &Path) -> bool {
     config_path.exists()
 }
 
-/// Prompt for passphrase.
-///
-/// Uses `rpassword` for secure hidden input.
-fn prompt_passphrase() -> Result<String, AddressError> {
-    println!("Enter passphrase to unlock key:");
-    let passphrase = rpassword::read_password().map_err(|_| AddressError::Cancelled)?;
-
-    if passphrase.is_empty() {
-        return Err(AddressError::Cancelled);
-    }
-
-    Ok(passphrase)
+/// Read passphrase (from env var or interactive prompt).
+fn read_passphrase_for_address() -> Result<Zeroizing<String>, AddressError> {
+    crate::cli::passphrase::read_passphrase().map_err(|e| match e {
+        PassphraseError::Empty | PassphraseError::Cancelled => AddressError::Cancelled,
+        PassphraseError::Io(e) => AddressError::Io(e),
+        other => AddressError::KeyLoadError(other.to_string()),
+    })
 }
 
 // ============================================================================

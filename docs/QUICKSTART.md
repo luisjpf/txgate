@@ -25,7 +25,7 @@ cargo install --path crates/txgate
 txgate init
 ```
 
-You will be prompted to create a passphrase (minimum 8 characters). This passphrase encrypts your signing key.
+You will be prompted to create a passphrase (minimum 8 characters). This passphrase encrypts your signing key. You can also set the `TXGATE_PASSPHRASE` environment variable to skip interactive prompts.
 
 Example output:
 ```
@@ -48,7 +48,7 @@ Next steps:
 txgate ethereum address
 ```
 
-Enter your passphrase when prompted. Your Ethereum address (EIP-55 checksummed) will be displayed.
+Enter your passphrase when prompted (or set `TXGATE_PASSPHRASE`). Your Ethereum address (EIP-55 checksummed) will be displayed.
 
 ## Sign Your First Transaction
 
