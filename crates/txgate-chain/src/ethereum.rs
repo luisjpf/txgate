@@ -542,10 +542,15 @@ impl EthereumParser {
                 .get(32..64)
                 .ok_or_else(|| ParseError::assembly_failed("signature too short for s"))?,
         );
-        let v_parity = signature
+        let v_byte = *signature
             .get(64)
-            .ok_or_else(|| ParseError::assembly_failed("signature too short for v"))?
-            != &0;
+            .ok_or_else(|| ParseError::assembly_failed("signature too short for v"))?;
+        if v_byte > 1 {
+            return Err(ParseError::assembly_failed(format!(
+                "invalid recovery id: expected 0 or 1, got {v_byte}"
+            )));
+        }
+        let v_parity = v_byte != 0;
 
         let sig = Signature::new(r, s, v_parity);
 
@@ -2699,5 +2704,26 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("expected 65-byte signature"));
+    }
+
+    #[test]
+    fn test_assemble_signed_invalid_recovery_id() {
+        let raw = encode_eip1559_tx(
+            1,
+            0,
+            1_000_000_000,
+            2_000_000_000,
+            21000,
+            Some(Address::ZERO),
+            U256::ZERO,
+            Bytes::new(),
+        );
+
+        let mut bad_sig = [0u8; 65];
+        bad_sig[64] = 2; // invalid: must be 0 or 1
+        let result = EthereumParser::assemble_signed(&raw, &bad_sig);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("invalid recovery id"));
     }
 }

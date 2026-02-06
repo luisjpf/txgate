@@ -320,7 +320,8 @@ impl SignCommand {
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
         // 12. Assemble the signed transaction
-        let signed_tx = EthereumParser::assemble_signed(&tx_bytes, &signature)
+        let signed_tx = parser
+            .assemble_signed(&tx_bytes, &signature)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
         // 13. Output the result
@@ -422,7 +423,8 @@ impl SignCommand {
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
         // 11. Assemble the signed transaction
-        let signed_tx = EthereumParser::assemble_signed(&tx_bytes, &signature)
+        let signed_tx = parser
+            .assemble_signed(&tx_bytes, &signature)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
         Ok(SignOutput {

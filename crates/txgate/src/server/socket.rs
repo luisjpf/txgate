@@ -634,11 +634,13 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
         let v = signature.get(64).copied().unwrap_or(0);
 
         // Assemble signed transaction (best-effort; not all chains support this)
-        let signed_transaction = self
-            .parser
-            .assemble_signed(&tx_bytes, &signature)
-            .ok()
-            .map(|bytes| format!("0x{}", hex::encode(&bytes)));
+        let signed_transaction = match self.parser.assemble_signed(&tx_bytes, &signature) {
+            Ok(bytes) => Some(format!("0x{}", hex::encode(&bytes))),
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to assemble signed transaction");
+                None
+            }
+        };
 
         // Build the sign result
         let sign_result = SignResult {
