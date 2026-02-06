@@ -187,6 +187,16 @@ impl ExportCommand {
     pub fn run(&self) -> Result<(), ExportError> {
         let base_dir = get_base_dir()?;
 
+        // If TXGATE_EXPORT_PASSPHRASE is not set but TXGATE_PASSPHRASE is,
+        // copy the value so the export passphrase fallback still works after
+        // read_current_passphrase() clears TXGATE_PASSPHRASE.
+        if std::env::var(crate::cli::passphrase::EXPORT_ENV_VAR).is_err() {
+            if let Ok(val) = std::env::var(crate::cli::passphrase::ENV_VAR) {
+                let val = Zeroizing::new(val);
+                std::env::set_var(crate::cli::passphrase::EXPORT_ENV_VAR, &*val);
+            }
+        }
+
         // Prompt for current passphrase
         let current_passphrase = read_current_passphrase()?;
 
