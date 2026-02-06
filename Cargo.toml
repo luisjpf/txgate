@@ -58,6 +58,7 @@ sha3 = "0.10"
 
 # Ethereum/EVM parsing
 alloy-consensus = "1.4"
+alloy-eips = "1.4"
 alloy-primitives = { version = "1.5", features = ["serde"] }
 alloy-rlp = "0.3"
 

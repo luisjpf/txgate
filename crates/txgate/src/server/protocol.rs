@@ -471,6 +471,11 @@ pub struct SignResult {
     /// Full signature hex (65 bytes: r || s || v)
     pub signature: String,
 
+    /// Fully assembled signed transaction (hex encoded), ready for broadcast.
+    /// Only present for chains that support transaction assembly (e.g., Ethereum).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signed_transaction: Option<String>,
+
     /// Parsed transaction details
     pub transaction: TransactionDetails,
 }
@@ -928,6 +933,7 @@ mod tests {
                 s: "0x5678".to_string(),
                 v: 27,
                 signature: "0x123456789...".to_string(),
+                signed_transaction: Some("0xsigned".to_string()),
                 transaction: TransactionDetails {
                     tx_type: "eip1559".to_string(),
                     recipient: Some("0xrecipient".to_string()),
@@ -941,6 +947,7 @@ mod tests {
             let json = serde_json::to_value(&result).expect("should serialize");
             assert_eq!(json["tx_hash"], "0xabc123");
             assert_eq!(json["v"], 27);
+            assert_eq!(json["signed_transaction"], "0xsigned");
             assert_eq!(json["transaction"]["tx_type"], "eip1559");
             assert_eq!(json["transaction"]["nonce"], 5);
         }
@@ -966,9 +973,36 @@ mod tests {
             let result: SignResult = serde_json::from_str(json).expect("should deserialize");
             assert_eq!(result.tx_hash, "0xabc");
             assert_eq!(result.v, 28);
+            assert!(result.signed_transaction.is_none());
             assert!(result.transaction.recipient.is_none());
             assert_eq!(result.transaction.token, Some("0xtoken".to_string()));
             assert_eq!(result.transaction.chain_id, 137);
+        }
+
+        #[test]
+        fn test_signed_transaction_none_omitted_in_json() {
+            let result = SignResult {
+                tx_hash: "0xabc".to_string(),
+                r: "0x1".to_string(),
+                s: "0x2".to_string(),
+                v: 0,
+                signature: "0xfull".to_string(),
+                signed_transaction: None,
+                transaction: TransactionDetails {
+                    tx_type: "legacy".to_string(),
+                    recipient: None,
+                    amount: "0".to_string(),
+                    token: None,
+                    nonce: 0,
+                    chain_id: 1,
+                },
+            };
+
+            let json = serde_json::to_value(&result).expect("should serialize");
+            assert!(
+                json.get("signed_transaction").is_none(),
+                "None signed_transaction should be omitted from JSON"
+            );
         }
     }
 

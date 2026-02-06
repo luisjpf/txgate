@@ -311,6 +311,39 @@ pub trait Chain: Send + Sync {
         let _ = version;
         true
     }
+
+    /// Assemble a signed transaction from raw bytes and a signature.
+    ///
+    /// Takes the original raw transaction bytes and the 65-byte signature
+    /// (`r[32] || s[32] || recovery_id[1]`) and returns the fully encoded
+    /// signed transaction ready for network broadcast.
+    ///
+    /// # Default Implementation
+    ///
+    /// Returns [`ParseError::AssemblyFailed`] — not all chains support assembly.
+    /// Chains that can assemble signed transactions should override this method.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw` - The raw transaction bytes (as passed to `parse()`)
+    /// * `signature` - 65-byte signature: `r(32) || s(32) || recovery_id(1)`
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<u8>)` - The assembled signed transaction bytes
+    /// * `Err(ParseError::AssemblyFailed)` - Assembly is not supported or failed
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError::AssemblyFailed`] if the chain does not support
+    /// transaction assembly, or if the assembly process fails.
+    fn assemble_signed(&self, raw: &[u8], signature: &[u8]) -> Result<Vec<u8>, ParseError> {
+        let _ = (raw, signature);
+        Err(ParseError::assembly_failed(format!(
+            "transaction assembly not supported for chain: {}",
+            self.id()
+        )))
+    }
 }
 
 // ============================================================================
@@ -729,5 +762,34 @@ mod tests {
             result,
             Err(ParseError::MalformedTransaction { .. })
         ));
+    }
+
+    #[test]
+    fn test_default_assemble_signed_returns_error() {
+        let mock = MockChain {
+            id: "test-chain",
+            curve: CurveType::Secp256k1,
+            parse_result: None,
+            parse_error: None,
+        };
+
+        let result = mock.assemble_signed(&[0x01, 0x02], &[0u8; 65]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("not supported"),
+            "Expected 'not supported' error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_ethereum_parser_assemble_signed_via_trait() {
+        use crate::ethereum::EthereumParser;
+
+        let parser = EthereumParser::new();
+        // Invalid raw data should produce an error, not panic
+        let result = parser.assemble_signed(&[0xc0], &[0u8; 65]);
+        // The result should be an error since 0xc0 is an empty RLP list
+        assert!(result.is_err());
     }
 }
