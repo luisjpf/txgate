@@ -19,7 +19,8 @@
 //! ```
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+
+use txgate_chain::ethereum::EthereumParser;
 
 use txgate_crypto::keypair::Secp256k1KeyPair;
 use txgate_crypto::signer::{Chain, Secp256k1Signer, Signer};
@@ -28,6 +29,7 @@ use txgate_policy::engine::DefaultPolicyEngine;
 use txgate_policy::PolicyConfig;
 
 use crate::audit::AuditLogger;
+use crate::server::socket::{ServerConfig as SocketServerConfig, TxGateServer};
 
 /// Command to start the `TxGate` signing server.
 ///
@@ -96,6 +98,12 @@ pub enum ServeError {
     /// Failed to initialize audit logger.
     #[error("Audit logger error: {0}")]
     AuditError(String),
+}
+
+impl From<crate::server::socket::ServerError> for ServeError {
+    fn from(e: crate::server::socket::ServerError) -> Self {
+        ServeError::ServerError(e.to_string())
+    }
 }
 
 impl ServeCommand {
@@ -172,25 +180,27 @@ impl ServeCommand {
             audit_logger.is_some(),
         );
 
-        // Store components in Arc for sharing
-        let _signer = Arc::new(signer);
-        let _policy_engine = Arc::new(policy_engine);
-        let _audit_logger = audit_logger.map(Arc::new);
+        // 9. Create and run the server
+        let server_config = SocketServerConfig {
+            socket_path,
+            socket_permissions: 0o600,
+        };
+        let parser = EthereumParser::new();
+        let server = TxGateServer::new(server_config, signer, policy_engine, parser, audit_logger);
 
-        // 9. Set up signal handling
-        // 10. Start server and wait for shutdown
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
 
-        // For now, just wait for shutdown signal since the full server
-        // implementation (TxGateServer) is being developed in a separate task
-        tracing::info!(
-            socket = %socket_path.display(),
-            "Server would start here (server implementation pending)"
-        );
+        // 10. Spawn signal handler
+        tokio::spawn(async move {
+            if let Err(e) = wait_for_shutdown().await {
+                tracing::error!(error = %e, "Signal handler failed");
+            }
+            let _ = shutdown_tx.send(());
+        });
 
-        // Wait for shutdown signal
-        wait_for_shutdown().await?;
+        // Run the server (blocks until shutdown)
+        server.run(shutdown_rx).await?;
 
-        tracing::info!("Server shutting down gracefully");
         println!("\nServer stopped.");
 
         Ok(())
@@ -199,7 +209,7 @@ impl ServeCommand {
 
 /// Server configuration loaded from config file.
 #[derive(Debug, Default)]
-struct ServerConfig {
+struct ServeConfig {
     /// Policy configuration.
     policy: PolicyConfig,
 }
@@ -224,7 +234,7 @@ fn check_initialized(base_dir: &Path) -> Result<(), ServeError> {
 }
 
 /// Load configuration from the base directory.
-fn load_config(base_dir: &Path) -> Result<ServerConfig, ServeError> {
+fn load_config(base_dir: &Path) -> Result<ServeConfig, ServeError> {
     let config_path = base_dir.join("config.toml");
 
     if config_path.exists() {
@@ -239,7 +249,7 @@ fn load_config(base_dir: &Path) -> Result<ServerConfig, ServeError> {
     }
 
     // Return default config for now
-    Ok(ServerConfig::default())
+    Ok(ServeConfig::default())
 }
 
 /// Prompt the user for their passphrase.
@@ -733,16 +743,16 @@ mod tests {
 
         #[test]
         fn test_server_config_default() {
-            let config = ServerConfig::default();
+            let config = ServeConfig::default();
             // Just verify it has default policy
             assert!(!config.policy.whitelist_enabled);
         }
 
         #[test]
         fn test_server_config_debug() {
-            let config = ServerConfig::default();
+            let config = ServeConfig::default();
             let debug = format!("{:?}", config);
-            assert!(debug.contains("ServerConfig"));
+            assert!(debug.contains("ServeConfig"));
         }
     }
 
