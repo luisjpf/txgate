@@ -38,13 +38,13 @@ use txgate_core::error::{ConfigError, StoreError};
 use txgate_crypto::keypair::{KeyPair, Secp256k1KeyPair};
 use txgate_crypto::keys::SecretKey;
 use txgate_crypto::store::{FileKeyStore, KeyStore};
+use zeroize::Zeroizing;
+
+use crate::cli::passphrase::{PassphraseError, MIN_PASSPHRASE_LENGTH};
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-/// Minimum passphrase length in characters.
-const MIN_PASSPHRASE_LENGTH: usize = 8;
 
 /// Default key name for the generated key.
 const DEFAULT_KEY_NAME: &str = "default";
@@ -337,20 +337,20 @@ fn create_directory_structure(base_dir: &Path) -> Result<(), InitError> {
 }
 
 /// Read a new passphrase (from env var or interactive prompt with confirmation).
-fn read_new_passphrase_for_init() -> Result<String, InitError> {
+fn read_new_passphrase_for_init() -> Result<Zeroizing<String>, InitError> {
     crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::TooShort { .. } => InitError::PassphraseTooShort,
-        crate::cli::passphrase::PassphraseError::Mismatch => InitError::PassphraseMismatch,
-        crate::cli::passphrase::PassphraseError::Empty
-        | crate::cli::passphrase::PassphraseError::Cancelled
-        | crate::cli::passphrase::PassphraseError::Io(_) => InitError::PassphraseCancelled,
+        PassphraseError::TooShort { .. } => InitError::PassphraseTooShort,
+        PassphraseError::Mismatch => InitError::PassphraseMismatch,
+        PassphraseError::Empty | PassphraseError::Cancelled | PassphraseError::Io(_) => {
+            InitError::PassphraseCancelled
+        }
     })
 }
 
 /// Validate a passphrase.
 ///
 /// Checks that the passphrase meets minimum length requirements.
-#[allow(dead_code, clippy::missing_const_for_fn)]
+#[cfg(test)]
 fn validate_passphrase(passphrase: &str) -> Result<(), InitError> {
     if passphrase.len() < MIN_PASSPHRASE_LENGTH {
         return Err(InitError::PassphraseTooShort);

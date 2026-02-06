@@ -54,8 +54,11 @@ use txgate_crypto::signer::{Chain as SignerChain, Ed25519Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
 use txgate_policy::engine::{DefaultPolicyEngine, PolicyEngine};
 
+use zeroize::Zeroizing;
+
 use crate::cli::args::OutputFormat;
 use crate::cli::commands::exit_codes::{EXIT_ERROR, EXIT_POLICY_DENIED};
+use crate::cli::passphrase::PassphraseError;
 
 // ============================================================================
 // Constants
@@ -462,9 +465,9 @@ fn is_initialized(base_dir: &Path) -> bool {
 }
 
 /// Read passphrase (from env var or interactive prompt).
-fn read_passphrase_for_sign() -> Result<String, SignCommandError> {
+fn read_passphrase_for_sign() -> Result<Zeroizing<String>, SignCommandError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::Cancelled => SignCommandError::Cancelled,
+        PassphraseError::Empty | PassphraseError::Cancelled => SignCommandError::Cancelled,
         other => SignCommandError::PassphraseInputFailed(other.to_string()),
     })
 }

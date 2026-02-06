@@ -36,6 +36,7 @@ use txgate_crypto::store::{FileKeyStore, KeyStore};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::cli::args::CurveArg;
+use crate::cli::passphrase::{PassphraseError, MIN_PASSPHRASE_LENGTH};
 
 // ============================================================================
 // Constants
@@ -49,9 +50,6 @@ const KEYS_DIR_NAME: &str = "keys";
 
 /// Expected length of a private key in bytes.
 const SECRET_KEY_LEN: usize = 32;
-
-/// Minimum passphrase length.
-const MIN_PASSPHRASE_LENGTH: usize = 8;
 
 /// Maximum key name length.
 const MAX_KEY_NAME_LENGTH: usize = 64;
@@ -368,13 +366,12 @@ fn parse_hex_key(hex_str: &str) -> Result<[u8; SECRET_KEY_LEN], ImportError> {
 }
 
 /// Read a new passphrase (from env var or interactive prompt with confirmation).
-fn read_new_passphrase_for_import() -> Result<String, ImportError> {
+fn read_new_passphrase_for_import() -> Result<Zeroizing<String>, ImportError> {
     crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::Empty
-        | crate::cli::passphrase::PassphraseError::Cancelled => ImportError::Cancelled,
-        crate::cli::passphrase::PassphraseError::TooShort { .. } => ImportError::PassphraseTooShort,
-        crate::cli::passphrase::PassphraseError::Mismatch => ImportError::PassphraseMismatch,
-        crate::cli::passphrase::PassphraseError::Io(e) => ImportError::TerminalError(e.to_string()),
+        PassphraseError::Empty | PassphraseError::Cancelled => ImportError::Cancelled,
+        PassphraseError::TooShort { .. } => ImportError::PassphraseTooShort,
+        PassphraseError::Mismatch => ImportError::PassphraseMismatch,
+        PassphraseError::Io(e) => ImportError::TerminalError(e.to_string()),
     })
 }
 

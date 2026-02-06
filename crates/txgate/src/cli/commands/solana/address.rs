@@ -30,6 +30,9 @@ use txgate_core::error::StoreError;
 use txgate_crypto::keypair::Ed25519KeyPair;
 use txgate_crypto::signer::{Chain, Ed25519Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
+use zeroize::Zeroizing;
+
+use crate::cli::passphrase::PassphraseError;
 
 // ============================================================================
 // Constants
@@ -259,9 +262,9 @@ fn is_initialized(base_dir: &Path) -> bool {
 }
 
 /// Read passphrase (from env var or interactive prompt).
-fn read_passphrase_for_address() -> Result<String, AddressError> {
+fn read_passphrase_for_address() -> Result<Zeroizing<String>, AddressError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::Cancelled => AddressError::Cancelled,
+        PassphraseError::Empty | PassphraseError::Cancelled => AddressError::Cancelled,
         other => AddressError::KeyLoadError(other.to_string()),
     })
 }

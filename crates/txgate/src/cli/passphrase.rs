@@ -25,8 +25,16 @@
 
 use std::io::Write;
 
+use zeroize::Zeroizing;
+
 /// Environment variable name for non-interactive passphrase input.
 pub const ENV_VAR: &str = "TXGATE_PASSPHRASE";
+
+/// Environment variable name for the export-specific new passphrase.
+///
+/// When set, `txgate key export` uses this for the new (export) passphrase,
+/// allowing a different passphrase from the current one (`TXGATE_PASSPHRASE`).
+pub const EXPORT_ENV_VAR: &str = "TXGATE_EXPORT_PASSPHRASE";
 
 /// Minimum passphrase length for key creation operations.
 pub const MIN_PASSPHRASE_LENGTH: usize = 8;
@@ -61,49 +69,49 @@ pub enum PassphraseError {
 /// Read a passphrase for unlocking an existing key.
 ///
 /// Checks `TXGATE_PASSPHRASE` environment variable first, then falls back
-/// to an interactive `rpassword` prompt.
+/// to an interactive `rpassword` prompt. The env var is removed from the
+/// process environment after reading to limit exposure.
 ///
 /// # Errors
 ///
 /// Returns [`PassphraseError`] if:
 /// - The env var is set but empty
 /// - The interactive prompt fails or is cancelled
-pub fn read_passphrase() -> Result<String, PassphraseError> {
+pub fn read_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
     if let Ok(val) = std::env::var(ENV_VAR) {
         if val.is_empty() {
             return Err(PassphraseError::Empty);
         }
         eprintln!("Using passphrase from {ENV_VAR} environment variable");
-        return Ok(val);
+        // Clear env var to limit exposure window (especially for long-running serve)
+        clear_env_var(ENV_VAR);
+        return Ok(Zeroizing::new(val));
     }
 
-    println!("Enter passphrase to unlock key:");
-    let passphrase = rpassword::read_password().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::UnexpectedEof {
-            PassphraseError::Cancelled
-        } else {
-            PassphraseError::Io(e)
-        }
-    })?;
+    print!("Enter passphrase to unlock key: ");
+    std::io::stdout().flush()?;
+
+    let passphrase = read_password()?;
 
     if passphrase.is_empty() {
         return Err(PassphraseError::Cancelled);
     }
 
-    Ok(passphrase)
+    Ok(Zeroizing::new(passphrase))
 }
 
 /// Read a new passphrase for key creation (init, import, export).
 ///
 /// Checks `TXGATE_PASSPHRASE` environment variable first (skips confirmation),
-/// then falls back to an interactive prompt with confirmation.
+/// then falls back to an interactive prompt with confirmation. The env var is
+/// removed from the process environment after reading.
 ///
 /// # Errors
 ///
 /// Returns [`PassphraseError`] if:
 /// - The env var is set but too short
 /// - The interactive prompt fails, is cancelled, or confirmation doesn't match
-pub fn read_new_passphrase() -> Result<String, PassphraseError> {
+pub fn read_new_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
     if let Ok(val) = std::env::var(ENV_VAR) {
         if val.is_empty() {
             return Err(PassphraseError::Empty);
@@ -114,19 +122,14 @@ pub fn read_new_passphrase() -> Result<String, PassphraseError> {
             });
         }
         eprintln!("Using passphrase from {ENV_VAR} environment variable");
-        return Ok(val);
+        clear_env_var(ENV_VAR);
+        return Ok(Zeroizing::new(val));
     }
 
     print!("Enter a passphrase to encrypt your key: ");
     std::io::stdout().flush()?;
 
-    let passphrase = rpassword::read_password().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::UnexpectedEof {
-            PassphraseError::Cancelled
-        } else {
-            PassphraseError::Io(e)
-        }
-    })?;
+    let passphrase = read_password()?;
 
     if passphrase.is_empty() {
         return Err(PassphraseError::Cancelled);
@@ -141,19 +144,68 @@ pub fn read_new_passphrase() -> Result<String, PassphraseError> {
     print!("Confirm passphrase: ");
     std::io::stdout().flush()?;
 
-    let confirmation = rpassword::read_password().map_err(|e| {
+    let confirmation = Zeroizing::new(read_password()?);
+
+    if *confirmation != passphrase {
+        return Err(PassphraseError::Mismatch);
+    }
+
+    Ok(Zeroizing::new(passphrase))
+}
+
+/// Read a new passphrase for key export.
+///
+/// Checks `TXGATE_EXPORT_PASSPHRASE` first (for distinct export passphrase),
+/// then falls back to [`read_new_passphrase`] which checks `TXGATE_PASSPHRASE`
+/// and finally the interactive prompt.
+///
+/// This allows `key export` to use a different passphrase for the export
+/// than the one used to decrypt the source key.
+///
+/// # Errors
+///
+/// Returns [`PassphraseError`] if:
+/// - The env var is set but too short
+/// - The interactive prompt fails, is cancelled, or confirmation doesn't match
+pub fn read_new_export_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
+    if let Ok(val) = std::env::var(EXPORT_ENV_VAR) {
+        if val.is_empty() {
+            return Err(PassphraseError::Empty);
+        }
+        if val.len() < MIN_PASSPHRASE_LENGTH {
+            return Err(PassphraseError::TooShort {
+                min: MIN_PASSPHRASE_LENGTH,
+            });
+        }
+        eprintln!("Using export passphrase from {EXPORT_ENV_VAR} environment variable");
+        clear_env_var(EXPORT_ENV_VAR);
+        return Ok(Zeroizing::new(val));
+    }
+
+    // Fall back to standard new passphrase flow
+    read_new_passphrase()
+}
+
+/// Read a password from the terminal, mapping EOF to [`PassphraseError::Cancelled`].
+fn read_password() -> Result<String, PassphraseError> {
+    rpassword::read_password().map_err(|e| {
         if e.kind() == std::io::ErrorKind::UnexpectedEof {
             PassphraseError::Cancelled
         } else {
             PassphraseError::Io(e)
         }
-    })?;
+    })
+}
 
-    if passphrase != confirmation {
-        return Err(PassphraseError::Mismatch);
-    }
-
-    Ok(passphrase)
+/// Clear an environment variable to limit the exposure window.
+///
+/// This is defense-in-depth: it prevents child processes from inheriting the
+/// passphrase. Note that on Linux, `/proc/<pid>/environ` reflects the initial
+/// environment and is NOT updated by this call.
+fn clear_env_var(var: &str) {
+    // Called during single-threaded startup before spawning
+    // the tokio runtime, so there are no concurrent readers.
+    std::env::remove_var(var);
 }
 
 #[cfg(test)]
@@ -166,6 +218,36 @@ mod tests {
     // Mutex to serialize env var tests (env vars are process-global)
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    /// RAII guard that restores/removes an env var on drop.
+    struct EnvGuard {
+        var: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvGuard {
+        fn set(var: &'static str, value: &str) -> Self {
+            let original = std::env::var(var).ok();
+            std::env::set_var(var, value);
+            Self { var, original }
+        }
+
+        fn remove(var: &'static str) -> Self {
+            let original = std::env::var(var).ok();
+            std::env::remove_var(var);
+            Self { var, original }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            if let Some(ref val) = self.original {
+                std::env::set_var(self.var, val);
+            } else {
+                std::env::remove_var(self.var);
+            }
+        }
+    }
+
     // =========================================================================
     // read_passphrase tests (env var path)
     // =========================================================================
@@ -173,24 +255,29 @@ mod tests {
     #[test]
     fn test_read_passphrase_from_env_var() {
         let _lock = ENV_LOCK.lock().unwrap();
-        std::env::set_var(ENV_VAR, "test-passphrase");
+        let _guard = EnvGuard::set(ENV_VAR, "test-passphrase");
 
-        let result = read_passphrase();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "test-passphrase");
-
-        std::env::remove_var(ENV_VAR);
+        let passphrase = read_passphrase().unwrap();
+        assert_eq!(&*passphrase, "test-passphrase");
     }
 
     #[test]
     fn test_read_passphrase_empty_env_var() {
         let _lock = ENV_LOCK.lock().unwrap();
-        std::env::set_var(ENV_VAR, "");
+        let _guard = EnvGuard::set(ENV_VAR, "");
 
         let result = read_passphrase();
         assert!(matches!(result, Err(PassphraseError::Empty)));
+    }
 
-        std::env::remove_var(ENV_VAR);
+    #[test]
+    fn test_read_passphrase_clears_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set(ENV_VAR, "test-passphrase");
+
+        let _passphrase = read_passphrase().unwrap();
+        // Env var should be cleared after reading
+        assert!(std::env::var(ENV_VAR).is_err());
     }
 
     // =========================================================================
@@ -200,47 +287,92 @@ mod tests {
     #[test]
     fn test_read_new_passphrase_from_env_var() {
         let _lock = ENV_LOCK.lock().unwrap();
-        std::env::set_var(ENV_VAR, "longpassphrase");
+        let _guard = EnvGuard::set(ENV_VAR, "longpassphrase");
 
-        let result = read_new_passphrase();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "longpassphrase");
-
-        std::env::remove_var(ENV_VAR);
+        let passphrase = read_new_passphrase().unwrap();
+        assert_eq!(&*passphrase, "longpassphrase");
     }
 
     #[test]
     fn test_read_new_passphrase_too_short_env_var() {
         let _lock = ENV_LOCK.lock().unwrap();
-        std::env::set_var(ENV_VAR, "short");
+        let _guard = EnvGuard::set(ENV_VAR, "short");
 
         let result = read_new_passphrase();
         assert!(matches!(result, Err(PassphraseError::TooShort { min: 8 })));
-
-        std::env::remove_var(ENV_VAR);
     }
 
     #[test]
     fn test_read_new_passphrase_empty_env_var() {
         let _lock = ENV_LOCK.lock().unwrap();
-        std::env::set_var(ENV_VAR, "");
+        let _guard = EnvGuard::set(ENV_VAR, "");
 
         let result = read_new_passphrase();
         assert!(matches!(result, Err(PassphraseError::Empty)));
-
-        std::env::remove_var(ENV_VAR);
     }
 
     #[test]
     fn test_read_new_passphrase_exact_min_length() {
         let _lock = ENV_LOCK.lock().unwrap();
-        std::env::set_var(ENV_VAR, "12345678"); // exactly 8 chars
+        let _guard = EnvGuard::set(ENV_VAR, "12345678"); // exactly 8 chars
 
-        let result = read_new_passphrase();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "12345678");
+        let passphrase = read_new_passphrase().unwrap();
+        assert_eq!(&*passphrase, "12345678");
+    }
 
-        std::env::remove_var(ENV_VAR);
+    #[test]
+    fn test_read_new_passphrase_clears_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set(ENV_VAR, "longpassphrase");
+
+        let _passphrase = read_new_passphrase().unwrap();
+        assert!(std::env::var(ENV_VAR).is_err());
+    }
+
+    // =========================================================================
+    // read_new_export_passphrase tests
+    // =========================================================================
+
+    #[test]
+    fn test_read_new_export_passphrase_from_export_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_main = EnvGuard::remove(ENV_VAR);
+        let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "export-pass-123");
+
+        let passphrase = read_new_export_passphrase().unwrap();
+        assert_eq!(&*passphrase, "export-pass-123");
+        // Export env var should be cleared
+        assert!(std::env::var(EXPORT_ENV_VAR).is_err());
+    }
+
+    #[test]
+    fn test_read_new_export_passphrase_falls_back_to_main() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_export = EnvGuard::remove(EXPORT_ENV_VAR);
+        let _guard_main = EnvGuard::set(ENV_VAR, "main-pass-123");
+
+        let passphrase = read_new_export_passphrase().unwrap();
+        assert_eq!(&*passphrase, "main-pass-123");
+    }
+
+    #[test]
+    fn test_read_new_export_passphrase_too_short() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_main = EnvGuard::remove(ENV_VAR);
+        let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "short");
+
+        let result = read_new_export_passphrase();
+        assert!(matches!(result, Err(PassphraseError::TooShort { min: 8 })));
+    }
+
+    #[test]
+    fn test_read_new_export_passphrase_empty() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_main = EnvGuard::remove(ENV_VAR);
+        let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "");
+
+        let result = read_new_export_passphrase();
+        assert!(matches!(result, Err(PassphraseError::Empty)));
     }
 
     // =========================================================================

@@ -27,7 +27,10 @@ use txgate_crypto::store::{FileKeyStore, KeyStore};
 use txgate_policy::engine::DefaultPolicyEngine;
 use txgate_policy::PolicyConfig;
 
+use zeroize::Zeroizing;
+
 use crate::audit::AuditLogger;
+use crate::cli::passphrase::PassphraseError;
 use crate::server::{ServerConfig as SocketServerConfig, ServerError, TxGateServer};
 
 /// Command to start the `TxGate` signing server.
@@ -252,10 +255,10 @@ fn load_config(base_dir: &Path) -> Result<ServeConfig, ServeError> {
 }
 
 /// Read the passphrase (from env var or interactive prompt).
-fn read_passphrase_for_serve() -> Result<String, ServeError> {
+fn read_passphrase_for_serve() -> Result<Zeroizing<String>, ServeError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::Cancelled => ServeError::Cancelled,
-        crate::cli::passphrase::PassphraseError::Io(io_err) => ServeError::Io(io_err),
+        PassphraseError::Empty | PassphraseError::Cancelled => ServeError::Cancelled,
+        PassphraseError::Io(io_err) => ServeError::Io(io_err),
         other => ServeError::ConfigError(other.to_string()),
     })
 }

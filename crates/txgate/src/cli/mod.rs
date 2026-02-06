@@ -6,6 +6,7 @@
 //!
 //! - [`args`] - Argument parsing and CLI structure definitions
 //! - [`commands`] - Command handler implementations
+//! - [`passphrase`] - Shared passphrase input utilities (env var + interactive prompt)
 //!
 //! ## Usage
 //!

@@ -44,6 +44,9 @@ use txgate_core::error::StoreError;
 use txgate_crypto::encryption::encrypt_key;
 use txgate_crypto::keypair::{KeyPair, Secp256k1KeyPair};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
+use zeroize::Zeroizing;
+
+use crate::cli::passphrase::{PassphraseError, MIN_PASSPHRASE_LENGTH};
 
 // ============================================================================
 // Constants
@@ -54,9 +57,6 @@ const BASE_DIR_NAME: &str = ".txgate";
 
 /// Keys subdirectory name.
 const KEYS_DIR_NAME: &str = "keys";
-
-/// Minimum passphrase length.
-const MIN_PASSPHRASE_LENGTH: usize = 8;
 
 /// Current export format version.
 const EXPORT_VERSION: u32 = 1;
@@ -308,21 +308,21 @@ fn get_base_dir() -> Result<PathBuf, ExportError> {
 }
 
 /// Read the current passphrase (from env var or interactive prompt).
-fn read_current_passphrase() -> Result<String, ExportError> {
+fn read_current_passphrase() -> Result<Zeroizing<String>, ExportError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::Cancelled => ExportError::Cancelled,
+        PassphraseError::Empty | PassphraseError::Cancelled => ExportError::Cancelled,
+        PassphraseError::Io(io_err) => ExportError::Io(io_err),
         other => ExportError::TerminalError(other.to_string()),
     })
 }
 
 /// Read a new passphrase for export (from env var or interactive prompt with confirmation).
-fn read_new_passphrase_for_export() -> Result<String, ExportError> {
-    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
-        crate::cli::passphrase::PassphraseError::Empty
-        | crate::cli::passphrase::PassphraseError::Cancelled => ExportError::Cancelled,
-        crate::cli::passphrase::PassphraseError::TooShort { .. } => ExportError::PassphraseTooShort,
-        crate::cli::passphrase::PassphraseError::Mismatch => ExportError::PassphraseMismatch,
-        crate::cli::passphrase::PassphraseError::Io(e) => ExportError::TerminalError(e.to_string()),
+fn read_new_passphrase_for_export() -> Result<Zeroizing<String>, ExportError> {
+    crate::cli::passphrase::read_new_export_passphrase().map_err(|e| match e {
+        PassphraseError::Empty | PassphraseError::Cancelled => ExportError::Cancelled,
+        PassphraseError::TooShort { .. } => ExportError::PassphraseTooShort,
+        PassphraseError::Mismatch => ExportError::PassphraseMismatch,
+        PassphraseError::Io(e) => ExportError::TerminalError(e.to_string()),
     })
 }
 

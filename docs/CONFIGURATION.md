@@ -388,6 +388,21 @@ When `TXGATE_PASSPHRASE` is set:
 - Key unlock commands skip the interactive prompt
 - Key creation commands (init, import, export) skip the confirmation step
 - A notice is printed to stderr: `Using passphrase from TXGATE_PASSPHRASE environment variable`
+- The env var is cleared from the process environment after reading to limit exposure
+
+### TXGATE_EXPORT_PASSPHRASE
+
+Provides a separate passphrase for the `key export` command's new (export) passphrase. This allows using a different passphrase for the exported key than the one used to decrypt the source key.
+
+```bash
+# Export with different current and export passphrases
+TXGATE_PASSPHRASE=current-pass TXGATE_EXPORT_PASSPHRASE=export-pass txgate key export default -o backup.json
+```
+
+When `TXGATE_EXPORT_PASSPHRASE` is set:
+- `key export` uses it for the new export passphrase (skips confirmation)
+- Falls back to `TXGATE_PASSPHRASE` if not set
+- Falls back to interactive prompt if neither is set
 
 ### EDITOR / VISUAL
 
