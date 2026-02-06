@@ -265,7 +265,8 @@ fn is_initialized(base_dir: &Path) -> bool {
 fn read_passphrase_for_address() -> Result<Zeroizing<String>, AddressError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
         PassphraseError::Empty | PassphraseError::Cancelled => AddressError::Cancelled,
-        other => AddressError::KeyLoadError(other.to_string()),
+        PassphraseError::Io(e) => AddressError::Io(e),
+        other => AddressError::PassphraseInputFailed(other.to_string()),
     })
 }
 

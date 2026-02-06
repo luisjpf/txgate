@@ -468,6 +468,7 @@ fn is_initialized(base_dir: &Path) -> bool {
 fn read_passphrase_for_sign() -> Result<Zeroizing<String>, SignCommandError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
         PassphraseError::Empty | PassphraseError::Cancelled => SignCommandError::Cancelled,
+        PassphraseError::Io(e) => SignCommandError::Io(e),
         other => SignCommandError::PassphraseInputFailed(other.to_string()),
     })
 }

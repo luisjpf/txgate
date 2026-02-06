@@ -401,6 +401,7 @@ TXGATE_PASSPHRASE=current-pass TXGATE_EXPORT_PASSPHRASE=export-pass txgate key e
 
 When `TXGATE_EXPORT_PASSPHRASE` is set:
 - `key export` uses it for the new export passphrase (skips confirmation)
+- The env var is cleared from the process environment after reading to limit exposure
 - Falls back to `TXGATE_PASSPHRASE` if not set
 - Falls back to interactive prompt if neither is set
 

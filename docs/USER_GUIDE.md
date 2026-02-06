@@ -182,7 +182,7 @@ You will be prompted for a passphrase to encrypt the key.
 **Security notes:**
 - The key hex is validated as a valid secp256k1 scalar
 - Intermediate key bytes are zeroized after import
-- Requires an interactive terminal (use scripts with caution)
+- Set `TXGATE_PASSPHRASE` for non-interactive use (CI/CD, scripts)
 
 #### Export a Key
 
@@ -209,7 +209,7 @@ The exported file is JSON with the encrypted key data:
 
 **Security notes:**
 - Output file permissions are set to 0600 (Unix)
-- Requires an interactive terminal for passphrase prompts
+- Set `TXGATE_PASSPHRASE` for the current key passphrase and `TXGATE_EXPORT_PASSPHRASE` for the export passphrase in non-interactive use
 
 #### Delete a Key
 

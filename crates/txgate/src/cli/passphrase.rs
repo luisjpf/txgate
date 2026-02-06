@@ -28,16 +28,16 @@ use std::io::Write;
 use zeroize::Zeroizing;
 
 /// Environment variable name for non-interactive passphrase input.
-pub const ENV_VAR: &str = "TXGATE_PASSPHRASE";
+pub(crate) const ENV_VAR: &str = "TXGATE_PASSPHRASE";
 
 /// Environment variable name for the export-specific new passphrase.
 ///
 /// When set, `txgate key export` uses this for the new (export) passphrase,
 /// allowing a different passphrase from the current one (`TXGATE_PASSPHRASE`).
-pub const EXPORT_ENV_VAR: &str = "TXGATE_EXPORT_PASSPHRASE";
+pub(crate) const EXPORT_ENV_VAR: &str = "TXGATE_EXPORT_PASSPHRASE";
 
 /// Minimum passphrase length for key creation operations.
-pub const MIN_PASSPHRASE_LENGTH: usize = 8;
+pub(crate) const MIN_PASSPHRASE_LENGTH: usize = 8;
 
 /// Errors that can occur during passphrase input.
 #[derive(Debug, thiserror::Error)]
@@ -79,13 +79,14 @@ pub enum PassphraseError {
 /// - The interactive prompt fails or is cancelled
 pub fn read_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
     if let Ok(val) = std::env::var(ENV_VAR) {
+        let val = Zeroizing::new(val);
+        // Clear env var immediately to minimize exposure window
+        clear_env_var(ENV_VAR);
         if val.is_empty() {
             return Err(PassphraseError::Empty);
         }
         eprintln!("Using passphrase from {ENV_VAR} environment variable");
-        // Clear env var to limit exposure window (especially for long-running serve)
-        clear_env_var(ENV_VAR);
-        return Ok(Zeroizing::new(val));
+        return Ok(val);
     }
 
     print!("Enter passphrase to unlock key: ");
@@ -97,10 +98,10 @@ pub fn read_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
         return Err(PassphraseError::Cancelled);
     }
 
-    Ok(Zeroizing::new(passphrase))
+    Ok(passphrase)
 }
 
-/// Read a new passphrase for key creation (init, import, export).
+/// Read a new passphrase for key creation (init, import).
 ///
 /// Checks `TXGATE_PASSPHRASE` environment variable first (skips confirmation),
 /// then falls back to an interactive prompt with confirmation. The env var is
@@ -113,6 +114,9 @@ pub fn read_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
 /// - The interactive prompt fails, is cancelled, or confirmation doesn't match
 pub fn read_new_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
     if let Ok(val) = std::env::var(ENV_VAR) {
+        let val = Zeroizing::new(val);
+        // Clear env var immediately to minimize exposure window
+        clear_env_var(ENV_VAR);
         if val.is_empty() {
             return Err(PassphraseError::Empty);
         }
@@ -122,8 +126,7 @@ pub fn read_new_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
             });
         }
         eprintln!("Using passphrase from {ENV_VAR} environment variable");
-        clear_env_var(ENV_VAR);
-        return Ok(Zeroizing::new(val));
+        return Ok(val);
     }
 
     print!("Enter a passphrase to encrypt your key: ");
@@ -144,13 +147,13 @@ pub fn read_new_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
     print!("Confirm passphrase: ");
     std::io::stdout().flush()?;
 
-    let confirmation = Zeroizing::new(read_password()?);
+    let confirmation = read_password()?;
 
-    if *confirmation != passphrase {
+    if !constant_time_eq(confirmation.as_bytes(), passphrase.as_bytes()) {
         return Err(PassphraseError::Mismatch);
     }
 
-    Ok(Zeroizing::new(passphrase))
+    Ok(passphrase)
 }
 
 /// Read a new passphrase for key export.
@@ -169,6 +172,9 @@ pub fn read_new_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
 /// - The interactive prompt fails, is cancelled, or confirmation doesn't match
 pub fn read_new_export_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
     if let Ok(val) = std::env::var(EXPORT_ENV_VAR) {
+        let val = Zeroizing::new(val);
+        // Clear env var immediately to minimize exposure window
+        clear_env_var(EXPORT_ENV_VAR);
         if val.is_empty() {
             return Err(PassphraseError::Empty);
         }
@@ -178,8 +184,7 @@ pub fn read_new_export_passphrase() -> Result<Zeroizing<String>, PassphraseError
             });
         }
         eprintln!("Using export passphrase from {EXPORT_ENV_VAR} environment variable");
-        clear_env_var(EXPORT_ENV_VAR);
-        return Ok(Zeroizing::new(val));
+        return Ok(val);
     }
 
     // Fall back to standard new passphrase flow
@@ -187,8 +192,10 @@ pub fn read_new_export_passphrase() -> Result<Zeroizing<String>, PassphraseError
 }
 
 /// Read a password from the terminal, mapping EOF to [`PassphraseError::Cancelled`].
-fn read_password() -> Result<String, PassphraseError> {
-    rpassword::read_password().map_err(|e| {
+///
+/// Returns `Zeroizing<String>` to ensure the password is wiped from memory on drop.
+fn read_password() -> Result<Zeroizing<String>, PassphraseError> {
+    rpassword::read_password().map(Zeroizing::new).map_err(|e| {
         if e.kind() == std::io::ErrorKind::UnexpectedEof {
             PassphraseError::Cancelled
         } else {
@@ -197,11 +204,32 @@ fn read_password() -> Result<String, PassphraseError> {
     })
 }
 
+/// Constant-time byte comparison for passphrase confirmation.
+///
+/// Prevents timing side-channels by always comparing all bytes
+/// regardless of where the first difference occurs. Length comparison
+/// is not constant-time, which is acceptable since both values originate
+/// from the same user in the same session.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
+}
+
 /// Clear an environment variable to limit the exposure window.
 ///
 /// This is defense-in-depth: it prevents child processes from inheriting the
 /// passphrase. Note that on Linux, `/proc/<pid>/environ` reflects the initial
 /// environment and is NOT updated by this call.
+///
+/// Note: `std::env::remove_var` will require `unsafe` in Rust 2024 edition
+/// (see [rust#27970](https://github.com/rust-lang/rust/issues/27970)). When
+/// upgrading, this call site will need an `unsafe` block with a safety comment
+/// justifying single-threaded access.
 fn clear_env_var(var: &str) {
     // Called during single-threaded startup before spawning
     // the tokio runtime, so there are no concurrent readers.
@@ -376,6 +404,62 @@ mod tests {
     }
 
     // =========================================================================
+    // Env var clearing on error paths
+    // =========================================================================
+
+    #[test]
+    fn test_read_passphrase_clears_env_var_on_empty() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set(ENV_VAR, "");
+
+        let result = read_passphrase();
+        assert!(matches!(result, Err(PassphraseError::Empty)));
+        // Env var should be cleared even on error
+        assert!(std::env::var(ENV_VAR).is_err());
+    }
+
+    #[test]
+    fn test_read_new_passphrase_clears_env_var_on_too_short() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set(ENV_VAR, "short");
+
+        let result = read_new_passphrase();
+        assert!(matches!(result, Err(PassphraseError::TooShort { min: 8 })));
+        // Env var should be cleared even on error
+        assert!(std::env::var(ENV_VAR).is_err());
+    }
+
+    #[test]
+    fn test_read_new_export_passphrase_clears_env_var_on_too_short() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_main = EnvGuard::remove(ENV_VAR);
+        let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "short");
+
+        let result = read_new_export_passphrase();
+        assert!(matches!(result, Err(PassphraseError::TooShort { min: 8 })));
+        // Export env var should be cleared even on error
+        assert!(std::env::var(EXPORT_ENV_VAR).is_err());
+    }
+
+    // =========================================================================
+    // Env var priority tests
+    // =========================================================================
+
+    #[test]
+    fn test_read_new_export_passphrase_prefers_export_over_main() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "export-pass-123");
+        let _guard_main = EnvGuard::set(ENV_VAR, "main-pass-1234");
+
+        let passphrase = read_new_export_passphrase().unwrap();
+        assert_eq!(&*passphrase, "export-pass-123");
+        // Export env var should be cleared
+        assert!(std::env::var(EXPORT_ENV_VAR).is_err());
+        // Main env var should be untouched
+        assert_eq!(std::env::var(ENV_VAR).unwrap(), "main-pass-1234");
+    }
+
+    // =========================================================================
     // Error display tests
     // =========================================================================
 
@@ -400,8 +484,39 @@ mod tests {
     }
 
     #[test]
+    fn test_error_display_io() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe broken");
+        let err = PassphraseError::Io(io_err);
+        assert_eq!(err.to_string(), "Failed to read passphrase: pipe broken");
+    }
+
+    #[test]
     fn test_passphrase_error_is_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<PassphraseError>();
+    }
+
+    // =========================================================================
+    // Constant-time comparison tests
+    // =========================================================================
+
+    #[test]
+    fn test_constant_time_eq_equal() {
+        assert!(constant_time_eq(b"hello", b"hello"));
+    }
+
+    #[test]
+    fn test_constant_time_eq_different() {
+        assert!(!constant_time_eq(b"hello", b"world"));
+    }
+
+    #[test]
+    fn test_constant_time_eq_different_length() {
+        assert!(!constant_time_eq(b"short", b"longer"));
+    }
+
+    #[test]
+    fn test_constant_time_eq_empty() {
+        assert!(constant_time_eq(b"", b""));
     }
 }

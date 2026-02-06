@@ -341,9 +341,8 @@ fn read_new_passphrase_for_init() -> Result<Zeroizing<String>, InitError> {
     crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
         PassphraseError::TooShort { .. } => InitError::PassphraseTooShort,
         PassphraseError::Mismatch => InitError::PassphraseMismatch,
-        PassphraseError::Empty | PassphraseError::Cancelled | PassphraseError::Io(_) => {
-            InitError::PassphraseCancelled
-        }
+        PassphraseError::Empty | PassphraseError::Cancelled => InitError::PassphraseCancelled,
+        PassphraseError::Io(e) => InitError::Io(e),
     })
 }
 

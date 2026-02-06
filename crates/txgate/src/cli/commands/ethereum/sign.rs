@@ -154,7 +154,16 @@ impl From<StoreError> for SignCommandError {
             StoreError::KeyNotFound { .. } => Self::KeyNotFound,
             StoreError::DecryptionFailed => Self::InvalidPassphrase,
             StoreError::IoError(e) => Self::Io(e),
-            other => Self::SigningFailed(other.to_string()),
+            StoreError::EncryptionFailed => {
+                Self::SigningFailed("Key encryption failed".to_string())
+            }
+            StoreError::KeyExists { name } => {
+                Self::SigningFailed(format!("Key already exists: {name}"))
+            }
+            StoreError::InvalidFormat => Self::SigningFailed("Invalid key file format".to_string()),
+            StoreError::PermissionDenied => {
+                Self::SigningFailed("Permission denied accessing key file".to_string())
+            }
         }
     }
 }
@@ -457,6 +466,7 @@ fn is_initialized(base_dir: &Path) -> bool {
 fn read_passphrase_for_sign() -> Result<Zeroizing<String>, SignCommandError> {
     crate::cli::passphrase::read_passphrase().map_err(|e| match e {
         PassphraseError::Empty | PassphraseError::Cancelled => SignCommandError::Cancelled,
+        PassphraseError::Io(e) => SignCommandError::Io(e),
         other => SignCommandError::PassphraseInputFailed(other.to_string()),
     })
 }

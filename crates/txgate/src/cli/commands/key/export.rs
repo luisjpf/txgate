@@ -30,7 +30,8 @@
 //! - Requires the current passphrase to decrypt the key
 //! - Requires a new passphrase for the export (with confirmation)
 //! - Output file permissions are set to 0600
-//! - Passphrase can be provided via `TXGATE_PASSPHRASE` env var (skips confirmation) or interactive prompt
+//! - Current passphrase can be provided via `TXGATE_PASSPHRASE` env var or interactive prompt
+//! - Export passphrase can be provided via `TXGATE_EXPORT_PASSPHRASE` (falls back to `TXGATE_PASSPHRASE`, then interactive prompt)
 //! - Wrong passphrase errors are detected reliably (not via string matching)
 
 use std::fs::{self, File};
@@ -322,7 +323,7 @@ fn read_new_passphrase_for_export() -> Result<Zeroizing<String>, ExportError> {
         PassphraseError::Empty | PassphraseError::Cancelled => ExportError::Cancelled,
         PassphraseError::TooShort { .. } => ExportError::PassphraseTooShort,
         PassphraseError::Mismatch => ExportError::PassphraseMismatch,
-        PassphraseError::Io(e) => ExportError::TerminalError(e.to_string()),
+        PassphraseError::Io(e) => ExportError::Io(e),
     })
 }
 
