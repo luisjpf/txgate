@@ -62,7 +62,7 @@ use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Semaphore};
 use txgate_chain::{Chain, EthereumParser};
 use txgate_core::types::{ParsedTx, PolicyResult};
 use txgate_crypto::signer::{Chain as SignerChain, Signer};
@@ -73,6 +73,18 @@ use super::protocol::{
     Method, SignParams, SignResult, TransactionDetails,
 };
 use crate::audit::{AuditLogger, PolicyResultInput, SignEvent};
+
+/// Maximum size of a single JSON-RPC request line (1 MiB).
+const MAX_REQUEST_SIZE: u64 = 1024 * 1024;
+
+/// Maximum number of concurrent client connections.
+const MAX_CONNECTIONS: usize = 64;
+
+/// Per-connection idle timeout before the server closes it.
+const CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Backoff duration after an accept error.
+const ACCEPT_ERROR_BACKOFF: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// Server configuration for the Unix socket server.
 #[derive(Debug, Clone)]
@@ -181,6 +193,40 @@ pub enum ServerError {
     /// Internal server error (e.g. task join failure).
     #[error("internal error: {0}")]
     Internal(String),
+}
+
+/// RAII guard that removes the socket file when dropped.
+///
+/// Ensures the socket is cleaned up on all exit paths, including
+/// early returns from `set_permissions` or panics.
+struct SocketGuard {
+    path: PathBuf,
+}
+
+impl SocketGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+
+    /// Disarm the guard so it does NOT remove the file on drop.
+    /// Call this when cleanup is handled explicitly (e.g. after normal shutdown).
+    fn disarm(mut self) {
+        self.path = PathBuf::new();
+    }
+}
+
+impl Drop for SocketGuard {
+    fn drop(&mut self) {
+        if !self.path.as_os_str().is_empty() && self.path.exists() {
+            if let Err(e) = std::fs::remove_file(&self.path) {
+                tracing::warn!(
+                    error = %e,
+                    path = %self.path.display(),
+                    "Failed to remove socket file during cleanup"
+                );
+            }
+        }
+    }
 }
 
 impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
@@ -302,6 +348,9 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
                 source: e,
             })?;
 
+        // RAII guard ensures socket file is cleaned up on all exit paths
+        let guard = SocketGuard::new(self.config.socket_path.clone());
+
         // Set socket permissions
         #[cfg(unix)]
         {
@@ -324,6 +373,9 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
         // Create Arc-wrapped self for sharing across tasks
         let server = Arc::new(self);
 
+        // Connection limiter
+        let connection_semaphore = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+
         // Accept connections until shutdown
         tokio::pin!(shutdown);
 
@@ -332,15 +384,31 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
                 accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, _addr)) => {
+                            let permit = match connection_semaphore.clone().try_acquire_owned() {
+                                Ok(permit) => permit,
+                                Err(_) => {
+                                    tracing::warn!("Connection limit reached ({MAX_CONNECTIONS}), rejecting");
+                                    drop(stream);
+                                    continue;
+                                }
+                            };
                             let server_clone = Arc::clone(&server);
                             tokio::spawn(async move {
-                                if let Err(e) = Arc::clone(&server_clone).handle_connection(stream).await {
-                                    tracing::warn!(error = %e, "Connection error");
+                                let result = tokio::time::timeout(
+                                    CONNECTION_TIMEOUT,
+                                    Arc::clone(&server_clone).handle_connection(stream),
+                                ).await;
+                                match result {
+                                    Ok(Err(e)) => tracing::warn!(error = %e, "Connection error"),
+                                    Err(_) => tracing::debug!("Connection timed out"),
+                                    Ok(Ok(())) => {}
                                 }
+                                drop(permit);
                             });
                         }
                         Err(e) => {
                             tracing::warn!(error = %e, "Accept error");
+                            tokio::time::sleep(ACCEPT_ERROR_BACKOFF).await;
                         }
                     }
                 }
@@ -351,7 +419,8 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
             }
         }
 
-        // Cleanup socket file
+        // Explicit cleanup — guard handles it, then disarm so we don't double-remove
+        guard.disarm();
         if server.config.socket_path.exists() {
             if let Err(e) = std::fs::remove_file(&server.config.socket_path) {
                 tracing::warn!(
@@ -390,6 +459,20 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
 
             if bytes_read == 0 {
                 // Connection closed
+                break;
+            }
+
+            // Reject oversized requests to prevent memory exhaustion
+            if line.len() as u64 > MAX_REQUEST_SIZE {
+                tracing::warn!(
+                    size = line.len(),
+                    limit = MAX_REQUEST_SIZE,
+                    "Request exceeds size limit, disconnecting"
+                );
+                let error_response = r#"{"jsonrpc":"2.0","error":{"code":-32600,"message":"Request too large"},"id":null}"#;
+                let _ = writer.write_all(error_response.as_bytes()).await;
+                let _ = writer.write_all(b"\n").await;
+                let _ = writer.flush().await;
                 break;
             }
 

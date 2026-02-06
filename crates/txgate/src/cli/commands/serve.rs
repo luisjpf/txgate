@@ -21,7 +21,6 @@
 use std::path::{Path, PathBuf};
 
 use txgate_chain::ethereum::EthereumParser;
-
 use txgate_crypto::keypair::Secp256k1KeyPair;
 use txgate_crypto::signer::{Chain, Secp256k1Signer, Signer};
 use txgate_crypto::store::{FileKeyStore, KeyStore};
@@ -29,7 +28,7 @@ use txgate_policy::engine::DefaultPolicyEngine;
 use txgate_policy::PolicyConfig;
 
 use crate::audit::AuditLogger;
-use crate::server::socket::{ServerConfig as SocketServerConfig, TxGateServer};
+use crate::server::{ServerConfig as SocketServerConfig, ServerError, TxGateServer};
 
 /// Command to start the `TxGate` signing server.
 ///
@@ -100,8 +99,8 @@ pub enum ServeError {
     AuditError(String),
 }
 
-impl From<crate::server::socket::ServerError> for ServeError {
-    fn from(e: crate::server::socket::ServerError) -> Self {
+impl From<ServerError> for ServeError {
+    fn from(e: ServerError) -> Self {
         ServeError::ServerError(e.to_string())
     }
 }
@@ -738,7 +737,7 @@ mod tests {
         }
     }
 
-    mod server_config_tests {
+    mod serve_config_tests {
         use super::*;
 
         #[test]
