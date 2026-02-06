@@ -187,21 +187,23 @@ impl ExportCommand {
     pub fn run(&self) -> Result<(), ExportError> {
         let base_dir = get_base_dir()?;
 
-        // If TXGATE_EXPORT_PASSPHRASE is not set but TXGATE_PASSPHRASE is,
-        // copy the value so the export passphrase fallback still works after
-        // read_current_passphrase() clears TXGATE_PASSPHRASE.
-        if std::env::var(crate::cli::passphrase::EXPORT_ENV_VAR).is_err() {
-            if let Ok(val) = std::env::var(crate::cli::passphrase::ENV_VAR) {
-                let val = Zeroizing::new(val);
-                std::env::set_var(crate::cli::passphrase::EXPORT_ENV_VAR, &*val);
-            }
-        }
+        // Check whether TXGATE_PASSPHRASE is set *before* reading it,
+        // so we can pass the value as a fallback for the export passphrase.
+        // read_passphrase() clears the env var, so we track the source here.
+        let from_env = std::env::var(crate::cli::passphrase::ENV_VAR).is_ok();
 
         // Prompt for current passphrase
         let current_passphrase = read_current_passphrase()?;
 
-        // Prompt for new passphrase
-        let new_passphrase = read_new_passphrase_for_export()?;
+        // Prompt for new passphrase — pass the already-read passphrase as
+        // fallback only if it came from the env var (interactive users should
+        // get a separate prompt for the export passphrase).
+        let fallback = if from_env {
+            Some(&current_passphrase)
+        } else {
+            None
+        };
+        let new_passphrase = read_new_passphrase_for_export(fallback)?;
 
         self.run_with_base_dir_and_passphrases(&base_dir, &current_passphrase, &new_passphrase)
     }
@@ -328,8 +330,10 @@ fn read_current_passphrase() -> Result<Zeroizing<String>, ExportError> {
 }
 
 /// Read a new passphrase for export (from env var or interactive prompt with confirmation).
-fn read_new_passphrase_for_export() -> Result<Zeroizing<String>, ExportError> {
-    crate::cli::passphrase::read_new_export_passphrase().map_err(|e| match e {
+fn read_new_passphrase_for_export(
+    fallback: Option<&Zeroizing<String>>,
+) -> Result<Zeroizing<String>, ExportError> {
+    crate::cli::passphrase::read_new_export_passphrase(fallback).map_err(|e| match e {
         PassphraseError::Empty | PassphraseError::Cancelled => ExportError::Cancelled,
         PassphraseError::TooShort { .. } => ExportError::PassphraseTooShort,
         PassphraseError::Mismatch => ExportError::PassphraseMismatch,

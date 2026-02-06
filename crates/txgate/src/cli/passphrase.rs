@@ -159,18 +159,22 @@ pub fn read_new_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
 /// Read a new passphrase for key export.
 ///
 /// Checks `TXGATE_EXPORT_PASSPHRASE` first (for distinct export passphrase),
-/// then falls back to [`read_new_passphrase`] which checks `TXGATE_PASSPHRASE`
-/// and finally the interactive prompt.
+/// then falls back to `main_passphrase` if provided (the already-read unlock
+/// passphrase sourced from `TXGATE_PASSPHRASE`), then the interactive prompt.
 ///
-/// This allows `key export` to use a different passphrase for the export
-/// than the one used to decrypt the source key.
+/// The `main_passphrase` fallback avoids re-reading `TXGATE_PASSPHRASE` from
+/// the environment (which may already be cleared by [`read_passphrase`]).
+/// Pass `None` when the unlock passphrase was entered interactively, so the
+/// user gets a separate interactive prompt for the export passphrase.
 ///
 /// # Errors
 ///
 /// Returns [`PassphraseError`] if:
 /// - The env var is set but too short
 /// - The interactive prompt fails, is cancelled, or confirmation doesn't match
-pub fn read_new_export_passphrase() -> Result<Zeroizing<String>, PassphraseError> {
+pub fn read_new_export_passphrase(
+    main_passphrase: Option<&Zeroizing<String>>,
+) -> Result<Zeroizing<String>, PassphraseError> {
     if let Ok(val) = std::env::var(EXPORT_ENV_VAR) {
         let val = Zeroizing::new(val);
         // Clear env var immediately to minimize exposure window
@@ -187,7 +191,18 @@ pub fn read_new_export_passphrase() -> Result<Zeroizing<String>, PassphraseError
         return Ok(val);
     }
 
-    // Fall back to standard new passphrase flow
+    // Fall back to the already-read TXGATE_PASSPHRASE value if available.
+    // This keeps the passphrase in Zeroizing<String> (zeroized on drop)
+    // rather than copying it to a new env var in the C runtime env block
+    // (which is NOT zeroized by remove_var).
+    if let Some(passphrase) = main_passphrase {
+        if passphrase.len() >= MIN_PASSPHRASE_LENGTH {
+            eprintln!("Using passphrase from {ENV_VAR} environment variable for export");
+            return Ok(Zeroizing::new(String::from(&**passphrase)));
+        }
+    }
+
+    // Fall back to interactive prompt
     read_new_passphrase()
 }
 
@@ -367,7 +382,7 @@ mod tests {
         let _guard_main = EnvGuard::remove(ENV_VAR);
         let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "export-pass-123");
 
-        let passphrase = read_new_export_passphrase().unwrap();
+        let passphrase = read_new_export_passphrase(None).unwrap();
         assert_eq!(&*passphrase, "export-pass-123");
         // Export env var should be cleared
         assert!(std::env::var(EXPORT_ENV_VAR).is_err());
@@ -377,9 +392,11 @@ mod tests {
     fn test_read_new_export_passphrase_falls_back_to_main() {
         let _lock = ENV_LOCK.lock().unwrap();
         let _guard_export = EnvGuard::remove(EXPORT_ENV_VAR);
-        let _guard_main = EnvGuard::set(ENV_VAR, "main-pass-123");
+        let _guard_main = EnvGuard::remove(ENV_VAR);
 
-        let passphrase = read_new_export_passphrase().unwrap();
+        // Simulate: the caller already read TXGATE_PASSPHRASE and passes it
+        let main_pass = Zeroizing::new("main-pass-123".to_string());
+        let passphrase = read_new_export_passphrase(Some(&main_pass)).unwrap();
         assert_eq!(&*passphrase, "main-pass-123");
     }
 
@@ -389,7 +406,7 @@ mod tests {
         let _guard_main = EnvGuard::remove(ENV_VAR);
         let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "short");
 
-        let result = read_new_export_passphrase();
+        let result = read_new_export_passphrase(None);
         assert!(matches!(result, Err(PassphraseError::TooShort { min: 8 })));
     }
 
@@ -399,7 +416,7 @@ mod tests {
         let _guard_main = EnvGuard::remove(ENV_VAR);
         let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "");
 
-        let result = read_new_export_passphrase();
+        let result = read_new_export_passphrase(None);
         assert!(matches!(result, Err(PassphraseError::Empty)));
     }
 
@@ -435,7 +452,7 @@ mod tests {
         let _guard_main = EnvGuard::remove(ENV_VAR);
         let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "short");
 
-        let result = read_new_export_passphrase();
+        let result = read_new_export_passphrase(None);
         assert!(matches!(result, Err(PassphraseError::TooShort { min: 8 })));
         // Export env var should be cleared even on error
         assert!(std::env::var(EXPORT_ENV_VAR).is_err());
@@ -449,14 +466,14 @@ mod tests {
     fn test_read_new_export_passphrase_prefers_export_over_main() {
         let _lock = ENV_LOCK.lock().unwrap();
         let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "export-pass-123");
-        let _guard_main = EnvGuard::set(ENV_VAR, "main-pass-1234");
+        let _guard_main = EnvGuard::remove(ENV_VAR);
 
-        let passphrase = read_new_export_passphrase().unwrap();
+        // Even with a fallback provided, TXGATE_EXPORT_PASSPHRASE takes priority
+        let main_pass = Zeroizing::new("main-pass-1234".to_string());
+        let passphrase = read_new_export_passphrase(Some(&main_pass)).unwrap();
         assert_eq!(&*passphrase, "export-pass-123");
         // Export env var should be cleared
         assert!(std::env::var(EXPORT_ENV_VAR).is_err());
-        // Main env var should be untouched
-        assert_eq!(std::env::var(ENV_VAR).unwrap(), "main-pass-1234");
     }
 
     // =========================================================================
