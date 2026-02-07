@@ -19,10 +19,10 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-txgate-core = { version = "0.3.1", path = "../txgate-core" }
-txgate-crypto = { version = "0.3.1", path = "../txgate-crypto" }
-txgate-chain = { version = "0.3.1", path = "../txgate-chain" }
-txgate-policy = { version = "0.3.1", path = "../txgate-policy" }
+txgate-core = { version = "0.3.2", path = "../txgate-core" }
+txgate-crypto = { version = "0.3.2", path = "../txgate-crypto" }
+txgate-chain = { version = "0.3.2", path = "../txgate-chain" }
+txgate-policy = { version = "0.3.2", path = "../txgate-policy" }
 tokio = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }

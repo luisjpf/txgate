@@ -18,7 +18,7 @@ categories = ["cryptography"]
 workspace = true
 
 [dependencies]
-txgate-core = { version = "0.3.1", path = "../txgate-core" }
+txgate-core = { version = "0.3.2", path = "../txgate-core" }
 k256 = { workspace = true }
 ed25519-dalek = { workspace = true }
 chacha20poly1305 = { workspace = true }
