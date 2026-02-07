@@ -319,7 +319,12 @@ impl SignCommand {
             .sign(&parsed_tx.hash)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
-        // 12. Output the result
+        // 12. Assemble the signed transaction
+        let signed_tx = parser
+            .assemble_signed(&tx_bytes, &signature)
+            .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
+
+        // 13. Output the result
         match self.format {
             OutputFormat::Hex => {
                 let output = format_hex_output(&signature);
@@ -327,7 +332,7 @@ impl SignCommand {
             }
             OutputFormat::Json => {
                 let output =
-                    format_json_output(&parsed_tx, &signature, &tx_bytes, &signer_address)?;
+                    format_json_output(&parsed_tx, &signature, &signed_tx, &signer_address)?;
                 println!("{output}");
             }
         }
@@ -417,10 +422,15 @@ impl SignCommand {
             .sign(&parsed_tx.hash)
             .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
 
+        // 11. Assemble the signed transaction
+        let signed_tx = parser
+            .assemble_signed(&tx_bytes, &signature)
+            .map_err(|e| SignCommandError::SigningFailed(e.to_string()))?;
+
         Ok(SignOutput {
             transaction_hash: format_hex_output(&parsed_tx.hash),
             signature: format_hex_output(&signature),
-            signed_transaction: format_hex_output(&tx_bytes),
+            signed_transaction: format_hex_output(&signed_tx),
             signer: signer_address,
         })
     }

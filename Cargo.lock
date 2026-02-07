@@ -5574,6 +5574,7 @@ name = "txgate-chain"
 version = "0.3.0"
 dependencies = [
  "alloy-consensus",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
  "bincode",

@@ -21,6 +21,7 @@ workspace = true
 txgate-core = { version = "0.3.0", path = "../txgate-core" }
 txgate-crypto = { version = "0.3.0", path = "../txgate-crypto" }
 alloy-consensus = { workspace = true }
+alloy-eips = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
 serde = { workspace = true }

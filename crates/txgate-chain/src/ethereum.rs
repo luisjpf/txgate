@@ -120,10 +120,17 @@ impl EthereumParser {
         // Decode the RLP list from the payload
         let items = decode_list(rlp_payload)?;
 
-        // Legacy transaction has 9 items: [nonce, gasPrice, gasLimit, to, value, data, v, r, s]
-        if items.len() != 9 {
+        // Legacy transaction:
+        // - Signed: 9 items [nonce, gasPrice, gasLimit, to, value, data, v, r, s]
+        // - Unsigned pre-EIP-155: 6 items [nonce, gasPrice, gasLimit, to, value, data]
+        // - Unsigned EIP-155: 9 items [nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]
+        let is_unsigned = items.len() == 6;
+        if items.len() != 9 && items.len() != 6 {
             return Err(ParseError::MalformedTransaction {
-                context: format!("legacy transaction expected 9 items, got {}", items.len()),
+                context: format!(
+                    "legacy transaction expected 6 or 9 items, got {}",
+                    items.len()
+                ),
             });
         }
 
@@ -148,11 +155,6 @@ impl EthereumParser {
             .ok_or_else(|| ParseError::MalformedTransaction {
                 context: "missing data field".to_string(),
             })?;
-        let v_bytes = items
-            .get(6)
-            .ok_or_else(|| ParseError::MalformedTransaction {
-                context: "missing v field".to_string(),
-            })?;
 
         // Decode nonce
         let nonce = decode_u64(nonce_bytes)?;
@@ -166,19 +168,29 @@ impl EthereumParser {
         // Decode data
         let data = decode_bytes(data_bytes)?;
 
-        // Decode v for chain_id extraction
-        let v = decode_u64(v_bytes)?;
-
-        // Extract chain_id from v (EIP-155)
-        let chain_id = if v >= 35 {
-            // EIP-155: chain_id = (v - 35) / 2
-            (v - 35) / 2
-        } else if v == 27 || v == 28 {
-            // Pre-EIP-155: assume mainnet
+        // Extract chain_id: from v field (signed) or default to 1 (unsigned pre-EIP-155)
+        let chain_id = if is_unsigned {
+            // Unsigned pre-EIP-155: no chain_id available, default to mainnet
             1
         } else {
-            // Invalid v value, but we'll default to mainnet
-            1
+            let v_bytes = items
+                .get(6)
+                .ok_or_else(|| ParseError::MalformedTransaction {
+                    context: "missing v field".to_string(),
+                })?;
+            let v = decode_u64(v_bytes)?;
+
+            if v >= 35 {
+                // EIP-155: chain_id = (v - 35) / 2
+                (v - 35) / 2
+            } else if v == 27 || v == 28 {
+                // Pre-EIP-155: assume mainnet
+                1
+            } else {
+                // Could be EIP-155 unsigned where v == chain_id
+                // (items[6] = chain_id, items[7] = 0, items[8] = 0)
+                v
+            }
         };
 
         // Check for ERC-20 token call
@@ -210,6 +222,11 @@ impl EthereumParser {
         // Compute transaction hash from the hash source (includes type prefix for typed txs)
         let hash = keccak256(hash_source);
 
+        let mut metadata = std::collections::HashMap::new();
+        if is_unsigned {
+            metadata.insert("unsigned".to_string(), serde_json::Value::Bool(true));
+        }
+
         Ok(ParsedTx {
             hash: hash.into(),
             recipient: final_recipient,
@@ -220,7 +237,7 @@ impl EthereumParser {
             chain: "ethereum".to_string(),
             nonce: Some(nonce),
             chain_id: Some(chain_id),
-            metadata: std::collections::HashMap::new(),
+            metadata,
         })
     }
 
@@ -232,11 +249,12 @@ impl EthereumParser {
         // Decode the RLP list from the payload (without type byte)
         let items = decode_list(payload)?;
 
-        // EIP-2930 has 11 items
-        if items.len() != 11 {
+        // EIP-2930: signed has 11 items, unsigned has 8 items
+        let is_unsigned = items.len() == 8;
+        if items.len() != 11 && items.len() != 8 {
             return Err(ParseError::MalformedTransaction {
                 context: format!(
-                    "EIP-2930 transaction expected 11 items, got {}",
+                    "EIP-2930 transaction expected 8 or 11 items, got {}",
                     items.len()
                 ),
             });
@@ -315,7 +333,13 @@ impl EthereumParser {
             chain: "ethereum".to_string(),
             nonce: Some(nonce),
             chain_id: Some(chain_id),
-            metadata: std::collections::HashMap::new(),
+            metadata: {
+                let mut m = std::collections::HashMap::new();
+                if is_unsigned {
+                    m.insert("unsigned".to_string(), serde_json::Value::Bool(true));
+                }
+                m
+            },
         })
     }
 
@@ -327,11 +351,12 @@ impl EthereumParser {
         // Decode the RLP list from the payload (without type byte)
         let items = decode_list(payload)?;
 
-        // EIP-1559 has 12 items
-        if items.len() != 12 {
+        // EIP-1559: signed has 12 items, unsigned has 9 items
+        let is_unsigned = items.len() == 9;
+        if items.len() != 12 && items.len() != 9 {
             return Err(ParseError::MalformedTransaction {
                 context: format!(
-                    "EIP-1559 transaction expected 12 items, got {}",
+                    "EIP-1559 transaction expected 9 or 12 items, got {}",
                     items.len()
                 ),
             });
@@ -410,7 +435,13 @@ impl EthereumParser {
             chain: "ethereum".to_string(),
             nonce: Some(nonce),
             chain_id: Some(chain_id),
-            metadata: std::collections::HashMap::new(),
+            metadata: {
+                let mut m = std::collections::HashMap::new();
+                if is_unsigned {
+                    m.insert("unsigned".to_string(), serde_json::Value::Bool(true));
+                }
+                m
+            },
         })
     }
 
@@ -467,6 +498,374 @@ impl EthereumParser {
             recipient: recipient_addr,
             amount: *erc20_call.amount(),
         })
+    }
+
+    /// Assemble a fully signed transaction from raw bytes and a 65-byte signature.
+    ///
+    /// Takes the original raw transaction bytes (signed or unsigned) and the
+    /// signature (`r[32] || s[32] || v[1]`) and returns the RLP-encoded signed
+    /// transaction ready for broadcast.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw` - The raw transaction bytes (as originally passed to `parse()`)
+    /// * `signature` - 65-byte signature: `r(32) || s(32) || recovery_id(1)`
+    ///
+    /// # Returns
+    ///
+    /// The fully assembled, RLP-encoded signed transaction bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError::AssemblyFailed`] if:
+    /// - The signature is not exactly 65 bytes
+    /// - The transaction cannot be decoded
+    /// - RLP encoding of the signed transaction fails
+    pub fn assemble_signed(raw: &[u8], signature: &[u8]) -> Result<Vec<u8>, ParseError> {
+        use alloy_primitives::Signature;
+
+        if signature.len() != 65 {
+            return Err(ParseError::assembly_failed(format!(
+                "expected 65-byte signature, got {}",
+                signature.len()
+            )));
+        }
+
+        // Extract signature components
+        let r = U256::from_be_slice(
+            signature
+                .get(0..32)
+                .ok_or_else(|| ParseError::assembly_failed("signature too short for r"))?,
+        );
+        let s = U256::from_be_slice(
+            signature
+                .get(32..64)
+                .ok_or_else(|| ParseError::assembly_failed("signature too short for s"))?,
+        );
+        let v_byte = *signature
+            .get(64)
+            .ok_or_else(|| ParseError::assembly_failed("signature too short for v"))?;
+        if v_byte > 1 {
+            return Err(ParseError::assembly_failed(format!(
+                "invalid recovery id: expected 0 or 1, got {v_byte}"
+            )));
+        }
+        let v_parity = v_byte != 0;
+
+        let sig = Signature::new(r, s, v_parity);
+
+        // Detect tx type and assemble
+        match detect_tx_type(raw) {
+            None => {
+                // Legacy transaction
+                if !crate::rlp::is_list(raw) {
+                    return Err(ParseError::assembly_failed("not a valid RLP list"));
+                }
+                Self::assemble_legacy(raw, raw, &sig, None)
+            }
+            Some(0x00) => {
+                // Typed legacy (type 0)
+                let payload = typed_tx_payload(raw)?;
+                Self::assemble_legacy(raw, payload, &sig, None)
+            }
+            Some(0x01) => {
+                // EIP-2930
+                let payload = typed_tx_payload(raw)?;
+                Self::assemble_eip2930(payload, &sig)
+            }
+            Some(0x02) => {
+                // EIP-1559
+                let payload = typed_tx_payload(raw)?;
+                Self::assemble_eip1559(payload, &sig)
+            }
+            Some(ty) => Err(ParseError::assembly_failed(format!(
+                "unsupported transaction type: 0x{ty:02x}"
+            ))),
+        }
+    }
+
+    /// Assemble a signed legacy transaction.
+    fn assemble_legacy(
+        _raw: &[u8],
+        rlp_payload: &[u8],
+        sig: &alloy_primitives::Signature,
+        _type_prefix: Option<u8>,
+    ) -> Result<Vec<u8>, ParseError> {
+        use alloy_consensus::transaction::RlpEcdsaEncodableTx;
+        use alloy_consensus::TxLegacy;
+        use alloy_primitives::{Bytes, TxKind};
+
+        let items = decode_list(rlp_payload)?;
+
+        // Accept 6 (unsigned pre-EIP-155) or 9 (signed / unsigned EIP-155)
+        if items.len() != 6 && items.len() != 9 {
+            return Err(ParseError::assembly_failed(format!(
+                "legacy tx expected 6 or 9 items, got {}",
+                items.len()
+            )));
+        }
+
+        let nonce = decode_u64(
+            items
+                .first()
+                .ok_or_else(|| ParseError::assembly_failed("missing nonce"))?,
+        )?;
+
+        let gas_price_u256 = decode_u256(
+            items
+                .get(1)
+                .ok_or_else(|| ParseError::assembly_failed("missing gasPrice"))?,
+        )?;
+        let gas_price: u128 = gas_price_u256
+            .try_into()
+            .map_err(|_| ParseError::assembly_failed("gasPrice overflow"))?;
+
+        let gas_limit = decode_u64(
+            items
+                .get(2)
+                .ok_or_else(|| ParseError::assembly_failed("missing gasLimit"))?,
+        )?;
+
+        let to_addr = decode_optional_address(
+            items
+                .get(3)
+                .ok_or_else(|| ParseError::assembly_failed("missing to"))?,
+        )?;
+
+        let value = decode_u256(
+            items
+                .get(4)
+                .ok_or_else(|| ParseError::assembly_failed("missing value"))?,
+        )?;
+
+        let data = decode_bytes(
+            items
+                .get(5)
+                .ok_or_else(|| ParseError::assembly_failed("missing data"))?,
+        )?;
+
+        // Extract chain_id
+        let chain_id = if items.len() == 9 {
+            let v = decode_u64(
+                items
+                    .get(6)
+                    .ok_or_else(|| ParseError::assembly_failed("missing v"))?,
+            )?;
+            if v >= 35 {
+                Some((v - 35) / 2)
+            } else if v == 27 || v == 28 {
+                None // pre-EIP-155
+            } else {
+                // EIP-155 unsigned: v == chain_id
+                Some(v)
+            }
+        } else {
+            None // 6-item unsigned: no chain_id
+        };
+
+        let tx = TxLegacy {
+            chain_id,
+            nonce,
+            gas_price,
+            gas_limit,
+            to: to_addr.map_or(TxKind::Create, TxKind::Call),
+            value,
+            input: Bytes::from(data),
+        };
+
+        let mut buf = Vec::new();
+        tx.rlp_encode_signed(sig, &mut buf);
+        Ok(buf)
+    }
+
+    /// Assemble a signed EIP-2930 transaction.
+    fn assemble_eip2930(
+        payload: &[u8],
+        sig: &alloy_primitives::Signature,
+    ) -> Result<Vec<u8>, ParseError> {
+        use alloy_consensus::transaction::RlpEcdsaEncodableTx;
+        use alloy_consensus::TxEip2930;
+        use alloy_eips::eip2930::AccessList;
+        use alloy_primitives::{Bytes, TxKind};
+        use alloy_rlp::Decodable;
+
+        let items = decode_list(payload)?;
+
+        // Accept 8 (unsigned) or 11 (signed)
+        if items.len() != 8 && items.len() != 11 {
+            return Err(ParseError::assembly_failed(format!(
+                "EIP-2930 tx expected 8 or 11 items, got {}",
+                items.len()
+            )));
+        }
+
+        let chain_id = decode_u64(
+            items
+                .first()
+                .ok_or_else(|| ParseError::assembly_failed("missing chainId"))?,
+        )?;
+
+        let nonce = decode_u64(
+            items
+                .get(1)
+                .ok_or_else(|| ParseError::assembly_failed("missing nonce"))?,
+        )?;
+
+        let gas_price_u256 = decode_u256(
+            items
+                .get(2)
+                .ok_or_else(|| ParseError::assembly_failed("missing gasPrice"))?,
+        )?;
+        let gas_price: u128 = gas_price_u256
+            .try_into()
+            .map_err(|_| ParseError::assembly_failed("gasPrice overflow"))?;
+
+        let gas_limit = decode_u64(
+            items
+                .get(3)
+                .ok_or_else(|| ParseError::assembly_failed("missing gasLimit"))?,
+        )?;
+
+        let to_addr = decode_optional_address(
+            items
+                .get(4)
+                .ok_or_else(|| ParseError::assembly_failed("missing to"))?,
+        )?;
+
+        let value = decode_u256(
+            items
+                .get(5)
+                .ok_or_else(|| ParseError::assembly_failed("missing value"))?,
+        )?;
+
+        let data = decode_bytes(
+            items
+                .get(6)
+                .ok_or_else(|| ParseError::assembly_failed("missing data"))?,
+        )?;
+
+        let access_list_bytes = items
+            .get(7)
+            .ok_or_else(|| ParseError::assembly_failed("missing accessList"))?;
+        let mut access_list_buf = *access_list_bytes;
+        let access_list = AccessList::decode(&mut access_list_buf).map_err(|e| {
+            ParseError::assembly_failed(format!("failed to decode access list: {e}"))
+        })?;
+
+        let tx = TxEip2930 {
+            chain_id,
+            nonce,
+            gas_price,
+            gas_limit,
+            to: to_addr.map_or(TxKind::Create, TxKind::Call),
+            value,
+            input: Bytes::from(data),
+            access_list,
+        };
+
+        let mut buf = vec![0x01]; // EIP-2930 type prefix
+        tx.rlp_encode_signed(sig, &mut buf);
+        Ok(buf)
+    }
+
+    /// Assemble a signed EIP-1559 transaction.
+    fn assemble_eip1559(
+        payload: &[u8],
+        sig: &alloy_primitives::Signature,
+    ) -> Result<Vec<u8>, ParseError> {
+        use alloy_consensus::transaction::RlpEcdsaEncodableTx;
+        use alloy_consensus::TxEip1559;
+        use alloy_eips::eip2930::AccessList;
+        use alloy_primitives::{Bytes, TxKind};
+        use alloy_rlp::Decodable;
+
+        let items = decode_list(payload)?;
+
+        // Accept 9 (unsigned) or 12 (signed)
+        if items.len() != 9 && items.len() != 12 {
+            return Err(ParseError::assembly_failed(format!(
+                "EIP-1559 tx expected 9 or 12 items, got {}",
+                items.len()
+            )));
+        }
+
+        let chain_id = decode_u64(
+            items
+                .first()
+                .ok_or_else(|| ParseError::assembly_failed("missing chainId"))?,
+        )?;
+
+        let nonce = decode_u64(
+            items
+                .get(1)
+                .ok_or_else(|| ParseError::assembly_failed("missing nonce"))?,
+        )?;
+
+        let max_priority_fee_u256 = decode_u256(
+            items
+                .get(2)
+                .ok_or_else(|| ParseError::assembly_failed("missing maxPriorityFeePerGas"))?,
+        )?;
+        let max_priority_fee_per_gas: u128 = max_priority_fee_u256
+            .try_into()
+            .map_err(|_| ParseError::assembly_failed("maxPriorityFeePerGas overflow"))?;
+
+        let max_fee_u256 = decode_u256(
+            items
+                .get(3)
+                .ok_or_else(|| ParseError::assembly_failed("missing maxFeePerGas"))?,
+        )?;
+        let max_fee_per_gas: u128 = max_fee_u256
+            .try_into()
+            .map_err(|_| ParseError::assembly_failed("maxFeePerGas overflow"))?;
+
+        let gas_limit = decode_u64(
+            items
+                .get(4)
+                .ok_or_else(|| ParseError::assembly_failed("missing gasLimit"))?,
+        )?;
+
+        let to_addr = decode_optional_address(
+            items
+                .get(5)
+                .ok_or_else(|| ParseError::assembly_failed("missing to"))?,
+        )?;
+
+        let value = decode_u256(
+            items
+                .get(6)
+                .ok_or_else(|| ParseError::assembly_failed("missing value"))?,
+        )?;
+
+        let data = decode_bytes(
+            items
+                .get(7)
+                .ok_or_else(|| ParseError::assembly_failed("missing data"))?,
+        )?;
+
+        let access_list_bytes = items
+            .get(8)
+            .ok_or_else(|| ParseError::assembly_failed("missing accessList"))?;
+        let mut access_list_buf = *access_list_bytes;
+        let access_list = AccessList::decode(&mut access_list_buf).map_err(|e| {
+            ParseError::assembly_failed(format!("failed to decode access list: {e}"))
+        })?;
+
+        let tx = TxEip1559 {
+            chain_id,
+            nonce,
+            max_priority_fee_per_gas,
+            max_fee_per_gas,
+            gas_limit,
+            to: to_addr.map_or(TxKind::Create, TxKind::Call),
+            value,
+            input: Bytes::from(data),
+            access_list,
+        };
+
+        let mut buf = vec![0x02]; // EIP-1559 type prefix
+        tx.rlp_encode_signed(sig, &mut buf);
+        Ok(buf)
     }
 }
 
@@ -581,6 +980,10 @@ impl Chain for EthereumParser {
     /// * `false` for other versions (e.g., EIP-4844 blob transactions)
     fn supports_version(&self, version: u8) -> bool {
         matches!(version, 0..=2)
+    }
+
+    fn assemble_signed(&self, raw: &[u8], signature: &[u8]) -> Result<Vec<u8>, ParseError> {
+        Self::assemble_signed(raw, signature)
     }
 }
 
@@ -1898,5 +2301,429 @@ mod tests {
         assert_eq!(parsed.tx_type, TxType::ContractCall);
         // Token address should NOT be set
         assert!(parsed.token_address.is_none());
+    }
+
+    // ------------------------------------------------------------------------
+    // Unsigned Transaction Parsing Tests
+    // ------------------------------------------------------------------------
+
+    /// Helper to encode an unsigned EIP-1559 tx (9 items, no signature)
+    fn encode_unsigned_eip1559_tx(
+        chain_id: u64,
+        nonce: u64,
+        max_priority_fee_per_gas: u128,
+        max_fee_per_gas: u128,
+        gas_limit: u64,
+        to: Option<Address>,
+        value: U256,
+        data: Bytes,
+    ) -> Vec<u8> {
+        use alloy_consensus::TxEip1559;
+        use alloy_rlp::Encodable;
+
+        let tx = TxEip1559 {
+            chain_id,
+            nonce,
+            max_priority_fee_per_gas,
+            max_fee_per_gas,
+            gas_limit,
+            to: to.map_or(TxKind::Create, TxKind::Call),
+            value,
+            input: data,
+            access_list: Default::default(),
+        };
+
+        let mut payload = Vec::new();
+        tx.encode(&mut payload);
+
+        let mut buf = vec![0x02]; // EIP-1559 type prefix
+        buf.extend_from_slice(&payload);
+        buf
+    }
+
+    /// Helper to encode an unsigned EIP-2930 tx (8 items, no signature)
+    fn encode_unsigned_eip2930_tx(
+        chain_id: u64,
+        nonce: u64,
+        gas_price: u128,
+        gas_limit: u64,
+        to: Option<Address>,
+        value: U256,
+        data: Bytes,
+    ) -> Vec<u8> {
+        use alloy_consensus::TxEip2930;
+        use alloy_rlp::Encodable;
+
+        let tx = TxEip2930 {
+            chain_id,
+            nonce,
+            gas_price,
+            gas_limit,
+            to: to.map_or(TxKind::Create, TxKind::Call),
+            value,
+            input: data,
+            access_list: Default::default(),
+        };
+
+        let mut payload = Vec::new();
+        tx.encode(&mut payload);
+
+        let mut buf = vec![0x01]; // EIP-2930 type prefix
+        buf.extend_from_slice(&payload);
+        buf
+    }
+
+    /// Helper to encode an unsigned legacy tx (6 items, no signature)
+    fn encode_unsigned_legacy_tx(
+        nonce: u64,
+        gas_price: u128,
+        gas_limit: u64,
+        to: Option<Address>,
+        value: U256,
+        data: Bytes,
+    ) -> Vec<u8> {
+        use alloy_consensus::TxLegacy;
+        use alloy_rlp::Encodable;
+
+        let tx = TxLegacy {
+            chain_id: None, // pre-EIP-155 unsigned: 6 items
+            nonce,
+            gas_price,
+            gas_limit,
+            to: to.map_or(TxKind::Create, TxKind::Call),
+            value,
+            input: data,
+        };
+
+        let mut buf = Vec::new();
+        tx.encode(&mut buf);
+        buf
+    }
+
+    #[test]
+    fn test_parse_unsigned_eip1559() {
+        let parser = EthereumParser::new();
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let raw = encode_unsigned_eip1559_tx(
+            1,
+            0,
+            1_000_000_000,
+            2_000_000_000,
+            21000,
+            Some(recipient),
+            U256::from(1_000_000_000_000_000_000u64),
+            Bytes::new(),
+        );
+
+        let result = parser.parse(&raw);
+        assert!(
+            result.is_ok(),
+            "Should parse unsigned EIP-1559: {:?}",
+            result.err()
+        );
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain_id, Some(1));
+        assert_eq!(parsed.nonce, Some(0));
+        assert_eq!(
+            parsed.metadata.get("unsigned"),
+            Some(&serde_json::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn test_parse_unsigned_eip2930() {
+        let parser = EthereumParser::new();
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let raw = encode_unsigned_eip2930_tx(
+            1,
+            0,
+            1_000_000_000,
+            21000,
+            Some(recipient),
+            U256::from(1_000_000_000_000_000_000u64),
+            Bytes::new(),
+        );
+
+        let result = parser.parse(&raw);
+        assert!(
+            result.is_ok(),
+            "Should parse unsigned EIP-2930: {:?}",
+            result.err()
+        );
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain_id, Some(1));
+        assert_eq!(
+            parsed.metadata.get("unsigned"),
+            Some(&serde_json::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn test_parse_unsigned_legacy_pre_eip155() {
+        let parser = EthereumParser::new();
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let raw = encode_unsigned_legacy_tx(
+            0,
+            20_000_000_000,
+            21000,
+            Some(recipient),
+            U256::from(1_000_000_000_000_000_000u64),
+            Bytes::new(),
+        );
+
+        let result = parser.parse(&raw);
+        assert!(
+            result.is_ok(),
+            "Should parse unsigned legacy: {:?}",
+            result.err()
+        );
+        let parsed = result.unwrap();
+        assert_eq!(parsed.chain_id, Some(1)); // defaults to mainnet
+        assert_eq!(
+            parsed.metadata.get("unsigned"),
+            Some(&serde_json::Value::Bool(true))
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // assemble_signed() Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_assemble_signed_legacy_roundtrip() {
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let sig = Signature::new(
+            U256::from(0xdeadbeef_u64),
+            U256::from(0xcafebabe_u64),
+            false,
+        );
+
+        let tx = alloy_consensus::TxLegacy {
+            chain_id: Some(1),
+            nonce: 42,
+            gas_price: 20_000_000_000,
+            gas_limit: 21000,
+            to: TxKind::Call(recipient),
+            value: U256::from(1_000_000_000_000_000_000u64),
+            input: Bytes::new(),
+        };
+
+        // Encode the signed tx
+        let mut expected = Vec::new();
+        alloy_consensus::transaction::RlpEcdsaEncodableTx::rlp_encode_signed(
+            &tx,
+            &sig,
+            &mut expected,
+        );
+
+        // Now assemble from the same signed bytes (which is the input) + our signature
+        // Build a 65-byte signature: r(32) || s(32) || v(1)
+        let mut sig_bytes = [0u8; 65];
+        sig.r()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[i] = *b);
+        sig.s()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[32 + i] = *b);
+        sig_bytes[64] = u8::from(sig.v());
+
+        let assembled = EthereumParser::assemble_signed(&expected, &sig_bytes);
+        assert!(assembled.is_ok(), "Assembly failed: {:?}", assembled.err());
+        assert_eq!(assembled.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_assemble_signed_eip1559_roundtrip() {
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let sig = Signature::new(U256::from(0xdeadbeef_u64), U256::from(0xcafebabe_u64), true);
+
+        let tx = alloy_consensus::TxEip1559 {
+            chain_id: 1,
+            nonce: 10,
+            max_priority_fee_per_gas: 1_000_000_000,
+            max_fee_per_gas: 2_000_000_000,
+            gas_limit: 21000,
+            to: TxKind::Call(recipient),
+            value: U256::from(500_000_000_000_000_000u64),
+            input: Bytes::new(),
+            access_list: Default::default(),
+        };
+
+        let mut expected = vec![0x02];
+        alloy_consensus::transaction::RlpEcdsaEncodableTx::rlp_encode_signed(
+            &tx,
+            &sig,
+            &mut expected,
+        );
+
+        let mut sig_bytes = [0u8; 65];
+        sig.r()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[i] = *b);
+        sig.s()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[32 + i] = *b);
+        sig_bytes[64] = u8::from(sig.v());
+
+        let assembled = EthereumParser::assemble_signed(&expected, &sig_bytes);
+        assert!(assembled.is_ok(), "Assembly failed: {:?}", assembled.err());
+        assert_eq!(assembled.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_assemble_signed_eip2930_roundtrip() {
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let sig = Signature::new(
+            U256::from(0xdeadbeef_u64),
+            U256::from(0xcafebabe_u64),
+            false,
+        );
+
+        let tx = alloy_consensus::TxEip2930 {
+            chain_id: 1,
+            nonce: 5,
+            gas_price: 20_000_000_000,
+            gas_limit: 21000,
+            to: TxKind::Call(recipient),
+            value: U256::from(1_000_000_000_000_000_000u64),
+            input: Bytes::new(),
+            access_list: Default::default(),
+        };
+
+        let mut expected = vec![0x01];
+        alloy_consensus::transaction::RlpEcdsaEncodableTx::rlp_encode_signed(
+            &tx,
+            &sig,
+            &mut expected,
+        );
+
+        let mut sig_bytes = [0u8; 65];
+        sig.r()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[i] = *b);
+        sig.s()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[32 + i] = *b);
+        sig_bytes[64] = u8::from(sig.v());
+
+        let assembled = EthereumParser::assemble_signed(&expected, &sig_bytes);
+        assert!(assembled.is_ok(), "Assembly failed: {:?}", assembled.err());
+        assert_eq!(assembled.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_assemble_signed_from_unsigned_eip1559() {
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let sig = Signature::new(
+            U256::from(0xdeadbeef_u64),
+            U256::from(0xcafebabe_u64),
+            false,
+        );
+
+        let tx = alloy_consensus::TxEip1559 {
+            chain_id: 1,
+            nonce: 0,
+            max_priority_fee_per_gas: 1_000_000_000,
+            max_fee_per_gas: 2_000_000_000,
+            gas_limit: 21000,
+            to: TxKind::Call(recipient),
+            value: U256::from(1_000_000_000_000_000_000u64),
+            input: Bytes::new(),
+            access_list: Default::default(),
+        };
+
+        // Create unsigned raw bytes
+        let unsigned_raw = encode_unsigned_eip1559_tx(
+            1,
+            0,
+            1_000_000_000,
+            2_000_000_000,
+            21000,
+            Some(recipient),
+            U256::from(1_000_000_000_000_000_000u64),
+            Bytes::new(),
+        );
+
+        // Build expected signed output
+        let mut expected = vec![0x02];
+        alloy_consensus::transaction::RlpEcdsaEncodableTx::rlp_encode_signed(
+            &tx,
+            &sig,
+            &mut expected,
+        );
+
+        let mut sig_bytes = [0u8; 65];
+        sig.r()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[i] = *b);
+        sig.s()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[32 + i] = *b);
+        sig_bytes[64] = u8::from(sig.v());
+
+        let assembled = EthereumParser::assemble_signed(&unsigned_raw, &sig_bytes);
+        assert!(
+            assembled.is_ok(),
+            "Assembly from unsigned failed: {:?}",
+            assembled.err()
+        );
+        assert_eq!(assembled.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_assemble_signed_invalid_signature_length() {
+        let raw = encode_eip1559_tx(
+            1,
+            0,
+            1_000_000_000,
+            2_000_000_000,
+            21000,
+            Some(Address::ZERO),
+            U256::ZERO,
+            Bytes::new(),
+        );
+
+        let short_sig = [0u8; 32]; // too short
+        let result = EthereumParser::assemble_signed(&raw, &short_sig);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("expected 65-byte signature"));
+    }
+
+    #[test]
+    fn test_assemble_signed_invalid_recovery_id() {
+        let raw = encode_eip1559_tx(
+            1,
+            0,
+            1_000_000_000,
+            2_000_000_000,
+            21000,
+            Some(Address::ZERO),
+            U256::ZERO,
+            Bytes::new(),
+        );
+
+        let mut bad_sig = [0u8; 65];
+        bad_sig[64] = 2; // invalid: must be 0 or 1
+        let result = EthereumParser::assemble_signed(&raw, &bad_sig);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("invalid recovery id"));
     }
 }

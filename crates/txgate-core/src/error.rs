@@ -198,6 +198,13 @@ pub enum ParseError {
         /// The malformed address string.
         address: String,
     },
+
+    /// Signed transaction assembly failed.
+    #[error("assembly failed: {context}")]
+    AssemblyFailed {
+        /// Context about why assembly failed.
+        context: String,
+    },
 }
 
 impl ParseError {
@@ -230,6 +237,14 @@ impl ParseError {
     pub fn invalid_address(address: impl Into<String>) -> Self {
         Self::InvalidAddress {
             address: address.into(),
+        }
+    }
+
+    /// Create an `AssemblyFailed` error with context.
+    #[must_use]
+    pub fn assembly_failed(context: impl Into<String>) -> Self {
+        Self::AssemblyFailed {
+            context: context.into(),
         }
     }
 }
@@ -803,6 +818,11 @@ mod tests {
             ParseError::invalid_address("0xinvalid").to_string(),
             "invalid address: 0xinvalid"
         );
+
+        assert_eq!(
+            ParseError::assembly_failed("missing signature").to_string(),
+            "assembly failed: missing signature"
+        );
     }
 
     #[test]
@@ -820,6 +840,9 @@ mod tests {
 
         let err = ParseError::invalid_address("bad-addr");
         assert!(matches!(err, ParseError::InvalidAddress { address } if address == "bad-addr"));
+
+        let err = ParseError::assembly_failed("test context");
+        assert!(matches!(err, ParseError::AssemblyFailed { context } if context == "test context"));
     }
 
     // ------------------------------------------------------------------------

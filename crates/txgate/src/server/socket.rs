@@ -633,6 +633,15 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
         };
         let v = signature.get(64).copied().unwrap_or(0);
 
+        // Assemble signed transaction (best-effort; not all chains support this)
+        let signed_transaction = match self.parser.assemble_signed(&tx_bytes, &signature) {
+            Ok(bytes) => Some(format!("0x{}", hex::encode(&bytes))),
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to assemble signed transaction");
+                None
+            }
+        };
+
         // Build the sign result
         let sign_result = SignResult {
             tx_hash: format!("0x{}", hex::encode(parsed_tx.hash)),
@@ -640,6 +649,7 @@ impl<S: Signer + Send + Sync + 'static> TxGateServer<S> {
             s: format!("0x{}", hex::encode(s)),
             v,
             signature: format!("0x{}", hex::encode(&signature)),
+            signed_transaction,
             transaction: TransactionDetails {
                 tx_type: parsed_tx.tx_type.as_str().to_string(),
                 recipient: parsed_tx.recipient.clone(),
