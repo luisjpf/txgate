@@ -645,19 +645,47 @@ impl EthereumParser {
         )?;
 
         // Extract chain_id
+        //
+        // For 9-item legacy transactions we must distinguish:
+        //   - Unsigned EIP-155: [nonce, gasPrice, gas, to, value, data, chainId, 0, 0]
+        //   - Signed EIP-155:   [nonce, gasPrice, gas, to, value, data, v, r, s]
+        //
+        // In the unsigned case, items[7] (r) and items[8] (s) are both zero.
+        // A valid ECDSA signature cannot have r=0 and s=0, so this is a safe
+        // distinguisher.
         let chain_id = if items.len() == 9 {
-            let v = decode_u64(
+            let v_raw = decode_u64(
                 items
                     .get(6)
                     .ok_or_else(|| ParseError::assembly_failed("missing v"))?,
             )?;
-            if v >= 35 {
-                Some((v - 35) / 2)
-            } else if v == 27 || v == 28 {
+
+            let r_val = decode_u256(
+                items
+                    .get(7)
+                    .ok_or_else(|| ParseError::assembly_failed("missing r"))?,
+            )?;
+            let s_val = decode_u256(
+                items
+                    .get(8)
+                    .ok_or_else(|| ParseError::assembly_failed("missing s"))?,
+            )?;
+            let is_unsigned = r_val.is_zero() && s_val.is_zero();
+
+            if is_unsigned {
+                // Unsigned EIP-155: v_raw IS the chain_id directly
+                if v_raw > 0 {
+                    Some(v_raw)
+                } else {
+                    None
+                }
+            } else if v_raw >= 35 {
+                // Signed EIP-155: recover chain_id from v
+                Some((v_raw - 35) / 2)
+            } else if v_raw == 27 || v_raw == 28 {
                 None // pre-EIP-155
             } else {
-                // EIP-155 unsigned: v == chain_id
-                Some(v)
+                Some(v_raw)
             }
         } else {
             None // 6-item unsigned: no chain_id
@@ -2725,5 +2753,73 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("invalid recovery id"));
+    }
+
+    #[test]
+    fn test_assemble_signed_from_unsigned_legacy_eip155_high_chain_id() {
+        // Regression test: unsigned EIP-155 legacy tx with a high chain_id
+        // (Base Sepolia = 84532). Previously the code treated the raw chain_id
+        // as a signed v value and applied (v-35)/2, halving it to 42248.
+        let recipient = Address::from(hex!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+        let chain_id: u64 = 84532; // Base Sepolia
+
+        let sig = Signature::new(
+            U256::from_be_slice(&hex!(
+                "f02452acc422c61ef96aa74d71c41ef272535b7bedb9a3cc923b0e5528558c6f"
+            )),
+            U256::from_be_slice(&hex!(
+                "6b39d1e300572cbb0fdd4d5e4f866663bc2ad6caea0e41996033c90d8a97fedb"
+            )),
+            true, // recovery_id = 1
+        );
+
+        // Build unsigned EIP-155 tx: [nonce, gasPrice, gas, to, value, data, chainId, 0, 0]
+        let tx = alloy_consensus::TxLegacy {
+            chain_id: Some(chain_id),
+            nonce: 0,
+            gas_price: 1_000_000_000,
+            gas_limit: 21000,
+            to: TxKind::Call(recipient),
+            value: U256::ZERO,
+            input: Bytes::new(),
+        };
+
+        let mut unsigned_raw = Vec::new();
+        alloy_rlp::Encodable::encode(&tx, &mut unsigned_raw);
+
+        // Build expected signed output using alloy directly
+        let mut expected = Vec::new();
+        alloy_consensus::transaction::RlpEcdsaEncodableTx::rlp_encode_signed(
+            &tx,
+            &sig,
+            &mut expected,
+        );
+
+        // Build 65-byte signature
+        let mut sig_bytes = [0u8; 65];
+        sig.r()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[i] = *b);
+        sig.s()
+            .to_be_bytes::<32>()
+            .iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[32 + i] = *b);
+        sig_bytes[64] = u8::from(sig.v());
+
+        let assembled = EthereumParser::assemble_signed(&unsigned_raw, &sig_bytes);
+        assert!(
+            assembled.is_ok(),
+            "Assembly from unsigned EIP-155 (chain_id={chain_id}) failed: {:?}",
+            assembled.err()
+        );
+        let assembled_bytes = assembled.unwrap();
+        assert_eq!(
+            hex::encode(&assembled_bytes),
+            hex::encode(&expected),
+            "Assembled signed tx does not match expected for chain_id={chain_id}"
+        );
     }
 }
