@@ -24,6 +24,7 @@
 //! ```
 
 use std::io::Write;
+use std::path::Path;
 
 use txgate_core::config_loader::ConfigLoader;
 use zeroize::Zeroizing;
@@ -69,17 +70,29 @@ pub enum PassphraseError {
 
 /// Resolve whether env-var passphrases are allowed by loading config.
 ///
-/// Returns `true` if:
-/// - `allow_env_passphrase = true` in `~/.txgate/config.toml`, or
-/// - No config file exists (e.g., before `txgate init`)
-///
-/// Returns `false` if the config file exists with the default
-/// `allow_env_passphrase = false`.
+/// Delegates to [`resolve_allow_env_for_base_dir`] with the default
+/// base directory (`~/.txgate`). Each passphrase call re-reads from
+/// disk, which is negligible for a CLI tool that reads config at most
+/// 2–3 times per invocation.
 fn resolve_allow_env() -> bool {
-    let Ok(loader) = ConfigLoader::new() else {
+    let Ok(base_dir) = txgate_core::config_loader::default_base_dir() else {
         // Can't determine home dir — allow env for backward compat
         return true;
     };
+    resolve_allow_env_for_base_dir(&base_dir)
+}
+
+/// Resolve whether env-var passphrases are allowed, given a base directory.
+///
+/// Returns `true` if:
+/// - `allow_env_passphrase = true` in `<base_dir>/config.toml`, or
+/// - No config file exists (e.g., before `txgate init`)
+///
+/// Returns `false` if the config file exists with the default
+/// `allow_env_passphrase = false`, or if the config is unparseable
+/// (fail-closed).
+pub(crate) fn resolve_allow_env_for_base_dir(base_dir: &Path) -> bool {
+    let loader = ConfigLoader::with_base_dir(base_dir.to_path_buf());
     if !loader.exists() {
         // No config file yet (pre-init, import, etc.) — allow env
         return true;
@@ -127,6 +140,9 @@ pub(crate) fn read_passphrase_inner(allow_env: bool) -> Result<Zeroizing<String>
             eprintln!("Using passphrase from {ENV_VAR} environment variable");
             return Ok(val);
         }
+        // Clear env var even when ignoring it (defense-in-depth:
+        // prevents child processes from inheriting the secret).
+        clear_env_var(ENV_VAR);
         eprintln!(
             "Warning: {ENV_VAR} is set but allow_env_passphrase is false in config. \
              Ignoring env var."
@@ -184,6 +200,9 @@ pub(crate) fn read_new_passphrase_inner(
             eprintln!("Using passphrase from {ENV_VAR} environment variable");
             return Ok(val);
         }
+        // Clear env var even when ignoring it (defense-in-depth:
+        // prevents child processes from inheriting the secret).
+        clear_env_var(ENV_VAR);
         eprintln!(
             "Warning: {ENV_VAR} is set but allow_env_passphrase is false in config. \
              Ignoring env var."
@@ -275,9 +294,19 @@ pub(crate) fn read_new_export_passphrase_inner(
                 return Ok(Zeroizing::new(String::from(&**passphrase)));
             }
         }
+    } else if std::env::var(EXPORT_ENV_VAR).is_ok() {
+        // Clear export env var even when ignoring it (defense-in-depth).
+        clear_env_var(EXPORT_ENV_VAR);
+        eprintln!(
+            "Warning: {EXPORT_ENV_VAR} is set but allow_env_passphrase is false in config. \
+             Ignoring env var."
+        );
     }
 
-    // Fall back to interactive prompt
+    // Fall back to interactive prompt.
+    // Note: when allow_env=true and no export env var was set, this re-checks
+    // TXGATE_PASSPHRASE — which has already been cleared by the preceding
+    // read_passphrase() call, so it safely falls through to the interactive prompt.
     read_new_passphrase_inner(allow_env)
 }
 
@@ -557,15 +586,87 @@ mod tests {
 
     #[test]
     fn test_resolve_allow_env_no_config_file() {
-        // When no config file exists, resolve_allow_env should return true
-        // (backward compat for init, import, etc.)
-        // This test works because ~/.txgate/config.toml likely doesn't exist
-        // in CI, and even if it does, we're testing the default case via
-        // a ConfigLoader with a nonexistent base dir.
-        let result = resolve_allow_env();
-        // Result depends on whether ~/.txgate/config.toml exists on this machine.
-        // We just verify it doesn't panic.
-        let _ = result;
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        // No config file => allow env (backward compat for pre-init)
+        assert!(resolve_allow_env_for_base_dir(temp_dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_allow_env_default_config() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+        std::fs::write(&config_path, "[server]\n").unwrap();
+        // Default config has allow_env_passphrase = false
+        assert!(!resolve_allow_env_for_base_dir(temp_dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_allow_env_enabled() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+        std::fs::write(&config_path, "[server]\nallow_env_passphrase = true\n").unwrap();
+        assert!(resolve_allow_env_for_base_dir(temp_dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_allow_env_broken_config() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+        std::fs::write(&config_path, "not valid toml {{{").unwrap();
+        // Broken config => deny (fail-closed)
+        assert!(!resolve_allow_env_for_base_dir(temp_dir.path()));
+    }
+
+    // =========================================================================
+    // allow_env=false tests (deny path)
+    // =========================================================================
+
+    #[test]
+    fn test_read_passphrase_inner_false_ignores_and_clears_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set(ENV_VAR, "should-be-ignored");
+
+        // allow_env=false: should ignore env var and try interactive prompt
+        // (which fails in test — no TTY)
+        let result = read_passphrase_inner(false);
+        assert!(result.is_err());
+        // Env var should be cleared even when ignored (defense-in-depth)
+        assert!(std::env::var(ENV_VAR).is_err());
+    }
+
+    #[test]
+    fn test_read_new_passphrase_inner_false_ignores_and_clears_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set(ENV_VAR, "longpassphrase-ignored");
+
+        let result = read_new_passphrase_inner(false);
+        assert!(result.is_err());
+        assert!(std::env::var(ENV_VAR).is_err());
+    }
+
+    #[test]
+    fn test_read_new_export_passphrase_inner_false_ignores_and_clears_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_main = EnvGuard::remove(ENV_VAR);
+        let _guard_export = EnvGuard::set(EXPORT_ENV_VAR, "export-pass-ignored");
+
+        let result = read_new_export_passphrase_inner(None, false);
+        assert!(result.is_err());
+        // Export env var should be cleared even when ignored
+        assert!(std::env::var(EXPORT_ENV_VAR).is_err());
+    }
+
+    #[test]
+    fn test_read_new_export_passphrase_inner_false_ignores_main_passphrase() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard_main = EnvGuard::remove(ENV_VAR);
+        let _guard_export = EnvGuard::remove(EXPORT_ENV_VAR);
+
+        // Even with a valid main passphrase, allow_env=false should ignore it
+        let main_pass = Zeroizing::new("main-pass-123".to_string());
+        let result = read_new_export_passphrase_inner(Some(&main_pass), false);
+        // Falls through to interactive prompt (fails in test)
+        assert!(result.is_err());
     }
 
     // =========================================================================
