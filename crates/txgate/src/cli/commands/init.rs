@@ -20,11 +20,17 @@
 //! ```no_run
 //! use txgate::cli::commands::init::InitCommand;
 //!
-//! let cmd = InitCommand { force: false };
+//! let cmd = InitCommand { force: false, allow_env_passphrase: false };
 //! cmd.run().expect("initialization failed");
 //! ```
 //!
-//! Set `TXGATE_PASSPHRASE` to skip the interactive prompt and confirmation.
+//! ## Passphrase Handling
+//!
+//! | `--allow-env-passphrase` | `TXGATE_PASSPHRASE` set? | Behavior |
+//! |--------------------------|--------------------------|----------|
+//! | Yes | Yes | Non-interactive: uses env var, writes `allow_env_passphrase = true` |
+//! | Yes | No  | Error: `--allow-env-passphrase requires TXGATE_PASSPHRASE to be set` |
+//! | No  | *(ignored)* | Interactive: prompts for passphrase, asks y/n about env passphrase |
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -40,7 +46,7 @@ use txgate_crypto::keys::SecretKey;
 use txgate_crypto::store::{FileKeyStore, KeyStore};
 use zeroize::Zeroizing;
 
-use crate::cli::passphrase::{PassphraseError, MIN_PASSPHRASE_LENGTH};
+use crate::cli::passphrase::{self, PassphraseError, MIN_PASSPHRASE_LENGTH};
 
 // ============================================================================
 // Constants
@@ -96,6 +102,10 @@ pub enum InitError {
     #[error("Failed to write config: {0}")]
     ConfigWrite(#[source] ConfigError),
 
+    /// `--allow-env-passphrase` was passed but `TXGATE_PASSPHRASE` is not set.
+    #[error("--allow-env-passphrase requires TXGATE_PASSPHRASE to be set")]
+    EnvPassphraseRequired,
+
     /// General I/O error.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
@@ -123,7 +133,7 @@ pub enum InitError {
 /// ```no_run
 /// use txgate::cli::commands::init::InitCommand;
 ///
-/// let cmd = InitCommand { force: false };
+/// let cmd = InitCommand { force: false, allow_env_passphrase: false };
 /// match cmd.run() {
 ///     Ok(()) => println!("Initialization complete"),
 ///     Err(e) => eprintln!("Error: {}", e),
@@ -133,13 +143,20 @@ pub enum InitError {
 pub struct InitCommand {
     /// Force re-initialization even if already initialized.
     pub force: bool,
+    /// If `true`, read passphrase from `TXGATE_PASSPHRASE` and write
+    /// `allow_env_passphrase = true` into the config. When `false`,
+    /// the user is prompted interactively and asked about the setting.
+    pub allow_env_passphrase: bool,
 }
 
 impl InitCommand {
     /// Create a new `InitCommand`.
     #[must_use]
-    pub const fn new(force: bool) -> Self {
-        Self { force }
+    pub const fn new(force: bool, allow_env_passphrase: bool) -> Self {
+        Self {
+            force,
+            allow_env_passphrase,
+        }
     }
 
     /// Run the initialization command.
@@ -173,8 +190,17 @@ impl InitCommand {
         // 2. Create ~/.txgate directory structure
         create_directory_structure(&base_dir)?;
 
-        // 3. Prompt for passphrase (with confirmation)
-        let passphrase = read_new_passphrase_for_init()?;
+        // 3. Get passphrase and resolve allow_env setting
+        let (passphrase, allow_env) = if self.allow_env_passphrase {
+            // Flag set: read from env var (error if not set)
+            let p = read_new_passphrase_for_init_env()?;
+            (p, true)
+        } else {
+            // Interactive: prompt, then ask y/n about env passphrase
+            let p = read_new_passphrase_for_init_interactive()?;
+            let allow = ask_allow_env_passphrase()?;
+            (p, allow)
+        };
 
         // 4. Generate secp256k1 keypair
         let secret_key = SecretKey::generate();
@@ -200,13 +226,13 @@ impl InitCommand {
             .store(DEFAULT_KEY_NAME, &secret_key, &passphrase)
             .map_err(InitError::KeyStorage)?;
 
-        // 6. Create default config.toml
-        write_default_config(&base_dir)?;
+        // 6. Create config.toml with allow_env_passphrase setting
+        write_init_config(&base_dir, allow_env)?;
 
         // 7. Set file permissions (already done in create_directory_structure and FileKeyStore)
 
         // 8. Display success message with next steps
-        print_success_message(&eth_address_hex);
+        print_success_message(&eth_address_hex, allow_env);
 
         Ok(())
     }
@@ -257,8 +283,8 @@ impl InitCommand {
             .store(DEFAULT_KEY_NAME, &secret_key, passphrase)
             .map_err(InitError::KeyStorage)?;
 
-        // 6. Create default config.toml
-        write_default_config(&base_dir)?;
+        // 6. Create config.toml with allow_env_passphrase setting
+        write_init_config(&base_dir, self.allow_env_passphrase)?;
 
         Ok(eth_address_hex)
     }
@@ -336,14 +362,46 @@ fn create_directory_structure(base_dir: &Path) -> Result<(), InitError> {
     Ok(())
 }
 
-/// Read a new passphrase (from env var or interactive prompt with confirmation).
-fn read_new_passphrase_for_init() -> Result<Zeroizing<String>, InitError> {
-    crate::cli::passphrase::read_new_passphrase().map_err(|e| match e {
+/// Read a new passphrase from the `TXGATE_PASSPHRASE` env var.
+///
+/// Used when `--allow-env-passphrase` is passed. Returns an error if
+/// the env var is not set.
+fn read_new_passphrase_for_init_env() -> Result<Zeroizing<String>, InitError> {
+    if std::env::var(passphrase::ENV_VAR).is_err() {
+        return Err(InitError::EnvPassphraseRequired);
+    }
+    passphrase::read_new_passphrase_inner(true).map_err(map_passphrase_error)
+}
+
+/// Read a new passphrase interactively (ignoring any env var).
+///
+/// Used when `--allow-env-passphrase` is **not** passed.
+fn read_new_passphrase_for_init_interactive() -> Result<Zeroizing<String>, InitError> {
+    passphrase::read_new_passphrase_inner(false).map_err(map_passphrase_error)
+}
+
+/// Map [`PassphraseError`] to [`InitError`].
+fn map_passphrase_error(e: PassphraseError) -> InitError {
+    match e {
         PassphraseError::TooShort { .. } => InitError::PassphraseTooShort,
         PassphraseError::Mismatch => InitError::PassphraseMismatch,
         PassphraseError::Empty | PassphraseError::Cancelled => InitError::PassphraseCancelled,
         PassphraseError::Io(e) => InitError::Io(e),
-    })
+    }
+}
+
+/// Ask the user interactively whether to allow env-var-based passphrase.
+///
+/// Reads a y/n answer from stdin. Defaults to `false` on unrecognised input.
+fn ask_allow_env_passphrase() -> Result<bool, InitError> {
+    print!("Allow reading passphrase from TXGATE_PASSPHRASE env var? [y/N] ");
+    io::stdout().flush()?;
+
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    let answer = answer.trim().to_lowercase();
+
+    Ok(answer == "y" || answer == "yes")
 }
 
 /// Validate a passphrase.
@@ -357,14 +415,20 @@ fn validate_passphrase(passphrase: &str) -> Result<(), InitError> {
     Ok(())
 }
 
-/// Write the default configuration file.
-fn write_default_config(base_dir: &Path) -> Result<(), InitError> {
+/// Write the configuration file with the chosen `allow_env_passphrase` value.
+///
+/// Starts from the hand-crafted default TOML template and uncomments /
+/// updates the `allow_env_passphrase` line to reflect the user's choice.
+fn write_init_config(base_dir: &Path, allow_env_passphrase: bool) -> Result<(), InitError> {
     let config_path = base_dir.join(CONFIG_FILE_NAME);
-    let default_toml = Config::default_toml();
+    let toml = Config::default_toml().replace(
+        "# allow_env_passphrase = false",
+        &format!("allow_env_passphrase = {allow_env_passphrase}"),
+    );
 
     // Write to file
     let mut file = File::create(&config_path)?;
-    file.write_all(default_toml.as_bytes())?;
+    file.write_all(toml.as_bytes())?;
     file.sync_all()?;
 
     // Set file permissions to 0600
@@ -379,11 +443,14 @@ fn write_default_config(base_dir: &Path) -> Result<(), InitError> {
 }
 
 /// Print the success message with next steps.
-fn print_success_message(eth_address: &str) {
+fn print_success_message(eth_address: &str, allow_env: bool) {
     println!();
     println!("TxGate initialized successfully!");
     println!();
     println!("Your Ethereum address: {eth_address}");
+    if allow_env {
+        println!("Env-var passphrase:    enabled (TXGATE_PASSPHRASE)");
+    }
     println!();
     println!("Next steps:");
     println!("  1. Edit configuration: txgate config edit");
@@ -516,7 +583,7 @@ mod tests {
         let temp_dir = create_test_dir();
         let base_dir = temp_dir.path().join("txgate-init-test");
 
-        let cmd = InitCommand::new(false);
+        let cmd = InitCommand::new(false, false);
         let result = cmd.run_with_base_dir(base_dir.clone());
 
         assert!(result.is_ok());
@@ -532,7 +599,7 @@ mod tests {
         let temp_dir = create_test_dir();
         let base_dir = temp_dir.path().join("txgate-addr-test");
 
-        let cmd = InitCommand::new(false);
+        let cmd = InitCommand::new(false, false);
         let result = cmd.run_with_base_dir(base_dir);
 
         assert!(result.is_ok());
@@ -546,7 +613,7 @@ mod tests {
         let temp_dir = create_test_dir();
         let base_dir = temp_dir.path().join("txgate-already-init");
 
-        let cmd = InitCommand::new(false);
+        let cmd = InitCommand::new(false, false);
 
         // First init should succeed
         let result1 = cmd.run_with_base_dir(base_dir.clone());
@@ -563,13 +630,13 @@ mod tests {
         let base_dir = temp_dir.path().join("txgate-force-test");
 
         // First init
-        let cmd1 = InitCommand::new(false);
+        let cmd1 = InitCommand::new(false, false);
         let result1 = cmd1.run_with_base_dir(base_dir.clone());
         assert!(result1.is_ok());
         let address1 = result1.unwrap();
 
         // Second init with force should succeed and generate new key
-        let cmd2 = InitCommand::new(true);
+        let cmd2 = InitCommand::new(true, false);
         let result2 = cmd2.run_with_base_dir(base_dir);
         assert!(result2.is_ok());
         let address2 = result2.unwrap();
@@ -588,7 +655,7 @@ mod tests {
         let base_dir = temp_dir.path().to_path_buf();
 
         fs::create_dir_all(&base_dir).expect("should create dir");
-        write_default_config(&base_dir).expect("should write config");
+        write_init_config(&base_dir, false).expect("should write config");
 
         let config_path = base_dir.join(CONFIG_FILE_NAME);
         assert!(config_path.exists());
@@ -606,7 +673,7 @@ mod tests {
         let base_dir = temp_dir.path().to_path_buf();
 
         fs::create_dir_all(&base_dir).expect("should create dir");
-        write_default_config(&base_dir).expect("should write config");
+        write_init_config(&base_dir, false).expect("should write config");
 
         let config_path = base_dir.join(CONFIG_FILE_NAME);
         let perms = fs::metadata(&config_path)
@@ -694,7 +761,7 @@ mod tests {
         let temp_dir = create_test_dir();
         let base_dir = temp_dir.path().join("txgate-key-test");
 
-        let cmd = InitCommand::new(false);
+        let cmd = InitCommand::new(false, false);
         cmd.run_with_base_dir(base_dir.clone())
             .expect("init should succeed");
 
@@ -711,7 +778,7 @@ mod tests {
         let temp_dir = create_test_dir();
         let base_dir = temp_dir.path().join("txgate-wrong-pass-test");
 
-        let cmd = InitCommand::new(false);
+        let cmd = InitCommand::new(false, false);
         cmd.run_with_base_dir(base_dir.clone())
             .expect("init should succeed");
 
@@ -740,5 +807,77 @@ mod tests {
         assert!(base_dir.exists());
         assert!(base_dir.join(KEYS_DIR_NAME).exists());
         assert!(base_dir.join(LOGS_DIR_NAME).exists());
+    }
+
+    // ------------------------------------------------------------------------
+    // write_init_config Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_write_init_config_true() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+
+        fs::create_dir_all(&base_dir).expect("should create dir");
+        write_init_config(&base_dir, true).expect("should write config");
+
+        let content =
+            fs::read_to_string(base_dir.join(CONFIG_FILE_NAME)).expect("should read config");
+        assert!(content.contains("allow_env_passphrase = true"));
+        assert!(!content.contains("# allow_env_passphrase"));
+    }
+
+    #[test]
+    fn test_write_init_config_false() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().to_path_buf();
+
+        fs::create_dir_all(&base_dir).expect("should create dir");
+        write_init_config(&base_dir, false).expect("should write config");
+
+        let content =
+            fs::read_to_string(base_dir.join(CONFIG_FILE_NAME)).expect("should read config");
+        assert!(content.contains("allow_env_passphrase = false"));
+        assert!(!content.contains("# allow_env_passphrase"));
+    }
+
+    #[test]
+    fn test_init_with_allow_env_writes_config_true() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().join("txgate-env-config-test");
+
+        let cmd = InitCommand::new(false, true);
+        cmd.run_with_base_dir(base_dir.clone())
+            .expect("init should succeed");
+
+        let content =
+            fs::read_to_string(base_dir.join(CONFIG_FILE_NAME)).expect("should read config");
+        assert!(content.contains("allow_env_passphrase = true"));
+    }
+
+    #[test]
+    fn test_init_without_allow_env_writes_config_false() {
+        let temp_dir = create_test_dir();
+        let base_dir = temp_dir.path().join("txgate-no-env-config-test");
+
+        let cmd = InitCommand::new(false, false);
+        cmd.run_with_base_dir(base_dir.clone())
+            .expect("init should succeed");
+
+        let content =
+            fs::read_to_string(base_dir.join(CONFIG_FILE_NAME)).expect("should read config");
+        assert!(content.contains("allow_env_passphrase = false"));
+    }
+
+    // ------------------------------------------------------------------------
+    // Error Variant Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_init_error_env_passphrase_required() {
+        assert_eq!(
+            InitError::EnvPassphraseRequired.to_string(),
+            "--allow-env-passphrase requires TXGATE_PASSPHRASE to be set"
+        );
     }
 }

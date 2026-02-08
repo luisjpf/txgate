@@ -17,7 +17,7 @@
 //! let cli = Cli::parse();
 //!
 //! match cli.command {
-//!     Commands::Init { force } => {
+//!     Commands::Init { force, allow_env_passphrase } => {
 //!         // Handle init command
 //!     }
 //!     Commands::Status => {
@@ -30,7 +30,7 @@
 //!
 //! ## Commands
 //!
-//! - `txgate init [--force]` - Initialize `TxGate` configuration
+//! - `txgate init [--force] [--allow-env-passphrase]` - Initialize `TxGate` configuration
 //! - `txgate status` - Display current status
 //! - `txgate config [edit|path]` - View or edit configuration
 //! - `txgate serve [--foreground]` - Start the signing server

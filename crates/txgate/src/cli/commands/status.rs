@@ -503,10 +503,15 @@ mod tests {
         // Create directories
         fs::create_dir_all(base_dir.join(KEYS_DIR_NAME)).expect("failed to create keys dir");
 
-        // Create default config
+        // Create config with socket_path inside the temp dir so the test
+        // doesn't accidentally detect a real running server at ~/.txgate/.
         let config_path = base_dir.join(CONFIG_FILE_NAME);
-        let default_config = Config::default_toml();
-        fs::write(&config_path, default_config).expect("failed to write config");
+        let socket_path = base_dir.join("txgate.sock");
+        let config = Config::default_toml().replace(
+            "socket_path = \"~/.txgate/txgate.sock\"",
+            &format!("socket_path = \"{}\"", socket_path.display()),
+        );
+        fs::write(&config_path, config).expect("failed to write config");
 
         // Create a default key file (mock)
         let key_path = base_dir.join(KEYS_DIR_NAME).join("default.enc");
