@@ -1,6 +1,9 @@
 [server]
 socket_path = "~/.txgate/txgate.sock"
 timeout_secs = 30
+# Allow reading passphrases from TXGATE_PASSPHRASE env var.
+# Enables autonomous/headless signing. Use with caution.
+# allow_env_passphrase = false
 
 [keys]
 directory = "~/.txgate/keys"

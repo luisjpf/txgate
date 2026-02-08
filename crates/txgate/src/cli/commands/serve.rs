@@ -236,22 +236,67 @@ fn check_initialized(base_dir: &Path) -> Result<(), ServeError> {
 }
 
 /// Load configuration from the base directory.
+///
+/// Uses [`ConfigLoader`] to read and parse `config.toml`. Returns
+/// default configuration when no file exists.
 fn load_config(base_dir: &Path) -> Result<ServeConfig, ServeError> {
-    let config_path = base_dir.join("config.toml");
+    let loader = txgate_core::config_loader::ConfigLoader::with_base_dir(base_dir.to_path_buf());
 
-    if config_path.exists() {
-        // Load config from file
-        let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| ServeError::ConfigError(format!("failed to read config file: {e}")))?;
-
-        // Parse TOML (for now, we just acknowledge it exists and use defaults)
-        // A full implementation would parse the TOML into PolicyConfig
-        let _ = content;
-        tracing::debug!(config_path = %config_path.display(), "Config file found");
+    if !loader.exists() {
+        return Ok(ServeConfig::default());
     }
 
-    // Return default config for now
-    Ok(ServeConfig::default())
+    let config = loader
+        .load()
+        .map_err(|e| ServeError::ConfigError(format!("failed to load config: {e}")))?;
+
+    tracing::debug!(config_path = %loader.config_path().display(), "Config file loaded");
+
+    // Warn if allow_env_passphrase is enabled and config file is writable
+    if config.server.allow_env_passphrase {
+        warn_if_config_writable(&loader.config_path());
+    }
+
+    Ok(ServeConfig {
+        policy: config.policy,
+    })
+}
+
+/// Warn if the config file has insecure permissions.
+///
+/// When `allow_env_passphrase` is enabled, a writable config file is a
+/// security concern: an attacker with write access could flip the flag
+/// to enable autonomous signing. Group/other write bits are especially
+/// dangerous since other users on the system could modify the config.
+#[cfg(unix)]
+fn warn_if_config_writable(config_path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    if let Ok(metadata) = std::fs::metadata(config_path) {
+        let mode = metadata.permissions().mode();
+        // Group/other writable is a serious concern — other users could
+        // modify the config to enable autonomous signing.
+        if mode & 0o022 != 0 {
+            eprintln!(
+                "Warning: allow_env_passphrase is enabled and config.toml is writable by \
+                 group or other users.\n\
+                 An attacker could enable autonomous signing by modifying the config.\n\
+                 Restrict permissions immediately: chmod 600 {}",
+                config_path.display()
+            );
+        } else if mode & 0o200 != 0 {
+            // Owner-writable is the normal default; suggest hardening.
+            eprintln!(
+                "Note: allow_env_passphrase is enabled. For defense-in-depth, consider \
+                 making config.toml read-only (chmod 400)."
+            );
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn warn_if_config_writable(_config_path: &Path) {
+    // File permission checks are Unix-specific
 }
 
 /// Read the passphrase (from env var or interactive prompt).
@@ -524,7 +569,7 @@ mod tests {
                 // Assert: Should fail with config error
                 assert!(result.is_err());
                 if let Err(ServeError::ConfigError(msg)) = result {
-                    assert!(msg.contains("failed to read config file"));
+                    assert!(msg.contains("failed to load config"));
                 }
 
                 // Cleanup: Restore permissions so temp_dir can be deleted
@@ -592,6 +637,35 @@ mod tests {
 
             // Assert: Should succeed
             assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_load_config_with_allow_env_passphrase_true() {
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            let config_path = base_dir.join("config.toml");
+            fs::write(&config_path, "[server]\nallow_env_passphrase = true\n")
+                .expect("failed to write config");
+
+            let result = load_config(base_dir);
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn should_return_error_for_invalid_toml() {
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let base_dir = temp_dir.path();
+
+            let config_path = base_dir.join("config.toml");
+            fs::write(&config_path, "this is not valid toml {{{}}")
+                .expect("failed to write config");
+
+            let result = load_config(base_dir);
+            assert!(result.is_err());
+            if let Err(ServeError::ConfigError(msg)) = result {
+                assert!(msg.contains("failed to load config"));
+            }
         }
     }
 
@@ -751,6 +825,42 @@ mod tests {
             let config = ServeConfig::default();
             let debug = format!("{:?}", config);
             assert!(debug.contains("ServeConfig"));
+        }
+    }
+
+    mod writability_warning_tests {
+        use super::*;
+
+        #[test]
+        #[cfg(unix)]
+        fn test_warn_if_config_writable_does_not_panic() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let temp_dir = TempDir::new().expect("failed to create temp dir");
+            let config_path = temp_dir.path().join("config.toml");
+            fs::write(&config_path, "[server]\nallow_env_passphrase = true\n")
+                .expect("failed to write config");
+
+            // Owner-writable (0o644) — should print "Note" (not panic)
+            warn_if_config_writable(&config_path);
+
+            // Group-writable (0o664) — should print "Warning" (not panic)
+            let mut perms = fs::metadata(&config_path).expect("metadata").permissions();
+            perms.set_mode(0o664);
+            fs::set_permissions(&config_path, perms).expect("set perms");
+            warn_if_config_writable(&config_path);
+
+            // Read-only (0o400) — should print nothing (not panic)
+            perms = fs::metadata(&config_path).expect("metadata").permissions();
+            perms.set_mode(0o400);
+            fs::set_permissions(&config_path, perms).expect("set perms");
+            warn_if_config_writable(&config_path);
+        }
+
+        #[test]
+        fn test_warn_if_config_writable_nonexistent_file() {
+            // Should not panic when file doesn't exist
+            warn_if_config_writable(Path::new("/tmp/nonexistent-txgate-config.toml"));
         }
     }
 

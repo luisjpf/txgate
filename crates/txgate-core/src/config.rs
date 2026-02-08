@@ -150,6 +150,18 @@ pub struct ServerConfig {
     /// Default: 30 seconds
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+
+    /// Allow reading passphrases from environment variables.
+    ///
+    /// When `true`, the `TXGATE_PASSPHRASE` environment variable is accepted
+    /// for non-interactive key unlocking. This enables autonomous/headless
+    /// signing but carries security risks — environment variables may be
+    /// visible to other processes on the same system (e.g. via
+    /// `/proc/<pid>/environ` on Linux).
+    ///
+    /// Default: `false`
+    #[serde(default)]
+    pub allow_env_passphrase: bool,
 }
 
 impl Default for ServerConfig {
@@ -157,6 +169,7 @@ impl Default for ServerConfig {
         Self {
             socket_path: default_socket_path(),
             timeout_secs: default_timeout(),
+            allow_env_passphrase: false,
         }
     }
 }
@@ -688,6 +701,9 @@ impl Config {
         r#"[server]
 socket_path = "~/.txgate/txgate.sock"
 timeout_secs = 30
+# Allow reading passphrases from TXGATE_PASSPHRASE env var.
+# Enables autonomous/headless signing. Use with caution.
+# allow_env_passphrase = false
 
 [keys]
 directory = "~/.txgate/keys"
@@ -876,6 +892,7 @@ mod tests {
 
         assert_eq!(config.socket_path, "~/.txgate/txgate.sock");
         assert_eq!(config.timeout_secs, 30);
+        assert!(!config.allow_env_passphrase);
     }
 
     #[test]
@@ -883,10 +900,37 @@ mod tests {
         let config = ServerConfig {
             socket_path: "/var/run/txgate.sock".to_string(),
             timeout_secs: 60,
+            allow_env_passphrase: false,
         };
 
         assert_eq!(config.socket_path, "/var/run/txgate.sock");
         assert_eq!(config.timeout_secs, 60);
+    }
+
+    #[test]
+    fn test_allow_env_passphrase_defaults_false() {
+        let toml_str = r#"
+            [server]
+            socket_path = "/tmp/txgate.sock"
+        "#;
+        let config: Config = toml::from_str(toml_str).expect("valid TOML");
+        assert!(!config.server.allow_env_passphrase);
+    }
+
+    #[test]
+    fn test_allow_env_passphrase_round_trip() {
+        let mut config = Config::default();
+        config.server.allow_env_passphrase = true;
+
+        let toml_str = toml::to_string(&config).expect("serialization");
+        let deserialized: Config = toml::from_str(&toml_str).expect("deserialization");
+        assert!(deserialized.server.allow_env_passphrase);
+    }
+
+    #[test]
+    fn test_default_toml_contains_allow_env_passphrase() {
+        let toml = Config::default_toml();
+        assert!(toml.contains("allow_env_passphrase"));
     }
 
     // -------------------------------------------------------------------------
