@@ -163,8 +163,8 @@ impl InitCommand {
     ///
     /// This method:
     /// 1. Checks if already initialized (unless --force)
-    /// 2. Creates ~/.txgate directory structure
-    /// 3. Prompts for passphrase (with confirmation)
+    /// 2. Obtains the passphrase (env var or interactive prompt)
+    /// 3. Creates ~/.txgate directory structure
     /// 4. Generates secp256k1 keypair
     /// 5. Encrypts and stores key
     /// 6. Creates default config.toml
@@ -187,10 +187,9 @@ impl InitCommand {
             return Err(InitError::AlreadyInitialized);
         }
 
-        // 2. Create ~/.txgate directory structure
-        create_directory_structure(&base_dir)?;
-
-        // 3. Get passphrase and resolve allow_env setting
+        // 2. Get passphrase and resolve allow_env setting before touching
+        //    the filesystem, so a missing env var or cancelled prompt leaves
+        //    no partial ~/.txgate behind
         let (passphrase, allow_env) = if self.allow_env_passphrase {
             // Flag set: read from env var (error if not set)
             let p = read_new_passphrase_for_init_env()?;
@@ -201,6 +200,9 @@ impl InitCommand {
             let allow = ask_allow_env_passphrase()?;
             (p, allow)
         };
+
+        // 3. Create ~/.txgate directory structure
+        create_directory_structure(&base_dir)?;
 
         // 4. Generate secp256k1 keypair
         let secret_key = SecretKey::generate();
@@ -375,8 +377,18 @@ fn read_new_passphrase_for_init_env() -> Result<Zeroizing<String>, InitError> {
 
 /// Read a new passphrase interactively (ignoring any env var).
 ///
-/// Used when `--allow-env-passphrase` is **not** passed.
+/// Used when `--allow-env-passphrase` is **not** passed. If the env var is
+/// set, it is cleared up front with an init-specific notice (there is no
+/// config yet, so the generic "false in config" warning would be misleading).
 fn read_new_passphrase_for_init_interactive() -> Result<Zeroizing<String>, InitError> {
+    if std::env::var_os(passphrase::ENV_VAR).is_some() {
+        passphrase::clear_env_var(passphrase::ENV_VAR);
+        eprintln!(
+            "Note: {} is set but ignored without --allow-env-passphrase. \
+             Prompting for passphrase.",
+            passphrase::ENV_VAR
+        );
+    }
     passphrase::read_new_passphrase_inner(false).map_err(map_passphrase_error)
 }
 
