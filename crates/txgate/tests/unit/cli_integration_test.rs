@@ -20,11 +20,23 @@ use txgate::cli::{Cli, Commands, ConfigAction, EthereumCommands, OutputFormat};
 fn test_cli_command_dispatch() {
     // Test init command
     let cli = Cli::try_parse_from(["txgate", "init"]).expect("should parse");
-    assert!(matches!(cli.command, Commands::Init { force: false }));
+    assert!(matches!(
+        cli.command,
+        Commands::Init {
+            force: false,
+            allow_env_passphrase: false
+        }
+    ));
 
     // Test init with force
     let cli = Cli::try_parse_from(["txgate", "init", "--force"]).expect("should parse");
-    assert!(matches!(cli.command, Commands::Init { force: true }));
+    assert!(matches!(
+        cli.command,
+        Commands::Init {
+            force: true,
+            allow_env_passphrase: false
+        }
+    ));
 
     // Test status command
     let cli = Cli::try_parse_from(["txgate", "status"]).expect("should parse");

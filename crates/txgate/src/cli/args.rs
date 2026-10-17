@@ -68,6 +68,18 @@ pub enum Commands {
         /// Warning: This will overwrite any existing configuration.
         #[arg(short, long)]
         force: bool,
+
+        /// Allow reading passphrases from `TXGATE_PASSPHRASE` env var
+        ///
+        /// When set, the passphrase is read from the `TXGATE_PASSPHRASE`
+        /// environment variable for fully non-interactive initialization.
+        /// The generated config will have `allow_env_passphrase = true`.
+        ///
+        /// Without this flag, initialization is interactive: the user is
+        /// prompted for a passphrase and then asked whether to enable
+        /// env-var-based passphrase reading.
+        #[arg(long)]
+        allow_env_passphrase: bool,
     },
 
     /// Display current status
@@ -480,7 +492,13 @@ mod tests {
         let cli = Cli::try_parse_from(["txgate", "init"]);
         assert!(cli.is_ok(), "Failed to parse 'init': {:?}", cli.err());
         let cli = cli.expect("CLI should parse");
-        assert!(matches!(cli.command, Commands::Init { force: false }));
+        assert!(matches!(
+            cli.command,
+            Commands::Init {
+                force: false,
+                allow_env_passphrase: false
+            }
+        ));
     }
 
     /// Test parsing of the init command with force flag.
@@ -493,7 +511,47 @@ mod tests {
             cli.err()
         );
         let cli = cli.expect("CLI should parse");
-        assert!(matches!(cli.command, Commands::Init { force: true }));
+        assert!(matches!(
+            cli.command,
+            Commands::Init {
+                force: true,
+                allow_env_passphrase: false
+            }
+        ));
+    }
+
+    /// Test parsing of the init command with `--allow-env-passphrase` flag.
+    #[test]
+    fn test_parse_init_allow_env_passphrase() {
+        let cli = Cli::try_parse_from(["txgate", "init", "--allow-env-passphrase"]);
+        assert!(
+            cli.is_ok(),
+            "Failed to parse 'init --allow-env-passphrase': {:?}",
+            cli.err()
+        );
+        let cli = cli.expect("CLI should parse");
+        assert!(matches!(
+            cli.command,
+            Commands::Init {
+                force: false,
+                allow_env_passphrase: true
+            }
+        ));
+    }
+
+    /// Test parsing of the init command with both flags.
+    #[test]
+    fn test_parse_init_force_and_allow_env() {
+        let cli = Cli::try_parse_from(["txgate", "init", "--force", "--allow-env-passphrase"]);
+        assert!(cli.is_ok());
+        let cli = cli.expect("CLI should parse");
+        assert!(matches!(
+            cli.command,
+            Commands::Init {
+                force: true,
+                allow_env_passphrase: true
+            }
+        ));
     }
 
     /// Test parsing of the status command.

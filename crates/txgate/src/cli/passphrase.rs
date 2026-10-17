@@ -349,7 +349,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 /// (see [rust#27970](https://github.com/rust-lang/rust/issues/27970)). When
 /// upgrading, this call site will need an `unsafe` block with a safety comment
 /// justifying single-threaded access.
-fn clear_env_var(var: &str) {
+pub(crate) fn clear_env_var(var: &str) {
     // Called during single-threaded startup before spawning
     // the tokio runtime, so there are no concurrent readers.
     std::env::remove_var(var);

@@ -82,8 +82,11 @@ fn main() {
 
     // Dispatch to command handlers
     let result = match cli.command {
-        Commands::Init { force } => {
-            let cmd = InitCommand::new(force);
+        Commands::Init {
+            force,
+            allow_env_passphrase,
+        } => {
+            let cmd = InitCommand::new(force, allow_env_passphrase);
             cmd.run().map_err(|e| e.to_string())
         }
         Commands::Status => {
